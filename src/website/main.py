@@ -93,12 +93,14 @@ async def _lifespan(app: FastAPI):  # noqa: ARG001
     from website.database import _get_db_path
 
     _UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
-    con = duckdb.connect(_get_db_path())
-    try:
-        run_migrations(con)
-    finally:
-        con.close()
+    db_path = _get_db_path()
+    if db_path != ":memory:":
+        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    con = duckdb.connect(db_path)
+    run_migrations(con)
+    app.state.db = con
     yield
+    con.close()
 
 
 app = FastAPI(lifespan=_lifespan)

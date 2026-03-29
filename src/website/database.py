@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Generator
 
 import duckdb
+from fastapi import Request
 
 _DATA_DIR = Path("data")
 _DB_PATH = _DATA_DIR / "app.duckdb"
@@ -39,13 +40,14 @@ def run_migrations(con: duckdb.DuckDBPyConnection) -> None:
             )
 
 
-def get_db() -> Generator[duckdb.DuckDBPyConnection, None, None]:
-    """Yield a per-request DuckDB connection; always closed after the request."""
-    db_path = _get_db_path()
-    if db_path != ":memory:":
-        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-    con = duckdb.connect(db_path)
+def get_db(request: Request) -> Generator[duckdb.DuckDBPyConnection, None, None]:
+    """Yield a per-request DuckDB cursor from the application's shared connection.
+
+    Using a cursor() avoids opening a second OS-level file lock per request,
+    which would cause 'file being used by another process' errors on Windows.
+    """
+    cursor = request.app.state.db.cursor()
     try:
-        yield con
+        yield cursor
     finally:
-        con.close()
+        cursor.close()

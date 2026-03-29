@@ -1,44 +1,52 @@
 """Tests for database connection factory and migration runner."""
 
+import types
+
 import duckdb
 import pytest
 
 from website.database import get_db, run_migrations
 
 
+def _make_request_with_db(con: duckdb.DuckDBPyConnection) -> object:
+    """Build a minimal mock Request whose app.state.db is *con*."""
+    state = types.SimpleNamespace(db=con)
+    app = types.SimpleNamespace(state=state)
+    return types.SimpleNamespace(app=app)
+
+
 class TestGetDb:
     def test_yields_connection(self) -> None:
-        # Use the in-memory path so we don't touch data/
-        import os
-
-        os.environ["DATABASE_URL"] = ":memory:"
+        con = duckdb.connect(":memory:")
+        run_migrations(con)
+        request = _make_request_with_db(con)
         try:
-            gen2 = get_db()
-            con = next(gen2)
-            assert isinstance(con, duckdb.DuckDBPyConnection)
-            try:
-                next(gen2)
-            except StopIteration:
-                pass
-        finally:
-            del os.environ["DATABASE_URL"]
-
-    def test_connection_closes_after_use(self) -> None:
-        import os
-
-        os.environ["DATABASE_URL"] = ":memory:"
-        try:
-            gen = get_db()
-            con = next(gen)
+            gen = get_db(request)  # type: ignore[arg-type]
+            cursor = next(gen)
+            assert isinstance(cursor, duckdb.DuckDBPyConnection)
             try:
                 next(gen)
             except StopIteration:
                 pass
-            # After generator exhausted, executing should raise
-            with pytest.raises(Exception):
-                con.execute("SELECT 1")
         finally:
-            del os.environ["DATABASE_URL"]
+            con.close()
+
+    def test_connection_closes_after_use(self) -> None:
+        con = duckdb.connect(":memory:")
+        run_migrations(con)
+        request = _make_request_with_db(con)
+        try:
+            gen = get_db(request)  # type: ignore[arg-type]
+            cursor = next(gen)
+            try:
+                next(gen)
+            except StopIteration:
+                pass
+            # After generator exhausted the cursor should be closed
+            with pytest.raises(Exception):
+                cursor.execute("SELECT 1")
+        finally:
+            con.close()
 
 
 class TestRunMigrations:
