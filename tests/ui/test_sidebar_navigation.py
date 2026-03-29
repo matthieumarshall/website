@@ -17,10 +17,9 @@ class TestSidebarNavigation:
             "Home / News",
             "Results",
             "Entries",
-            "History",
-            "Documentation",
+            "Rules and Constitution",
+            "Administration",
             "Fixtures",
-            "Events",
         ]
         for name in expected_names:
             link = browser.query_selector(
@@ -69,37 +68,41 @@ class TestSidebarNavigation:
         assert active_link is not None
         assert active_link.get_attribute("href") == "/entries"
 
-    def test_navigate_to_history(self, browser):
-        """Clicking History navigates to /history"""
+    def test_navigate_to_rules_and_constitution(self, browser):
+        """Clicking Rules and Constitution navigates to /rules-and-constitution"""
         browser.goto("http://localhost:8000/news")
-        browser.click("nav[aria-label='Main navigation'] a:has-text('History')")
-        browser.wait_for_url("**/history")
-        assert "/history" in browser.url
+        browser.click(
+            "nav[aria-label='Main navigation'] a:has-text('Rules and Constitution')"
+        )
+        browser.wait_for_url("**/rules-and-constitution")
+        assert "/rules-and-constitution" in browser.url
 
-    def test_history_link_is_active_on_history_page(self, browser):
-        """The History link has the active class on /history"""
-        browser.goto("http://localhost:8000/history")
+    def test_rules_and_constitution_link_is_active_on_rules_and_constitution_page(
+        self, browser
+    ):
+        """The Rules and Constitution link has the active class on /rules-and-constitution"""
+        browser.goto("http://localhost:8000/rules-and-constitution")
         active_link = browser.query_selector(
             "nav[aria-label='Main navigation'] a.active"
         )
         assert active_link is not None
-        assert active_link.get_attribute("href") == "/history"
+        assert active_link.get_attribute("href") == "/rules-and-constitution"
 
-    def test_navigate_to_documentation(self, browser):
-        """Clicking Documentation navigates to /documentation"""
+    def test_navigate_to_administration(self, browser):
+        """Clicking Administration navigates to /administration"""
         browser.goto("http://localhost:8000/news")
-        browser.click("nav[aria-label='Main navigation'] a:has-text('Documentation')")
-        browser.wait_for_url("**/documentation")
-        assert "/documentation" in browser.url
+        browser.click("nav[aria-label='Main navigation'] a:has-text('Administration')")
+        browser.wait_for_url("**/administration")
+        assert "/administration" in browser.url
 
-    def test_documentation_link_is_active_on_documentation_page(self, browser):
-        """The Documentation link has the active class on /documentation"""
-        browser.goto("http://localhost:8000/documentation")
+    def test_administration_link_is_active_on_administration_page(self, browser):
+        """The Administration link has the active class on /administration"""
+        browser.goto("http://localhost:8000/administration")
         active_link = browser.query_selector(
             "nav[aria-label='Main navigation'] a.active"
         )
         assert active_link is not None
-        assert active_link.get_attribute("href") == "/documentation"
+        assert active_link.get_attribute("href") == "/administration"
 
     def test_navigate_to_fixtures(self, browser):
         """Clicking Fixtures navigates to /fixtures"""
@@ -117,22 +120,6 @@ class TestSidebarNavigation:
         assert active_link is not None
         assert active_link.get_attribute("href") == "/fixtures"
 
-    def test_navigate_to_events(self, browser):
-        """Clicking Events navigates to /events"""
-        browser.goto("http://localhost:8000/news")
-        browser.click("nav[aria-label='Main navigation'] a:has-text('Events')")
-        browser.wait_for_url("**/events")
-        assert "/events" in browser.url
-
-    def test_events_link_is_active_on_events_page(self, browser):
-        """The Events link has the active class on /events"""
-        browser.goto("http://localhost:8000/events")
-        active_link = browser.query_selector(
-            "nav[aria-label='Main navigation'] a.active"
-        )
-        assert active_link is not None
-        assert active_link.get_attribute("href") == "/events"
-
     def test_sidebar_visible_on_login_page(self, browser):
         """Sidebar renders on the login page"""
         browser.goto("http://localhost:8000/login")
@@ -145,10 +132,9 @@ class TestSidebarNavigation:
             "/news",
             "/results",
             "/entries",
-            "/history",
-            "/documentation",
+            "/rules-and-constitution",
+            "/administration",
             "/fixtures",
-            "/events",
         ]:
             browser.goto(f"http://localhost:8000{route}")
             active_links = browser.query_selector_all(

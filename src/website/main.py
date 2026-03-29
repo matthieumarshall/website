@@ -75,10 +75,13 @@ SIDEBAR_ITEMS: list[dict[str, str]] = [
     {"name": "Home / News", "route": "/news", "page": "news"},
     {"name": "Results", "route": "/results", "page": "results"},
     {"name": "Entries", "route": "/entries", "page": "entries"},
-    {"name": "History", "route": "/history", "page": "history"},
-    {"name": "Documentation", "route": "/documentation", "page": "documentation"},
+    {
+        "name": "Rules and Constitution",
+        "route": "/rules-and-constitution",
+        "page": "rules_and_constitution",
+    },
+    {"name": "Administration", "route": "/administration", "page": "administration"},
     {"name": "Fixtures", "route": "/fixtures", "page": "fixtures"},
-    {"name": "Events", "route": "/events", "page": "events"},
 ]
 
 
@@ -147,15 +150,17 @@ def entries(request: Request) -> HTMLResponse:
     return templates.TemplateResponse("entries.html", _page_context(request, "entries"))
 
 
-@app.get("/history", response_class=HTMLResponse)
-def history(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse("history.html", _page_context(request, "history"))
-
-
-@app.get("/documentation", response_class=HTMLResponse)
-def documentation(request: Request) -> HTMLResponse:
+@app.get("/rules-and-constitution", response_class=HTMLResponse)
+def rules_and_constitution(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
-        "documentation.html", _page_context(request, "documentation")
+        "rules_and_constitution.html", _page_context(request, "rules_and_constitution")
+    )
+
+
+@app.get("/administration", response_class=HTMLResponse)
+def administration(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(
+        "administration.html", _page_context(request, "administration")
     )
 
 
@@ -164,11 +169,6 @@ def fixtures(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
         "fixtures.html", _page_context(request, "fixtures")
     )
-
-
-@app.get("/events", response_class=HTMLResponse)
-def events(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse("events.html", _page_context(request, "events"))
 
 
 @app.get("/login", response_class=HTMLResponse)
