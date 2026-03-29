@@ -64,7 +64,7 @@ class TestSidebarItems:
         assert isinstance(SIDEBAR_ITEMS, list)
 
     def test_sidebar_items_has_seven_entries(self):
-        assert len(SIDEBAR_ITEMS) == 7
+        assert len(SIDEBAR_ITEMS) == 6
 
     def test_all_items_have_required_fields(self):
         for item in SIDEBAR_ITEMS:
@@ -88,10 +88,9 @@ class TestSidebarItems:
             "news",
             "results",
             "entries",
-            "history",
-            "documentation",
+            "rules_and_constitution",
+            "administration",
             "fixtures",
-            "events",
         }
         assert pages == expected
 
@@ -116,10 +115,9 @@ class TestNewPageRoutes:
         ("news", "/news"),
         ("results", "/results"),
         ("entries", "/entries"),
-        ("history", "/history"),
-        ("documentation", "/documentation"),
+        ("rules_and_constitution", "/rules-and-constitution"),
+        ("administration", "/administration"),
         ("fixtures", "/fixtures"),
-        ("events", "/events"),
     ]
 
     def test_news_page_loads(self, test_client):
@@ -131,17 +129,11 @@ class TestNewPageRoutes:
     def test_entries_page_loads(self, test_client):
         assert test_client.get("/entries").status_code == 200
 
-    def test_history_page_loads(self, test_client):
-        assert test_client.get("/history").status_code == 200
+    def test_rules_and_constitution_page_loads(self, test_client):
+        assert test_client.get("/rules-and-constitution").status_code == 200
 
-    def test_documentation_page_loads(self, test_client):
-        assert test_client.get("/documentation").status_code == 200
-
-    def test_fixtures_page_loads(self, test_client):
-        assert test_client.get("/fixtures").status_code == 200
-
-    def test_events_page_loads(self, test_client):
-        assert test_client.get("/events").status_code == 200
+    def test_administration_page_loads(self, test_client):
+        assert test_client.get("/administration").status_code == 200
 
     def test_all_pages_return_html(self, test_client):
         for _, route in self._pages:
