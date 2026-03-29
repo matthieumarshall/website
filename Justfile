@@ -14,3 +14,12 @@ lint:
 # Start the development server with auto-reload.
 serve:
     uv run uvicorn website.main:app --reload
+
+test-ui:
+    uv run pytest tests/ui -v
+
+test-unit:
+    uv run pytest tests/unit -v --tb=short
+
+test:
+    uv run pytest tests/ -v --tb=short

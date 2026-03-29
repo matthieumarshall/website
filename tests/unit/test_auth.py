@@ -49,4 +49,3 @@ class TestAuthFunctions:
 
         # Different hashes due to random salt in bcrypt
         assert hash1 != hash2
-

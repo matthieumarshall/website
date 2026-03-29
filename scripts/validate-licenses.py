@@ -5,24 +5,32 @@ import json
 import sys
 
 # Permissive license whitelist
+# pip-licenses reports varying string forms for the same license,
+# so we include both SPDX identifiers and the full classifier names.
 ALLOWED_LICENSES = {
     "MIT",
+    "MIT License",
     "Apache-2.0",
     "Apache Software License",
     "BSD-2-Clause",
     "BSD-3-Clause",
+    "BSD License",
     "BSD",
     "ISC",
+    "ISC License",
     "LGPL-2.1",
     "LGPL-2.1+",
     "LGPL-3.0",
     "LGPL-3.0+",
     "LGPL-2.1+ or later (or similar)",
     "MPL-2.0",
+    "Mozilla Public License 2.0 (MPL 2.0)",
     "CC0-1.0",
     "CC0",
     "Unlicense",
     "Python-2.0",
+    "PSF-2.0",
+    "Python Software Foundation License",
 }
 
 

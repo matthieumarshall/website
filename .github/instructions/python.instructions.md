@@ -85,3 +85,16 @@ def get_db() -> Generator[duckdb.DuckDBPyConnection, None, None]:
 - Mock the database connection using `monkeypatch` or `pytest` fixtures — never touch `data/` in tests.
 - Aim for one test file per source module (e.g. `test_auth.py` tests `auth.py`).
 - Use `httpx.AsyncClient` with `app` for route-level tests.
+
+## Security & GDPR
+
+| Concern | Rule |
+|---------|------|
+| **Secrets** | Never hardcode fallback secrets as recognisable strings. In production (`PRODUCTION=true`), fail fast if `SECRET_KEY` is unset. |
+| **Session cookie** | `SessionMiddleware` must set `https_only=_IS_PRODUCTION` and `same_site="lax"`. Never hard-code `https_only=False` in production. |
+| **CSRF** | All state-changing POST routes must call `_validate_csrf(request, form_token)`. The CSRF token is obtained via `_get_csrf_token(request)` and injected via `_page_context`. |
+| **Security headers** | All responses must pass through `SecurityHeadersMiddleware` (CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, HSTS in prod). |
+| **Privacy** | The site must expose a `/privacy-policy` route. Any new data collection must be documented there and in this file. |
+| **Open redirect** | Never redirect to a user-supplied or header-supplied URL without validating it is a path-relative URL on our own origin (use `_safe_referer_path`). |
+| **PII logging** | Never log passwords, session tokens, or IP addresses. |
+| **Bandit** | All Python code must pass `bandit -r src/ -ll`. Add `# nosec B<code>` with an explanation only when a finding is a confirmed false positive. |

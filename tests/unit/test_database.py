@@ -48,4 +48,3 @@ class TestDatabase:
     def test_transaction_isolation(self, test_db):
         """Test transaction isolation between sessions"""
         pass
-

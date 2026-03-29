@@ -33,9 +33,14 @@ class TestHomeRoute:
         self, test_client, test_user, test_user_creds
     ):
         """Test home page accessible with authentication"""
-        # Login first
-        response = test_client.post(
-            "/login", data=test_user_creds, follow_redirects=True
+        # GET /login first to establish session and get CSRF token
+        login_page = test_client.get("/login")
+        match = re.search(r'name="csrf_token"\s+value="([^"]+)"', login_page.text)
+        assert match, "No CSRF token found in login form"
+        test_client.post(
+            "/login",
+            data={**test_user_creds, "csrf_token": match.group(1)},
+            follow_redirects=True,
         )
 
         # Navigate to home
@@ -69,9 +74,9 @@ class TestSidebarItems:
 
     def test_all_routes_start_with_slash(self):
         for item in SIDEBAR_ITEMS:
-            assert item["route"].startswith(
-                "/"
-            ), f"Route does not start with /: {item['route']}"
+            assert item["route"].startswith("/"), (
+                f"Route does not start with /: {item['route']}"
+            )
 
     def test_news_is_first_item(self):
         assert SIDEBAR_ITEMS[0]["page"] == "news"
@@ -141,26 +146,26 @@ class TestNewPageRoutes:
     def test_all_pages_return_html(self, test_client):
         for _, route in self._pages:
             response = test_client.get(route)
-            assert "text/html" in response.headers.get(
-                "content-type", ""
-            ), f"{route} did not return HTML"
+            assert "text/html" in response.headers.get("content-type", ""), (
+                f"{route} did not return HTML"
+            )
 
     def test_sidebar_links_rendered_on_all_pages(self, test_client):
         """All sidebar page names appear in each page's HTML"""
         for _, route in self._pages:
             response = test_client.get(route)
             for item in SIDEBAR_ITEMS:
-                assert (
-                    item["name"] in response.text
-                ), f"'{item['name']}' not found in {route} response"
+                assert item["name"] in response.text, (
+                    f"'{item['name']}' not found in {route} response"
+                )
 
     def test_only_one_active_link_per_page(self, test_client):
         """Exactly one sidebar link has the active class on each page"""
         for _, route in self._pages:
             response = test_client.get(route)
-            assert (
-                response.text.count("nav-link active") == 1
-            ), f"Expected exactly one active link on {route}"
+            assert response.text.count("nav-link active") == 1, (
+                f"Expected exactly one active link on {route}"
+            )
 
     def test_correct_link_is_active(self, test_client):
         """The sidebar link for the current page has the active class"""
@@ -172,6 +177,6 @@ class TestNewPageRoutes:
                 response.text,
                 re.DOTALL,
             )
-            assert (
-                match is not None
-            ), f"No active link with href={route} found on {route} page"
+            assert match is not None, (
+                f"No active link with href={route} found on {route} page"
+            )

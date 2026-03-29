@@ -10,7 +10,7 @@ applyTo: "{templates/**/*.html,static/**/*.{js,css}}"
 - **HTMX first**: reach for `hx-*` attributes before writing any JavaScript. Only add a `.js` file when the interaction cannot be expressed with HTMX alone.
 - **Semantic HTML**: use the right element for the job (`<button>`, `<nav>`, `<main>`, `<form>`, etc.) — do not use `<div>` for everything.
 - **Accessibility**: every form control needs a `<label>`. Interactive elements must be keyboard-reachable. Maintain sufficient colour contrast (WCAG 2.1 AA).
-- **No frameworks**: no React, Vue, Alpine, or CSS-in-JS. Keep the stack minimal.
+- **Minimal frameworks**: Minimise React, Vue, Alpine, or CSS-in-JS. Keep the stack minimal.
 
 ## Jinja2 Templates
 
@@ -83,3 +83,11 @@ el.innerHTML = serverProvidedValue;
 - Never reflect user input back into the page without escaping — Jinja2 handles this automatically as long as `| safe` is not used.
 - Set `Content-Security-Policy` in the backend to block inline scripts and restrict `src` origins.
 - Form submissions that change state must include a CSRF token (rendered as a hidden field from the backend).
+
+## GDPR & Privacy
+
+- **No CDN resources**: all CSS, JavaScript, and fonts must be served from `/static/`. Loading resources from external domains (e.g. CDNs) sends user IP addresses to third parties without consent. Always self-host.
+- **No tracking scripts**: do not add analytics, advertising, or telemetry scripts (e.g. Google Analytics, Hotjar) without first updating the privacy policy, adding a consent mechanism, and getting approval.
+- **Cookie notice**: `base.html` renders a cookie notice banner controlled by the `show_cookie_notice` context variable. Do not remove this banner or suppress it without a justified reason.
+- **Privacy policy link**: the footer of `base.html` must always link to `/privacy-policy`. Do not remove this link.
+- **New cookies**: any new cookie set by the backend must be documented in `templates/privacy.html` with its purpose, duration, and legal basis before deployment.

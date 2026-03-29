@@ -2,6 +2,7 @@
 
 import pytest
 import subprocess
+import sys
 import time
 import os
 import string
@@ -45,6 +46,7 @@ def server_process():
     session.add(test_user)
     session.commit()
     session.close()
+    engine.dispose()  # Release all SQLAlchemy connections before starting server
 
     # Start uvicorn server in test mode
     env = os.environ.copy()
@@ -52,7 +54,7 @@ def server_process():
 
     process = subprocess.Popen(
         [
-            "python",
+            sys.executable,
             "-m",
             "uvicorn",
             "website.main:app",
@@ -62,8 +64,8 @@ def server_process():
             "8000",
         ],
         env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
 
     # Wait for server to be ready
@@ -77,6 +79,10 @@ def server_process():
         process.wait(timeout=10)
     except subprocess.TimeoutExpired:
         process.kill()
+        process.wait(timeout=5)
+
+    # Give the OS a moment to release file handles before removing the DB
+    time.sleep(0.5)
 
     # Clean up test database
     if os.path.exists(db_path):

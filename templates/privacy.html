@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Privacy Policy — My Website{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <h1 class="mb-4">Privacy Policy</h1>
+    <p class="text-muted">Last updated: March 2026</p>
+
+    <h2 class="h5 mt-4">What data we collect</h2>
+    <p>
+      We collect only what is strictly necessary to provide this service:
+    </p>
+    <ul>
+      <li>
+        <strong>Username</strong> — stored in your browser session while you are
+        logged in. It is never shared with third parties.
+      </li>
+    </ul>
+    <p>
+      We do not collect email addresses, names, payment information, location
+      data, or any tracking or analytics data.
+    </p>
+
+    <h2 class="h5 mt-4">Cookies</h2>
+    <p>This site uses two cookies:</p>
+    <table class="table table-bordered table-sm">
+      <thead class="table-light">
+        <tr>
+          <th>Cookie</th>
+          <th>Purpose</th>
+          <th>Duration</th>
+          <th>Legal basis</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>session</code></td>
+          <td>Keeps you logged in between page loads (strictly necessary)</td>
+          <td>Expires when you close your browser or log out</td>
+          <td>Strictly necessary — no consent required</td>
+        </tr>
+        <tr>
+          <td><code>cookie_notice_dismissed</code></td>
+          <td>Remembers that you have seen the cookie notice</td>
+          <td>1 year</td>
+          <td>Strictly necessary (functional preference)</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      We do <strong>not</strong> use advertising, analytics, or tracking cookies.
+      No third-party cookies are set by this site.
+    </p>
+
+    <h2 class="h5 mt-4">Third-party services</h2>
+    <p>
+      This website does not load resources from any external domains. All CSS,
+      JavaScript, and fonts are served from this server. Your IP address is
+      therefore never shared with third-party content-delivery networks.
+    </p>
+
+    <h2 class="h5 mt-4">Your rights (UK &amp; EU users)</h2>
+    <p>
+      Under UK GDPR / EU GDPR you have the right to access, correct, or erase
+      personal data we hold about you. Because we only store your username in a
+      temporary session, the simplest way to remove all data is to log out.
+    </p>
+    <p>
+      If you have any privacy questions, please contact the site administrator.
+    </p>
+  </div>
+</div>
+{% endblock %}

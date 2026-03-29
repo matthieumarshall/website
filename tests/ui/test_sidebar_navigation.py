@@ -154,9 +154,9 @@ class TestSidebarNavigation:
             active_links = browser.query_selector_all(
                 "nav[aria-label='Main navigation'] a.active"
             )
-            assert (
-                len(active_links) == 1
-            ), f"Expected exactly 1 active link on {route}, found {len(active_links)}"
+            assert len(active_links) == 1, (
+                f"Expected exactly 1 active link on {route}, found {len(active_links)}"
+            )
 
     def test_sidebar_toggle_visible_on_mobile(self, browser):
         """The sidebar toggle button is visible at mobile viewport width"""

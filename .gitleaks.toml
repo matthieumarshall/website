@@ -5,22 +5,16 @@ verbose = false
 entropy = 3.5
 threshold = 3.5
 
-[[rules]]
-description = "Exclude npm lockfile"
-regex = "^node_modules/"
-tags = ["exclude"]
-
-[[rules]]
-description = "Exclude Python cache"
-regex = "^__pycache__/"
-tags = ["exclude"]
-
-[[rules]]
-description = "Exclude venv"
-regex = "^.venv/"
-tags = ["exclude"]
-
-[[rules]]
-description = "Exclude test database"
-regex = "test_.*\\.db"
-tags = ["exclude"]
+# Global allowlist: paths and regex patterns that should never trigger secret detection.
+# Use [allowlist] (not [[rules]]) for exclusions — [[rules]] entries are detection rules.
+[allowlist]
+  description = "Exclude build artifacts, docs, and test DB filenames"
+  paths = [
+    '''node_modules/''',
+    '''__pycache__/''',
+    '''\.venv/''',
+    '''IMPLEMENTATION_SUMMARY\.md''',
+  ]
+  regexes = [
+    '''test_.*\.db''',
+  ]

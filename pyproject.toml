@@ -17,6 +17,7 @@ dependencies = [
     "sqlalchemy",
     "bcrypt",
     "itsdangerous",
+    "playwright>=1.58.0",
 ]
 
 [project.optional-dependencies]
@@ -33,4 +34,9 @@ dev = [
     "ty",
     "pip-audit>=2.6",
     "pip-licenses>=4.3",
+    "bandit>=1.7",
+]
+
+ci = [
+    "semgrep",
 ]

@@ -1,3 +1,4 @@
+import re
 import string
 import secrets
 import pytest
@@ -82,7 +83,14 @@ def test_user(test_db, test_user_creds):
 @pytest.fixture
 def authenticated_client(test_client, test_user_creds, test_user):
     """Provide TestClient with authenticated session"""
-    # Simulate login to set session
-    response = test_client.post("/login", data=test_user_creds)
+    # GET /login first so the session cookie is created and CSRF token generated
+    login_page = test_client.get("/login")
+    assert login_page.status_code == 200
+    match = re.search(r'name="csrf_token"\s+value="([^"]+)"', login_page.text)
+    assert match, "No CSRF token found in login form"
+    response = test_client.post(
+        "/login",
+        data={**test_user_creds, "csrf_token": match.group(1)},
+    )
     assert response.status_code in [200, 302]  # 302 = redirect after login
     return test_client

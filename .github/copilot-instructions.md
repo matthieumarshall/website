@@ -51,13 +51,16 @@ Follow OWASP Top 10 mitigations by default:
 
 | Concern | Convention in this project |
 |---|---|
-| **Secrets** | All secrets via environment variables. `SECRET_KEY` must be overridden in production; never commit real values. |
+| **Secrets** | All secrets via environment variables. In production (`PRODUCTION=true`) the app will refuse to start if `SECRET_KEY` is unset. Never commit real values. |
 | **Passwords** | bcrypt via `auth.py` (`hash_password` / `verify_password`). Never roll a custom scheme. |
-| **Session cookies** | `SessionMiddleware` with `https_only=True` and `same_site="lax"` in production. |
+| **Session cookies** | `SessionMiddleware` with `https_only=_IS_PRODUCTION` and `same_site="lax"`. The `https_only` flag is env-gated so local dev works over HTTP. |
 | **SQL injection** | DuckDB parameterised queries only (`con.execute(sql, [params])`). Never use f-strings or `%`-formatting in SQL. |
 | **XSS** | Jinja2 auto-escaping is always on. Never use `| safe` on user-supplied data. |
-| **CSRF** | Include a CSRF token for all state-changing forms. |
-| **Security headers** | Set `Content-Security-Policy`, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, and `Strict-Transport-Security` via middleware or a reverse proxy. |
+| **CSRF** | All state-changing POST routes validate a CSRF token via `_validate_csrf(request, form_token)`. Templates receive the token through `_page_context` and render it as `<input type="hidden" name="csrf_token" value="{{ csrf_token }}">`. |
+| **Security headers** | `SecurityHeadersMiddleware` in `main.py` sets CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, and (in production) HSTS on every response. |
+| **No CDN** | All static assets (Bootstrap CSS/JS) are self-hosted under `static/`. Never add CDN links — they leak user IPs to third parties. |
+| **GDPR** | A cookie notice banner is rendered by `base.html` unless dismissed. A `/privacy-policy` route explains data handling. Any new data collection or cookies must be added to `templates/privacy.html` before deployment. See `templates/privacy.html` for the current data inventory. |
+| **SAST** | `bandit -r src/ -ll` must pass with zero findings (or documented `# nosec` suppressions). Runs in pre-commit and CI. |
 | **Dependencies** | Run `uv run pip-audit` before releases to catch known CVEs. |
 | **Input validation** | Validate all user input with Pydantic models or FastAPI's built-in form validation. |
 

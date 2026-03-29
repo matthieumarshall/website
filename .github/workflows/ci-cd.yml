@@ -14,37 +14,35 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.10"
-      
+
       - name: Install uv
         run: pip install uv
-      
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "18"
-      
+
       - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev,test]"
-      
+        run: uv sync --all-extras
+
       - name: Install Node dependencies
         run: npm ci
-      
+
       - name: Ruff lint check
-        run: ruff check .
-      
+        run: uv run ruff check .
+
       - name: Ruff format check
-        run: ruff format --check .
-      
+        run: uv run ruff format --check .
+
       - name: Type check with ty
         run: uv run ty check
-      
+
       - name: HTML validation
         run: npx html-validate "templates/**/*.html"
 
@@ -55,58 +53,72 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+        with:
+          fetch-depth: 0
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.10"
-      
+
       - name: Install uv
         run: pip install uv
-      
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "18"
-      
+
       - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev,test]"
-      
+        run: uv sync --all-extras
+
       - name: Install Node dependencies
         run: npm ci
-      
+
       - name: pip-audit - Check for vulnerable dependencies
         run: |
           echo "Running pip-audit for Python dependency vulnerabilities..."
-          pip-audit || exit 1
-      
+          # Note: CVE-2026-4539 in pygments 2.19.2 (via pytest) has no patch yet.
+          # Requires local access; low risk. Awaiting upstream fix.
+          uv run pip-audit --ignore CVE-2026-4539 || exit 1
+
       - name: gitleaks - Scan for secrets
         uses: gitleaks/gitleaks-action@v2
-      
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: bandit - Python SAST scan
+        run: |
+          echo "Running bandit static analysis..."
+          uv run bandit -r src/ -ll --skip B101 -f json -o bandit-report.json || true
+          uv run bandit -r src/ -ll --skip B101
+
+      - name: semgrep - OWASP & Python rule scan
+        run: |
+          uv run semgrep scan --config p/owasp-top-ten --config p/python src/ --error
+
       - name: Generate SBOM with pip list
         run: |
           echo "Generating SBOM from installed packages..."
-          pip list --format=json > sbom-python.json
+          uv pip list --format=json > sbom-python.json
           echo "✅ Python SBOM generated"
-      
+
       - name: Generate Node.js SBOM
         run: |
           echo "Generating Node.js SBOM..."
           npm list --all --json > sbom-npm.json || true
           echo "✅ Node.js SBOM generated"
-      
+
       - name: Generate pip-licenses report
         run: |
           echo "Generating license report..."
-          pip-licenses --format=json --output-file=licenses.json
-      
+          uv run pip-licenses --format=json --output-file=licenses.json
+
       - name: Validate license compliance
         run: |
           echo "Validating license compliance..."
-          python scripts/validate-licenses.py licenses.json
-      
+          uv run python scripts/validate-licenses.py licenses.json
+
       - name: Upload security artifacts
         uses: actions/upload-artifact@v4
         if: always()
@@ -116,7 +128,21 @@ jobs:
             sbom-python.json
             sbom-npm.json
             licenses.json
+            bandit-report.json
           retention-days: 30
+
+  # Job: Dependency Review — checks new dependencies introduced in a PR for known CVEs
+  # Requires Dependency Graph to be enabled in repo Settings > Code security and analysis
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        continue-on-error: true
 
   # Job 3: Unit Tests (Depends on code-quality)
   unit-tests:
@@ -126,25 +152,23 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.10"
-      
+
       - name: Install uv
         run: pip install uv
-      
+
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev,test]"
-      
+        run: uv sync --all-extras
+
       - name: Run pytest with coverage
         run: |
           echo "Running unit tests with coverage..."
-          pytest --cov=. --cov-report=html --cov-report=json --cov-report=term-missing --tb=short
-      
+          uv run pytest tests/unit/ --cov=. --cov-report=html --cov-report=json --cov-report=term-missing --tb=short
+
       - name: Display coverage summary
         run: |
           python -c "
@@ -154,7 +178,7 @@ jobs:
               total = data['totals']['percent_covered']
               print(f'\n📊 Coverage Summary: {total:.1f}%')
           "
-      
+
       - name: Upload coverage reports
         uses: actions/upload-artifact@v4
         if: always()
@@ -174,36 +198,34 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.10"
-      
+
       - name: Install uv
         run: pip install uv
-      
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "18"
-      
+
       - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev,test]"
-      
+        run: uv sync --all-extras
+
       - name: Install Node dependencies
         run: npm ci
-      
+
       - name: Install Playwright browsers
         run: npx playwright install
-      
+
       - name: Run Playwright tests
         run: |
           echo "Running UI tests..."
-          pytest tests/ui/ -v --tb=short
-      
+          uv run pytest tests/ui/ -v --tb=short
+
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4
         if: always()
@@ -221,45 +243,45 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts/
-      
+
       - name: Create workflow summary
         run: |
           cat >> $GITHUB_STEP_SUMMARY << 'EOF'
           # 🚀 CI/CD Pipeline Results
-          
+
           ## ✅ Pipeline Status
           All checks have completed. Review the artifacts below for detailed reports.
-          
+
           ## 📦 Artifacts Generated
-          
+
           ### Code Quality & Testing
           - **Coverage Report**: `coverage-reports/htmlcov/index.html`
           - **Coverage JSON**: `coverage-reports/coverage.json`
-          
+
           ### Security & Compliance
           - **Python SBOM**: `security-reports/sbom-python.json`
           - **Node.js SBOM**: `security-reports/sbom-npm.json`
           - **License Report**: `security-reports/licenses.json`
-          
+
           ### UI Testing
           - **Playwright Report**: `playwright-reports/index.html`
-          
+
           ## 📊 Artifact Retention
           All artifacts are retained for **30 days** and available for download from the workflow run page.
-          
+
           ## 🔍 Next Steps
           1. Review the coverage report to identify untested code
           2. Check the SBOM for supply chain visibility
           3. Review the license report for compliance
           4. Check Playwright report for UI test results
-          
+
           EOF
-      
+
       - name: Display final status
         run: |
           echo "✅ CI/CD Pipeline completed successfully!"
