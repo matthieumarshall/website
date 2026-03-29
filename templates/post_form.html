@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}{% if post %}Edit Post{% else %}New Post{% endif %} — My Website{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <h1 class="h3">{% if post %}Edit Post{% else %}New Post{% endif %}</h1>
+</div>
+
+<form action="{{ form_action }}" method="post" id="post-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {# Hidden field receives sanitised HTML from Quill on submit #}
+  <input type="hidden" name="content" id="content-input">
+
+  <div class="mb-3">
+    <label for="title" class="form-label">Title</label>
+    <input
+      type="text"
+      class="form-control"
+      id="title"
+      name="title"
+      value="{{ post.title if post else '' }}"
+      required
+      maxlength="255"
+    >
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label">Content</label>
+    <div id="editor" style="min-height: 300px;">
+      {% if post %}{{ post.content | safe }}{% endif %}
+    </div>
+  </div>
+
+  <div class="d-flex gap-2">
+    <button type="submit" class="btn btn-primary">
+      {% if post %}Save Changes{% else %}Publish Post{% endif %}
+    </button>
+    <a href="{% if post %}/news/{{ post.id }}{% else %}/news{% endif %}" class="btn btn-outline-secondary">
+      Cancel
+    </a>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_head %}
+<link href="/static/quill.snow.css" rel="stylesheet">
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/quill.min.js"></script>
+<script src="/static/post-editor.js"></script>
+{% endblock %}

@@ -2,11 +2,10 @@
   "name": "website",
   "private": true,
   "devDependencies": {
-    "html-validate": "^9.7.1",
     "@playwright/test": "^1.40.0"
   },
   "scripts": {
-    "lint:html": "html-validate \"templates/**/*.html\"",
+    "lint:html": "uv run djlint templates/ --lint",
     "test:ui": "playwright test"
   }
 }

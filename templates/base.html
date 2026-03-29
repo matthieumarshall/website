@@ -6,6 +6,7 @@
   <title>{% block title %}My Website{% endblock %}</title>
   <link href="/static/bootstrap.min.css" rel="stylesheet">
   <link href="/static/style.css" rel="stylesheet">
+  {% block extra_head %}{% endblock %}
 </head>
 <body>
 
@@ -89,5 +90,6 @@
   </footer>
 
   <script src="/static/bootstrap.bundle.min.js"></script>
+  {% block extra_scripts %}{% endblock %}
 </body>
 </html>

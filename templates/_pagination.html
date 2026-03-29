@@ -1,0 +1,51 @@
+{% if paginated.total_pages > 1 %}
+<nav aria-label="Page navigation" class="mt-4">
+  <ul class="pagination justify-content-center">
+
+    {# Previous #}
+    {% if paginated.page <= 1 %}
+    <li class="page-item disabled">
+      <a class="page-link" aria-disabled="true" tabindex="-1" href="{{ base_url }}?page={{ paginated.page - 1 }}">&laquo; Previous</a>
+    </li>
+    {% else %}
+    <li class="page-item">
+      <a class="page-link" href="{{ base_url }}?page={{ paginated.page - 1 }}">&laquo; Previous</a>
+    </li>
+    {% endif %}
+
+    {# Page numbers with ellipsis #}
+    {% set p = paginated.page %}
+    {% set total = paginated.total_pages %}
+    {% for n in range(1, total + 1) %}
+      {% if n == 1 or n == total or (n >= p - 2 and n <= p + 2) %}
+        {% if loop.changed(n > 1 and n != p - 2 - 1 and loop.previtem is defined and n - loop.previtem > 1) %}
+        <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
+        {% endif %}
+        {% if n == p %}
+        <li class="page-item active">
+          <a class="page-link" href="{{ base_url }}?page={{ n }}" aria-current="page">{{ n }}</a>
+        </li>
+        {% else %}
+        <li class="page-item">
+          <a class="page-link" href="{{ base_url }}?page={{ n }}">{{ n }}</a>
+        </li>
+        {% endif %}
+      {% elif n == 2 or n == total - 1 %}
+        <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
+      {% endif %}
+    {% endfor %}
+
+    {# Next #}
+    {% if paginated.page >= paginated.total_pages %}
+    <li class="page-item disabled">
+      <a class="page-link" aria-disabled="true" tabindex="-1" href="{{ base_url }}?page={{ paginated.page + 1 }}">Next &raquo;</a>
+    </li>
+    {% else %}
+    <li class="page-item">
+      <a class="page-link" href="{{ base_url }}?page={{ paginated.page + 1 }}">Next &raquo;</a>
+    </li>
+    {% endif %}
+
+  </ul>
+</nav>
+{% endif %}

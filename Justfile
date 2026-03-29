@@ -6,6 +6,7 @@ sync:
     uv sync --extra dev --extra test
     npm install
     uv run python -m pre_commit install
+    if (-not (Test-Path .env)) { Copy-Item .env.example .env; Write-Host "Created .env from .env.example — edit SECRET_KEY before deploying to production." }
 
 # Run pre-commit hooks on all files.
 lint:
@@ -13,7 +14,7 @@ lint:
 
 # Start the development server with auto-reload.
 serve:
-    uv run uvicorn website.main:app --reload
+    uv run uvicorn website.main:app --reload --env-file .env
 
 test-ui:
     uv run pytest tests/ui -v

@@ -33,8 +33,8 @@ repos:
         entry: uv run ty check
         pass_filenames: false
 
-      - id: html-validate
-        name: html-validate
+      - id: djlint
+        name: djlint
         language: system
-        entry: npx --no-install html-validate
+        entry: uv run djlint --lint
         files: ^templates/.*\.html$

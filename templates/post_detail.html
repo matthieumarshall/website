@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}{{ post.title }} — My Website{% endblock %}
+
+{% block content %}
+<article>
+  <header class="mb-4">
+    <h1 class="h2">{{ post.title }}</h1>
+    <p class="text-muted small">
+      By {{ post.author_username }} &middot;
+      <time datetime="{{ post.created_at.isoformat() }}">
+        {{- post.created_at.strftime('%d %b %Y') -}}
+      </time>
+      {% if post.updated_at != post.created_at %}
+        &middot; updated {{ post.updated_at.strftime('%d %b %Y') }}
+      {% endif %}
+    </p>
+  </header>
+
+  <div class="post-content mb-4">
+    {# post.content is sanitised server-side by nh3 before storage — safe to render #}
+    {{ post.content | safe }}
+  </div>
+
+  {% if can_edit %}
+  <div class="d-flex gap-2 border-top pt-3">
+    <a href="/news/{{ post.id }}/edit" class="btn btn-outline-secondary btn-sm">Edit</a>
+    <form action="/news/{{ post.id }}/delete" method="post" class="d-inline"
+          onsubmit="return confirm('Delete this post?')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
+    </form>
+  </div>
+  {% endif %}
+</article>
+
+<div class="mt-4">
+  <a href="/news" class="text-muted small">&larr; Back to News</a>
+</div>
+{% endblock %}

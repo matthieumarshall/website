@@ -30,6 +30,11 @@ wheels/
 # Database
 *.db
 
+# DuckDB data lake (seed fixtures under data/seed/ are committed)
+data/*.duckdb
+data/uploads/
+!data/uploads/.gitkeep
+
 # Environment variables
 .env
 .env.local
