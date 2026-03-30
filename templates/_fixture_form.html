@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}{% if fixture %}Edit Fixture{% else %}New Fixture{% endif %} — My Website{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <h1 class="h3">{% if fixture %}Edit Fixture{% else %}New Fixture{% endif %}</h1>
+  {% if season %}<p class="text-muted mb-0">Season: {{ season.name }}</p>{% endif %}
+</div>
+
+<form
+  action="{% if fixture %}/fixtures/seasons/{{ season.id }}/fixtures/{{ fixture.id }}/edit{% else %}/fixtures/seasons/{{ season.id }}/fixtures{% endif %}"
+  method="post"
+  id="fixture-form"
+  novalidate
+>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {# Timetable rows are serialised to JSON by timetable-editor.js on submit #}
+  <input type="hidden" name="timetable_json" id="timetable-json-input">
+
+  <div class="mb-3">
+    <label for="fixture-title" class="form-label">Title <span aria-hidden="true" class="text-danger">*</span></label>
+    <input
+      type="text"
+      class="form-control"
+      id="fixture-title"
+      name="title"
+      value="{{ fixture.title if fixture else '' }}"
+      required
+      maxlength="255"
+    >
+  </div>
+
+  <div class="mb-3">
+    <label for="fixture-date" class="form-label">Date <span aria-hidden="true" class="text-danger">*</span></label>
+    <input
+      type="date"
+      class="form-control"
+      id="fixture-date"
+      name="date"
+      value="{{ fixture.date.isoformat() if fixture else '' }}"
+      required
+    >
+  </div>
+
+  <div class="mb-3">
+    <label for="fixture-location" class="form-label">Location / Venue <span aria-hidden="true" class="text-danger">*</span></label>
+    <input
+      type="text"
+      class="form-control"
+      id="fixture-location"
+      name="location_name"
+      value="{{ fixture.location_name if fixture else '' }}"
+      required
+      maxlength="255"
+    >
+  </div>
+
+  <div class="mb-3">
+    <label for="fixture-address" class="form-label">Address <span aria-hidden="true" class="text-danger">*</span></label>
+    <input
+      type="text"
+      class="form-control"
+      id="fixture-address"
+      name="address"
+      value="{{ fixture.address if fixture else '' }}"
+      required
+      maxlength="255"
+    >
+  </div>
+
+  {# ---- Timetable ---- #}
+  <fieldset class="mb-3">
+    <legend class="fs-6 fw-semibold">Timetable</legend>
+    <div id="timetable-rows">
+      {% if fixture and fixture.timetable %}
+        {% for entry in fixture.timetable %}
+        <div class="timetable-row d-flex gap-2 mb-2 align-items-center">
+          <input
+            type="time"
+            class="form-control w-auto"
+            aria-label="Time for row {{ loop.index }}"
+            data-timetable="time"
+            value="{{ entry.time }}"
+          >
+          <input
+            type="text"
+            class="form-control"
+            aria-label="Event for row {{ loop.index }}"
+            data-timetable="event"
+            value="{{ entry.event }}"
+            maxlength="255"
+          >
+          <button
+            type="button"
+            class="btn btn-outline-danger btn-sm flex-shrink-0"
+            aria-label="Remove row {{ loop.index }}"
+          >Remove</button>
+        </div>
+        {% endfor %}
+      {% endif %}
+    </div>
+    <button type="button" id="add-timetable-row" class="btn btn-outline-secondary btn-sm">
+      + Add row
+    </button>
+  </fieldset>
+
+  <div class="mb-3">
+    <label for="fixture-travel" class="form-label">Travel Instructions</label>
+    <textarea
+      class="form-control"
+      id="fixture-travel"
+      name="travel_instructions"
+      rows="5"
+    >{{ fixture.travel_instructions if fixture else '' }}</textarea>
+  </div>
+
+  <div class="d-flex gap-2">
+    <button type="submit" class="btn btn-primary">
+      {% if fixture %}Save Changes{% else %}Create Fixture{% endif %}
+    </button>
+    <a
+      href="/fixtures{% if season %}?season_id={{ season.id }}{% endif %}"
+      class="btn btn-outline-secondary"
+    >Cancel</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/timetable-editor.js"></script>
+{% endblock %}

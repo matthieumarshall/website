@@ -29,7 +29,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from website.auth import get_active_principals, get_current_user, verify_password
 from website.database import get_db, run_migrations
-from website.models import PostResource
+from website.models import PostResource, _MAX_FIXTURES_PER_SEASON
 from website import repository
 
 _logger = logging.getLogger(__name__)
@@ -259,6 +259,30 @@ def _sanitise_html(raw: str) -> str:
     return nh3.clean(raw, tags=_ALLOWED_TAGS, attributes=_ALLOWED_ATTRS)
 
 
+def _parse_timetable_from_json(timetable_json: str) -> list:
+    """Deserialise timetable JSON from a form hidden-input field.
+
+    Expects a JSON array of ``{"event": str, "time": str}`` objects.
+    Returns a list of ``TimetableEntry`` objects; invalid rows are silently dropped.
+    """
+    import json as _json
+
+    from website.models import TimetableEntry
+
+    try:
+        raw = _json.loads(timetable_json or "[]")
+    except ValueError:
+        return []
+    entries = []
+    for item in raw:
+        if isinstance(item, dict):
+            event = str(item.get("event", "")).strip()
+            time = str(item.get("time", "")).strip()
+            if event or time:
+                entries.append(TimetableEntry(event=event, time=time))
+    return entries
+
+
 # ---------------------------------------------------------------------------
 # Static pages
 # ---------------------------------------------------------------------------
@@ -300,10 +324,275 @@ def administration(request: Request) -> HTMLResponse:
 
 
 @app.get("/fixtures", response_class=HTMLResponse)
-def fixtures(request: Request) -> HTMLResponse:
+def fixtures(
+    request: Request,
+    season_id: int | None = None,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+) -> HTMLResponse:
+    seasons = repository.list_seasons(db)
+    if season_id is None and seasons:
+        season_id = seasons[0].id
+    selected_season = None
+    fixtures_list: list = []
+    if season_id is not None:
+        selected_season = repository.get_season_by_id(db, season_id)
+        if selected_season:
+            fixtures_list = repository.list_fixtures_for_season(db, season_id)
+    first_fixture = fixtures_list[0] if fixtures_list else None
     return templates.TemplateResponse(
-        request, "fixtures.html", _page_context(request, "fixtures")
+        request,
+        "fixtures.html",
+        _page_context(
+            request,
+            "fixtures",
+            seasons=seasons,
+            selected_season=selected_season,
+            fixtures=fixtures_list,
+            active_fixture=first_fixture,
+        ),
     )
+
+
+@app.get("/fixtures/season-panel", response_class=HTMLResponse)
+def fixtures_season_panel(
+    request: Request,
+    season_id: int | None = None,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+) -> HTMLResponse:
+    seasons = repository.list_seasons(db)
+    if season_id is None and seasons:
+        season_id = seasons[0].id
+    selected_season = None
+    fixtures_list: list = []
+    if season_id is not None:
+        selected_season = repository.get_season_by_id(db, season_id)
+        if selected_season:
+            fixtures_list = repository.list_fixtures_for_season(db, season_id)
+    first_fixture = fixtures_list[0] if fixtures_list else None
+    return templates.TemplateResponse(
+        request,
+        "_fixtures_season_panel.html",
+        _page_context(
+            request,
+            "fixtures",
+            seasons=seasons,
+            selected_season=selected_season,
+            fixtures=fixtures_list,
+            active_fixture=first_fixture,
+        ),
+    )
+
+
+@app.get("/fixtures/fixture-detail", response_class=HTMLResponse)
+def fixtures_fixture_detail(
+    request: Request,
+    fixture_id: int,
+    season_id: int | None = None,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+) -> HTMLResponse:
+    fixture = repository.get_fixture_by_id(db, fixture_id)
+    if fixture is None:
+        raise HTTPException(status_code=404, detail="Fixture not found")
+    return templates.TemplateResponse(
+        request,
+        "_fixture_detail.html",
+        _page_context(
+            request,
+            "fixtures",
+            fixture=fixture,
+            season_id=season_id,
+        ),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Fixtures — staff CRUD
+# ---------------------------------------------------------------------------
+
+_FIXTURES_STAFF_ACL = [
+    (Allow, "role:admin", All),
+    (Allow, "role:content_creator", All),
+]
+
+
+@app.get("/fixtures/seasons/new", response_class=HTMLResponse)
+def fixtures_new_season_form(
+    request: Request,
+    _: list = Permission("create", _FIXTURES_STAFF_ACL),
+) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request,
+        "_season_form.html",
+        _page_context(request, "fixtures"),
+    )
+
+
+@app.get("/fixtures/seasons/new-form-cancel", response_class=HTMLResponse)
+def fixtures_new_season_form_cancel(_request: Request) -> HTMLResponse:
+    """Return an empty fragment — used by HTMX to clear the season form panel."""
+    return HTMLResponse("")
+
+
+@app.post("/fixtures/seasons")
+def fixtures_create_season(
+    request: Request,
+    name: str = Form(...),
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("create", _FIXTURES_STAFF_ACL),
+) -> Response:
+    _validate_csrf(request, csrf_token)
+    name = name.strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="Season name cannot be empty")
+    try:
+        season = repository.create_season(db, name)
+    except Exception:
+        raise HTTPException(
+            status_code=409, detail="A season with that name already exists"
+        )
+    return RedirectResponse(url=f"/fixtures?season_id={season.id}", status_code=302)
+
+
+@app.post("/fixtures/seasons/{season_id}/delete")
+def fixtures_delete_season(
+    season_id: int,
+    request: Request,
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("create", _FIXTURES_STAFF_ACL),
+) -> Response:
+    _validate_csrf(request, csrf_token)
+    try:
+        repository.delete_season(db, season_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    return RedirectResponse(url="/fixtures", status_code=302)
+
+
+@app.get("/fixtures/seasons/{season_id}/fixtures/new", response_class=HTMLResponse)
+def fixtures_new_fixture_form(
+    season_id: int,
+    request: Request,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("create", _FIXTURES_STAFF_ACL),
+) -> HTMLResponse:
+    season = repository.get_season_by_id(db, season_id)
+    if season is None:
+        raise HTTPException(status_code=404, detail="Season not found")
+    count = repository.count_fixtures_for_season(db, season_id)
+    if count >= _MAX_FIXTURES_PER_SEASON:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Season already has {count} fixtures (maximum is {_MAX_FIXTURES_PER_SEASON}).",
+        )
+    return templates.TemplateResponse(
+        request,
+        "_fixture_form.html",
+        _page_context(request, "fixtures", season=season, fixture=None),
+    )
+
+
+@app.post("/fixtures/seasons/{season_id}/fixtures")
+def fixtures_create_fixture(
+    season_id: int,
+    request: Request,
+    title: str = Form(...),
+    date: str = Form(...),
+    location_name: str = Form(...),
+    address: str = Form(...),
+    timetable_json: str = Form(default="[]"),
+    travel_instructions: str = Form(""),
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("create", _FIXTURES_STAFF_ACL),
+) -> Response:
+    _validate_csrf(request, csrf_token)
+    timetable = _parse_timetable_from_json(timetable_json)
+    try:
+        repository.create_fixture(
+            db,
+            season_id=season_id,
+            title=title.strip(),
+            date=date,
+            location_name=location_name.strip(),
+            address=address.strip(),
+            timetable=timetable,
+            travel_instructions=travel_instructions.strip(),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    return RedirectResponse(url=f"/fixtures?season_id={season_id}", status_code=302)
+
+
+@app.get(
+    "/fixtures/seasons/{season_id}/fixtures/{fixture_id}/edit",
+    response_class=HTMLResponse,
+)
+def fixtures_edit_form(
+    season_id: int,
+    fixture_id: int,
+    request: Request,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("create", _FIXTURES_STAFF_ACL),
+) -> HTMLResponse:
+    season = repository.get_season_by_id(db, season_id)
+    if season is None:
+        raise HTTPException(status_code=404, detail="Season not found")
+    fixture = repository.get_fixture_by_id(db, fixture_id)
+    if fixture is None:
+        raise HTTPException(status_code=404, detail="Fixture not found")
+    return templates.TemplateResponse(
+        request,
+        "_fixture_form.html",
+        _page_context(request, "fixtures", season=season, fixture=fixture),
+    )
+
+
+@app.post("/fixtures/seasons/{season_id}/fixtures/{fixture_id}/edit")
+def fixtures_update_fixture(
+    season_id: int,
+    fixture_id: int,
+    request: Request,
+    title: str = Form(...),
+    date: str = Form(...),
+    location_name: str = Form(...),
+    address: str = Form(...),
+    timetable_json: str = Form(default="[]"),
+    travel_instructions: str = Form(""),
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("create", _FIXTURES_STAFF_ACL),
+) -> Response:
+    _validate_csrf(request, csrf_token)
+    timetable = _parse_timetable_from_json(timetable_json)
+    result = repository.update_fixture(
+        db,
+        fixture_id=fixture_id,
+        title=title.strip(),
+        date=date,
+        location_name=location_name.strip(),
+        address=address.strip(),
+        timetable=timetable,
+        travel_instructions=travel_instructions.strip(),
+    )
+    if result is None:
+        raise HTTPException(status_code=404, detail="Fixture not found")
+    return RedirectResponse(url=f"/fixtures?season_id={season_id}", status_code=302)
+
+
+@app.post("/fixtures/seasons/{season_id}/fixtures/{fixture_id}/delete")
+def fixtures_delete_fixture(
+    season_id: int,
+    fixture_id: int,
+    request: Request,
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("create", _FIXTURES_STAFF_ACL),
+) -> Response:
+    _validate_csrf(request, csrf_token)
+    repository.delete_fixture(db, fixture_id)
+    return RedirectResponse(url=f"/fixtures?season_id={season_id}", status_code=302)
 
 
 # ---------------------------------------------------------------------------

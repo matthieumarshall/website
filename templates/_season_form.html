@@ -1,0 +1,33 @@
+<div class="card mb-3">
+  <div class="card-body">
+    <h2 class="card-title h6">New Season</h2>
+    <form action="/fixtures/seasons" method="post" class="d-flex gap-2 align-items-end flex-wrap">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div>
+        <label for="season-name-input" class="form-label mb-1">Season name</label>
+        <input
+          type="text"
+          class="form-control"
+          id="season-name-input"
+          name="name"
+          placeholder="e.g. 2025-2026"
+          required
+          maxlength="20"
+          aria-describedby="season-name-hint"
+        >
+        <div id="season-name-hint" class="form-text">E.g. &ldquo;2025-2026&rdquo;</div>
+      </div>
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary btn-sm">Create Season</button>
+        <button
+          type="button"
+          class="btn btn-outline-secondary btn-sm"
+          hx-get="/fixtures/seasons/new-form-cancel"
+          hx-target="#season-crud-panel"
+          hx-swap="innerHTML"
+          aria-label="Cancel new season"
+        >Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
