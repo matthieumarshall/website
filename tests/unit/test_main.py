@@ -163,7 +163,9 @@ class TestNewsCrud:
         assert test_client.get("/news").status_code == 200
 
     def test_create_form_requires_auth(self, test_client: TestClient) -> None:
-        assert test_client.get("/news/create").status_code == 401
+        response = test_client.get("/news/create", follow_redirects=False)
+        assert response.status_code == 302
+        assert response.headers["location"] == "/login"
 
     def test_create_form_available_to_content_creator(
         self, content_creator_client: TestClient
@@ -266,3 +268,37 @@ class TestNewsPagination:
     def test_page_zero_clamped_to_one(self, test_client: TestClient) -> None:
         resp = test_client.get("/news?page=0")
         assert resp.status_code == 200
+
+
+class TestAccountPage:
+    def test_account_redirects_when_unauthenticated(
+        self, test_client: TestClient
+    ) -> None:
+        response = test_client.get("/account", follow_redirects=False)
+        assert response.status_code == 302
+        assert response.headers["location"] == "/login"
+
+    def test_account_accessible_when_logged_in_as_admin(
+        self, admin_client: TestClient
+    ) -> None:
+        assert admin_client.get("/account").status_code == 200
+
+    def test_account_accessible_when_logged_in_as_content_creator(
+        self, content_creator_client: TestClient
+    ) -> None:
+        assert content_creator_client.get("/account").status_code == 200
+
+    def test_account_shows_username(self, admin_client: TestClient) -> None:
+        response = admin_client.get("/account")
+        assert response.status_code == 200
+        assert "My Account" in response.text
+
+    def test_account_shows_admin_role_badge(self, admin_client: TestClient) -> None:
+        response = admin_client.get("/account")
+        assert "Admin" in response.text
+
+    def test_account_shows_content_creator_role_badge(
+        self, content_creator_client: TestClient
+    ) -> None:
+        response = content_creator_client.get("/account")
+        assert "Content Creator" in response.text

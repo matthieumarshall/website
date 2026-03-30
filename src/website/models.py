@@ -2,6 +2,7 @@ import math
 from datetime import datetime
 from enum import Enum
 
+from fastapi_permissions import Allow
 from pydantic import BaseModel, ConfigDict
 
 
@@ -35,6 +36,19 @@ class Post(BaseModel):
 class PostCreate(BaseModel):
     title: str
     content: str
+
+
+class PostResource:
+    """Wraps a Post and provides an ACL for fastapi-permissions."""
+
+    def __init__(self, post: "Post") -> None:
+        self.post = post
+
+    def __acl__(self) -> list[tuple]:
+        return [
+            (Allow, f"user:{self.post.author_id}", ("edit", "delete")),
+            (Allow, "role:admin", ("edit", "delete")),
+        ]
 
 
 class PaginatedPosts(BaseModel):

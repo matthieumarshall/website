@@ -1,6 +1,11 @@
+import os
 import re
 import secrets
 import string
+import uuid
+
+# Set testing mode before importing the app
+os.environ["TESTING"] = "true"
 
 import duckdb
 import pytest
@@ -13,17 +18,7 @@ from website.main import app
 from website.models import UserRole
 
 
-def generate_random_password(length: int = 12) -> str:
-    chars = string.ascii_letters + string.digits + "!@#$%^&*()"
-    return "".join(secrets.choice(chars) for _ in range(length))
-
-
-def generate_random_username(length: int = 8) -> str:
-    chars = string.ascii_lowercase + string.digits
-    return "".join(secrets.choice(chars) for _ in range(length))
-
-
-@pytest.fixture(scope="function")
+@pytest.fixture
 def test_db() -> duckdb.DuckDBPyConnection:  # type: ignore[misc]
     """Isolated in-memory DuckDB connection with migrations applied."""
     con = duckdb.connect(":memory:")
@@ -38,7 +33,8 @@ def test_client(test_db: duckdb.DuckDBPyConnection) -> TestClient:  # type: igno
         yield test_db
 
     app.dependency_overrides[get_db] = override_get_db
-    client = TestClient(app)
+    # Give each test client a unique IP to avoid rate limit collisions
+    client = TestClient(app, headers={"X-Forwarded-For": str(uuid.uuid4())})
     yield client
     app.dependency_overrides.clear()
 
@@ -49,6 +45,16 @@ def test_user_creds() -> dict[str, str]:
         "username": generate_random_username(),
         "password": generate_random_password(),
     }
+
+
+def generate_random_password(length: int = 12) -> str:
+    chars = string.ascii_letters + string.digits + "!@#$%^&*()"
+    return "".join(secrets.choice(chars) for _ in range(length))
+
+
+def generate_random_username(length: int = 8) -> str:
+    chars = string.ascii_lowercase + string.digits
+    return "".join(secrets.choice(chars) for _ in range(length))
 
 
 def _create_user_and_client(
@@ -63,7 +69,8 @@ def _create_user_and_client(
         yield test_db
 
     app.dependency_overrides[get_db] = override_get_db
-    client = TestClient(app)
+    # Give each client a unique IP to avoid rate limit collisions
+    client = TestClient(app, headers={"X-Forwarded-For": str(uuid.uuid4())})
 
     login_page = client.get("/login")
     match = re.search(r'name="csrf_token"\s+value="([^"]+)"', login_page.text)

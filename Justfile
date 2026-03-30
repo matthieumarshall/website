@@ -3,7 +3,7 @@ set windows-shell := ["powershell.exe", "-NoLogo", "-NoProfile", "-Command"]
 
 # Sync Python and Node dependencies used by this project.
 sync:
-    uv sync --extra dev --extra test
+    uv sync --all-extras
     npm install
     uv run python -m pre_commit install
     if (-not (Test-Path .env)) { Copy-Item .env.example .env; Write-Host "Created .env from .env.example — edit SECRET_KEY before deploying to production." }

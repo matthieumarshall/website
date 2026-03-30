@@ -17,6 +17,9 @@
       <div class="ms-auto d-flex align-items-center gap-2">
         {% if current_user %}
           <span class="navbar-text text-white">Hello, {{ current_user.username }}!</span>
+          <a href="/account" class="badge rounded-pill text-decoration-none text-bg-secondary">
+            Your account
+          </a>
           <form action="/logout" method="post" class="d-inline m-0">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button type="submit" class="btn btn-outline-light btn-sm">Log out</button>

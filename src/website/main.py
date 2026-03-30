@@ -1,3 +1,4 @@
+import logging
 import os
 import secrets
 import uuid
@@ -9,18 +10,32 @@ from urllib.parse import urlparse
 import duckdb
 import nh3
 from fastapi import Depends, FastAPI, Form, HTTPException, Request, UploadFile
+from fastapi.exception_handlers import http_exception_handler
+from fastapi_permissions import (
+    Allow,
+    All,
+    Authenticated,
+    configure_permissions,
+    has_permission,
+)
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
-from website.auth import verify_password
+from website.auth import get_active_principals, get_current_user, verify_password
 from website.database import get_db, run_migrations
-from website.models import UserRole
+from website.models import PostResource
 from website import repository
 
+_logger = logging.getLogger(__name__)
+
 _IS_PRODUCTION = os.environ.get("PRODUCTION", "false").lower() == "true"
+_IS_TESTING = os.environ.get("TESTING", "false").lower() == "true"
 
 _secret_key = os.environ.get("SECRET_KEY", "")
 if _IS_PRODUCTION and not _secret_key:
@@ -105,6 +120,48 @@ async def _lifespan(app: FastAPI):  # noqa: ARG001
 
 app = FastAPI(lifespan=_lifespan)
 
+# Rate limiter for brute-force protection
+_limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = _limiter
+
+
+# Conditional rate limit decorator that skips limiting in test mode
+def _rate_limit_if_prod(rate_limit: str):
+    """Rate limit decorator that only applies in production."""
+
+    def decorator(func):
+        if _IS_TESTING:
+            return func
+        return _limiter.limit(rate_limit)(func)
+
+    return decorator
+
+
+@app.exception_handler(HTTPException)
+async def _http_exception_handler(request: Request, exc: HTTPException) -> Response:
+    """Redirect unauthenticated 403s to login; fall back to default handling."""
+    if exc.status_code == 403 and not get_current_user(request):
+        return RedirectResponse(url="/login", status_code=302)
+    return await http_exception_handler(request, exc)
+
+
+@app.exception_handler(RateLimitExceeded)
+async def _rate_limit_exceeded_handler(
+    request: Request, exc: RateLimitExceeded
+) -> HTMLResponse:
+    """Return the login form with a rate-limit error message instead of JSON."""
+    return templates.TemplateResponse(
+        request,
+        "login.html",
+        _page_context(
+            request,
+            "login",
+            error="Too many login attempts. Please wait 15 minutes before trying again.",
+        ),
+        status_code=429,
+    )
+
+
 app.add_middleware(
     SessionMiddleware,  # type: ignore[arg-type]
     secret_key=_secret_key,
@@ -120,6 +177,33 @@ _UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(_UPLOADS_DIR)), name="uploads")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
+
+# ---------------------------------------------------------------------------
+# Permissions
+# ---------------------------------------------------------------------------
+
+Permission = configure_permissions(get_active_principals)
+
+# ACL for routes only accessible to authenticated staff (admin + content_creator)
+_STAFF_ACL = [
+    (Allow, "role:admin", All),
+    (Allow, "role:content_creator", ("create", "upload")),
+]
+
+# ACL for routes accessible to any authenticated user
+_AUTH_ACL = [(Allow, Authenticated, "view")]
+
+
+def get_post_resource(
+    post_id: int,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+) -> PostResource:
+    """Dependency: fetch a post by ID and wrap in PostResource for ACL checks."""
+    post = repository.get_post_by_id(db, post_id)
+    if post is None:
+        raise HTTPException(status_code=404, detail="Post not found")
+    return PostResource(post)
+
 
 SIDEBAR_ITEMS: list[dict[str, str]] = [
     {"name": "Home / News", "route": "/news", "page": "news"},
@@ -160,15 +244,6 @@ def _safe_referer_path(referer: str) -> str:
     return path if path and path.startswith("/") else "/news"
 
 
-def get_current_user(request: Request) -> dict[str, Any] | None:
-    user_id = request.session.get("user_id")
-    username = request.session.get("username")
-    role = request.session.get("role")
-    if user_id and username and role:
-        return {"id": user_id, "username": username, "role": role}
-    return None
-
-
 def _page_context(request: Request, current_page: str, **extra: Any) -> dict[str, Any]:
     return {
         "current_user": get_current_user(request),
@@ -178,25 +253,6 @@ def _page_context(request: Request, current_page: str, **extra: Any) -> dict[str
         "show_cookie_notice": not request.cookies.get("cookie_notice_dismissed"),
         **extra,
     }
-
-
-def _require_role(request: Request, *roles: str) -> dict[str, Any]:
-    """Return the current user if they have one of the required roles, else raise."""
-    user = get_current_user(request)
-    if not user:
-        raise HTTPException(status_code=401, detail="Authentication required")
-    if user["role"] not in roles:
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-    return user
-
-
-def _can_edit_post(user: dict[str, Any] | None, post_author_id: int) -> bool:
-    """Return True if the user may edit/delete the given post."""
-    if not user:
-        return False
-    if user["role"] == UserRole.admin:
-        return True
-    return user["role"] == UserRole.content_creator and user["id"] == post_author_id
 
 
 def _sanitise_html(raw: str) -> str:
@@ -265,6 +321,7 @@ def login_page(request: Request) -> Response:
 
 
 @app.post("/login", response_class=HTMLResponse)
+@_rate_limit_if_prod("5/15minutes")
 def login_submit(
     request: Request,
     username: str = Form(...),
@@ -275,12 +332,15 @@ def login_submit(
     _validate_csrf(request, csrf_token)
     user = repository.get_user_by_username(db, username)
     if not user or not verify_password(password, user.hashed_password):
+        _logger.warning("Failed login attempt for username: %s", username)
         return templates.TemplateResponse(
             request,
             "login.html",
             _page_context(request, "login", error="Invalid username or password."),
             status_code=401,
         )
+    # Session fixation: clear before setting new user session data
+    request.session.clear()
     request.session["user_id"] = user.id
     request.session["username"] = user.username
     request.session["role"] = user.role.value
@@ -319,6 +379,16 @@ def privacy_policy(request: Request) -> HTMLResponse:
     )
 
 
+@app.get("/account", response_class=HTMLResponse)
+def account(
+    request: Request,
+    _: list = Permission("view", _AUTH_ACL),
+) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request, "account.html", _page_context(request, "account")
+    )
+
+
 # ---------------------------------------------------------------------------
 # News / Posts
 # ---------------------------------------------------------------------------
@@ -340,8 +410,10 @@ def news(
 
 
 @app.get("/news/create", response_class=HTMLResponse)
-def news_create_form(request: Request) -> HTMLResponse:
-    _require_role(request, UserRole.admin, UserRole.content_creator)
+def news_create_form(
+    request: Request,
+    _: list = Permission("create", _STAFF_ACL),
+) -> HTMLResponse:
     return templates.TemplateResponse(
         request,
         "post_form.html",
@@ -356,10 +428,12 @@ def news_create_submit(
     content: str = Form(...),
     csrf_token: str = Form(...),
     db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("create", _STAFF_ACL),
 ) -> Response:
-    user = _require_role(request, UserRole.admin, UserRole.content_creator)
     _validate_csrf(request, csrf_token)
     safe_content = _sanitise_html(content)
+    user = get_current_user(request)
+    assert user is not None  # guaranteed by Permission("create") check
     repository.create_post(db, title=title, content=safe_content, author_id=user["id"])
     return RedirectResponse(url="/news", status_code=302)
 
@@ -373,8 +447,8 @@ def news_detail(
     post = repository.get_post_by_id(db, post_id)
     if post is None:
         raise HTTPException(status_code=404, detail="Post not found")
-    user = get_current_user(request)
-    can_edit = _can_edit_post(user, post.author_id)
+    principals = get_active_principals(request)
+    can_edit = has_permission(principals, "edit", PostResource(post))
     return templates.TemplateResponse(
         request,
         "post_detail.html",
@@ -384,59 +458,43 @@ def news_detail(
 
 @app.get("/news/{post_id}/edit", response_class=HTMLResponse)
 def news_edit_form(
-    post_id: int,
     request: Request,
-    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    post_resource: PostResource = Permission("edit", get_post_resource),
 ) -> HTMLResponse:
-    post = repository.get_post_by_id(db, post_id)
-    if post is None:
-        raise HTTPException(status_code=404, detail="Post not found")
-    user = _require_role(request, UserRole.admin, UserRole.content_creator)
-    if not _can_edit_post(user, post.author_id):
-        raise HTTPException(status_code=403, detail="Cannot edit another user's post")
+    post = post_resource.post
     return templates.TemplateResponse(
         request,
         "post_form.html",
-        _page_context(request, "news", post=post, form_action=f"/news/{post_id}/edit"),
+        _page_context(request, "news", post=post, form_action=f"/news/{post.id}/edit"),
     )
 
 
 @app.post("/news/{post_id}/edit", response_class=HTMLResponse)
 def news_edit_submit(
-    post_id: int,
     request: Request,
     title: str = Form(...),
     content: str = Form(...),
     csrf_token: str = Form(...),
     db: duckdb.DuckDBPyConnection = Depends(get_db),
+    post_resource: PostResource = Permission("edit", get_post_resource),
 ) -> Response:
-    post = repository.get_post_by_id(db, post_id)
-    if post is None:
-        raise HTTPException(status_code=404, detail="Post not found")
-    user = _require_role(request, UserRole.admin, UserRole.content_creator)
     _validate_csrf(request, csrf_token)
-    if not _can_edit_post(user, post.author_id):
-        raise HTTPException(status_code=403, detail="Cannot edit another user's post")
     safe_content = _sanitise_html(content)
-    repository.update_post(db, post_id=post_id, title=title, content=safe_content)
-    return RedirectResponse(url=f"/news/{post_id}", status_code=302)
+    repository.update_post(
+        db, post_id=post_resource.post.id, title=title, content=safe_content
+    )
+    return RedirectResponse(url=f"/news/{post_resource.post.id}", status_code=302)
 
 
 @app.post("/news/{post_id}/delete")
 def news_delete(
-    post_id: int,
     request: Request,
     csrf_token: str = Form(...),
     db: duckdb.DuckDBPyConnection = Depends(get_db),
+    post_resource: PostResource = Permission("delete", get_post_resource),
 ) -> Response:
-    post = repository.get_post_by_id(db, post_id)
-    if post is None:
-        raise HTTPException(status_code=404, detail="Post not found")
-    user = _require_role(request, UserRole.admin, UserRole.content_creator)
     _validate_csrf(request, csrf_token)
-    if not _can_edit_post(user, post.author_id):
-        raise HTTPException(status_code=403, detail="Cannot delete another user's post")
-    repository.delete_post(db, post_id)
+    repository.delete_post(db, post_resource.post.id)
     return RedirectResponse(url="/news", status_code=302)
 
 
@@ -449,9 +507,8 @@ def news_delete(
 async def upload_image(
     request: Request,
     file: UploadFile,
-    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("upload", _STAFF_ACL),
 ) -> JSONResponse:
-    _require_role(request, UserRole.admin, UserRole.content_creator)
     if file.content_type not in _ALLOWED_IMAGE_TYPES:
         raise HTTPException(status_code=400, detail="Unsupported image type")
     data = await file.read(_MAX_IMAGE_BYTES + 1)

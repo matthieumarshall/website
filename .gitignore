@@ -31,7 +31,7 @@ wheels/
 *.db
 
 # DuckDB data lake (seed fixtures under data/seed/ are committed)
-data/*.duckdb
+*.duckdb
 data/uploads/
 !data/uploads/.gitkeep
 
