@@ -18,6 +18,8 @@ ALLOWED_LICENSES = {
     "BSD",
     "ISC",
     "ISC License",
+    "Freely Distributable",
+    "GNU General Public License v3 or later (GPLv3+)",
     "LGPL-2.1",
     "LGPL-2.1+",
     "LGPL-3.0",
