@@ -17,6 +17,17 @@
         <strong>Username</strong> — stored in your browser session while you are
         logged in. It is never shared with third parties.
       </li>
+      <li>
+        <strong>News post content</strong> — titles and body text written by
+        content creators and administrators are stored in the site database. Posts
+        are visible to all visitors.
+      </li>
+      <li>
+        <strong>Uploaded images</strong> — images embedded in news posts are
+        stored as files on the server (under <code>data/uploads/</code>). They
+        are served publicly at <code>/uploads/&lt;filename&gt;</code>. No
+        metadata beyond the file itself is recorded.
+      </li>
     </ul>
     <p>
       We do not collect email addresses, names, payment information, location

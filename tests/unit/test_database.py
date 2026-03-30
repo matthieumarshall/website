@@ -1,50 +1,99 @@
-"""Tests for database session management"""
+"""Tests for database connection factory and migration runner."""
 
-from website.models import User
+import types
+
+import duckdb
+import pytest
+
+from website.database import get_db, run_migrations
 
 
-class TestDatabase:
-    """Test database session lifecycle and operations"""
+def _make_request_with_db(con: duckdb.DuckDBPyConnection) -> object:
+    """Build a minimal mock Request whose app.state.db is *con*."""
+    state = types.SimpleNamespace(db=con)
+    app = types.SimpleNamespace(state=state)
+    return types.SimpleNamespace(app=app)
 
-    def test_session_creation(self, test_db):
-        """Test database session can be created"""
-        assert test_db is not None
 
-    def test_session_is_open(self, test_db):
-        """Test session is in open state"""
-        assert not test_db.is_active or test_db.is_active  # Either state is valid
+class TestGetDb:
+    def test_yields_connection(self) -> None:
+        con = duckdb.connect(":memory:")
+        run_migrations(con)
+        request = _make_request_with_db(con)
+        try:
+            gen = get_db(request)  # type: ignore[arg-type]
+            cursor = next(gen)
+            assert isinstance(cursor, duckdb.DuckDBPyConnection)
+            try:
+                next(gen)
+            except StopIteration:
+                pass
+        finally:
+            con.close()
 
-    def test_session_can_add_user(self, test_db):
-        """Test adding user to session"""
-        user = User(username="session_user", hashed_password="hash")
-        test_db.add(user)
-        test_db.commit()
+    def test_connection_closes_after_use(self) -> None:
+        con = duckdb.connect(":memory:")
+        run_migrations(con)
+        request = _make_request_with_db(con)
+        try:
+            gen = get_db(request)  # type: ignore[arg-type]
+            cursor = next(gen)
+            try:
+                next(gen)
+            except StopIteration:
+                pass
+            # After generator exhausted the cursor should be closed
+            with pytest.raises(Exception):
+                cursor.execute("SELECT 1")
+        finally:
+            con.close()
 
-        result = test_db.query(User).filter(User.username == "session_user").first()
+
+class TestRunMigrations:
+    def test_creates_migrations_table(self, test_db: duckdb.DuckDBPyConnection) -> None:
+        # run_migrations already called in fixture; table should exist
+        result = test_db.execute(
+            "SELECT table_name FROM information_schema.tables"
+            " WHERE table_name = '_migrations'"
+        ).fetchone()
         assert result is not None
 
-    def test_session_rollback(self, test_db):
-        """Test session rollback functionality"""
-        user = User(username="rollback_user", hashed_password="hash")
-        test_db.add(user)
-        test_db.rollback()
+    def test_creates_users_table(self, test_db: duckdb.DuckDBPyConnection) -> None:
+        result = test_db.execute(
+            "SELECT table_name FROM information_schema.tables"
+            " WHERE table_name = 'users'"
+        ).fetchone()
+        assert result is not None
 
-        # User should not be in database after rollback
-        result = test_db.query(User).filter(User.username == "rollback_user").first()
-        assert result is None
+    def test_creates_posts_table(self, test_db: duckdb.DuckDBPyConnection) -> None:
+        result = test_db.execute(
+            "SELECT table_name FROM information_schema.tables"
+            " WHERE table_name = 'posts'"
+        ).fetchone()
+        assert result is not None
 
-    def test_multiple_operations_in_session(self, test_db):
-        """Test multiple database operations in same session"""
-        user1 = User(username="user1", hashed_password="hash1")
-        user2 = User(username="user2", hashed_password="hash2")
+    def test_idempotent(self, test_db: duckdb.DuckDBPyConnection) -> None:
+        """Running migrations twice should not raise."""
+        run_migrations(test_db)
 
-        test_db.add(user1)
-        test_db.add(user2)
-        test_db.commit()
+    def test_records_applied_migrations(
+        self, test_db: duckdb.DuckDBPyConnection
+    ) -> None:
+        rows = test_db.execute("SELECT filename FROM _migrations").fetchall()
+        filenames = {r[0] for r in rows}
+        assert "0001_create_users.sql" in filenames
+        assert "0002_create_posts.sql" in filenames
 
-        count = test_db.query(User).count()
-        assert count == 2
-
-    def test_transaction_isolation(self, test_db):
-        """Test transaction isolation between sessions"""
-        pass
+    def test_can_insert_and_query_user(
+        self, test_db: duckdb.DuckDBPyConnection
+    ) -> None:
+        test_db.execute(
+            "INSERT INTO users (username, hashed_password, role) VALUES (?, ?, ?)",
+            ["db_test_user", "hash", "admin"],
+        )
+        row = test_db.execute(
+            "SELECT username, role FROM users WHERE username = ?", ["db_test_user"]
+        ).fetchone()
+        assert row is not None
+        assert row[0] == "db_test_user"
+        assert row[1] == "admin"

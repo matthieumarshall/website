@@ -23,16 +23,8 @@ jobs:
       - name: Install uv
         run: pip install uv
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "18"
-
       - name: Install Python dependencies
         run: uv sync --all-extras
-
-      - name: Install Node dependencies
-        run: npm ci
 
       - name: Ruff lint check
         run: uv run ruff check .
@@ -43,8 +35,8 @@ jobs:
       - name: Type check with ty
         run: uv run ty check
 
-      - name: HTML validation
-        run: npx html-validate "templates/**/*.html"
+      - name: HTML validation (djlint)
+        run: uv run djlint templates/ --lint
 
   # Job 2: Security Scans (Parallel with code-quality)
   security:

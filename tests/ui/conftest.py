@@ -1,18 +1,20 @@
 """Fixtures for Playwright UI tests"""
 
-import pytest
+import os
+import secrets
+import string
 import subprocess
 import sys
 import time
-import os
-import string
-import secrets
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from playwright.sync_api import sync_playwright  # type: ignore[import-untyped]
 
-from website.models import Base, User
+import duckdb
+import pytest
+from playwright.sync_api import sync_playwright
+
 from website.auth import hash_password
+from website.database import run_migrations
+from website import repository
+from website.models import UserRole
 
 
 def generate_random_password(length=12):
@@ -30,27 +32,24 @@ def generate_random_username(length=8):
 @pytest.fixture(scope="session")
 def server_process():
     """Start FastAPI server for UI tests"""
-    # Setup test database with test user
-    db_path = "test_ui.db"
-    engine = create_engine(f"sqlite:///./{db_path}")
-    Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
+    db_path = "test_ui.duckdb"
 
-    SessionLocal = sessionmaker(bind=engine)
-    session = SessionLocal()
-
-    # Create test user
-    test_user = User(
-        username="test_user", hashed_password=hash_password("TestPassword123!@#")
+    # Seed a test user into a fresh DuckDB file
+    if os.path.exists(db_path):
+        os.remove(db_path)
+    con = duckdb.connect(db_path)
+    run_migrations(con)
+    repository.create_user(
+        con,
+        "test_user",
+        hash_password("TestPassword123!@#"),
+        UserRole.content_creator,
     )
-    session.add(test_user)
-    session.commit()
-    session.close()
-    engine.dispose()  # Release all SQLAlchemy connections before starting server
+    con.close()
 
     # Start uvicorn server in test mode
     env = os.environ.copy()
-    env["DATABASE_URL"] = f"sqlite:///./{db_path}"
+    env["DATABASE_URL"] = db_path
 
     process = subprocess.Popen(
         [
@@ -84,7 +83,6 @@ def server_process():
     # Give the OS a moment to release file handles before removing the DB
     time.sleep(0.5)
 
-    # Clean up test database
     if os.path.exists(db_path):
         os.remove(db_path)
 

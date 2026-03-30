@@ -3,11 +3,45 @@
 {% block title %}Home / News — My Website{% endblock %}
 
 {% block content %}
-<div>
-  <h1 class="h3 mb-3">Home / News</h1>
-  {% if current_user %}
-    <p class="text-success">You are logged in as <strong>{{ current_user.username }}</strong>.</p>
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <h1 class="h3 mb-0">Home / News</h1>
+  {% if current_user and current_user.role in ('admin', 'content_creator') %}
+    <a href="/news/create" class="btn btn-primary btn-sm">+ New Post</a>
   {% endif %}
-  <p class="text-muted">News and updates will appear here.</p>
 </div>
+
+{% if paginated.posts %}
+  {% for post in paginated.posts %}
+  <article class="card mb-4">
+    <div class="card-body">
+      <h2 class="card-title h5">
+        <a href="/news/{{ post.id }}" class="text-decoration-none text-dark">{{ post.title }}</a>
+      </h2>
+      <p class="text-muted small mb-2">
+        By {{ post.author_username }} &middot;
+        <time datetime="{{ post.created_at.isoformat() }}">
+          {{- post.created_at.strftime('%d %b %Y') -}}
+        </time>
+      </p>
+      <div class="post-preview">
+        {{ post.content | truncate(300, true, '…') | safe }}
+      </div>
+    </div>
+    {% if current_user and (current_user.role == 'admin' or (current_user.role == 'content_creator' and current_user.id == post.author_id)) %}
+    <div class="card-footer bg-transparent d-flex gap-2">
+      <a href="/news/{{ post.id }}/edit" class="btn btn-outline-secondary btn-sm">Edit</a>
+      <form action="/news/{{ post.id }}/delete" method="post" class="d-inline"
+            onsubmit="return confirm('Delete this post?')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
+      </form>
+    </div>
+    {% endif %}
+  </article>
+  {% endfor %}
+
+  {% include "_pagination.html" %}
+{% else %}
+  <p class="text-muted">No posts yet.</p>
+{% endif %}
 {% endblock %}

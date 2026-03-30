@@ -2,40 +2,51 @@
 CLI script to add a user to the database.
 
 Usage:
-    python -m website.seed_user <username> <password>
+    python -m website.seed_user <username> <password> [--role admin|content_creator]
 
-Example:
-    python -m website.seed_user alice mysecretpassword
+Examples:
+    python -m website.seed_user alice mysecretpassword --role admin
+    python -m website.seed_user bob anotherpassword --role content_creator
 """
 
+import argparse
 import sys
-from website.database import engine, SessionLocal
-from website.models import Base, User
+from pathlib import Path
+
+import duckdb
+
 from website.auth import hash_password
+from website.database import _get_db_path, run_migrations
+from website.models import UserRole
+from website import repository
 
-# Ensure tables exist
-Base.metadata.create_all(bind=engine)
 
-
-def add_user(username: str, password: str):
-    db = SessionLocal()
+def add_user(username: str, password: str, role: UserRole) -> None:
+    db_path = _get_db_path()
+    if db_path != ":memory:":
+        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    con = duckdb.connect(db_path)
     try:
-        existing = db.query(User).filter(User.username == username).first()
+        run_migrations(con)
+        existing = repository.get_user_by_username(con, username)
         if existing:
             print(f"Error: User '{username}' already exists.")
             sys.exit(1)
-
-        user = User(username=username, hashed_password=hash_password(password))
-        db.add(user)
-        db.commit()
-        print(f"User '{username}' created successfully.")
+        repository.create_user(con, username, hash_password(password), role)
+        print(f"User '{username}' created with role '{role.value}'.")
     finally:
-        db.close()
+        con.close()
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print("Usage: python -m website.seed_user <username> <password>")
-        sys.exit(1)
-
-    add_user(sys.argv[1], sys.argv[2])
+    parser = argparse.ArgumentParser(description="Add a user to the database.")
+    parser.add_argument("username")
+    parser.add_argument("password")
+    parser.add_argument(
+        "--role",
+        choices=[r.value for r in UserRole],
+        default=UserRole.admin.value,
+        help="User role (default: admin)",
+    )
+    args = parser.parse_args()
+    add_user(args.username, args.password, UserRole(args.role))

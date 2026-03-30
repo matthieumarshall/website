@@ -6,6 +6,7 @@
   <title>{% block title %}My Website{% endblock %}</title>
   <link href="/static/bootstrap.min.css" rel="stylesheet">
   <link href="/static/style.css" rel="stylesheet">
+  {% block extra_head %}{% endblock %}
 </head>
 <body>
 
@@ -16,6 +17,9 @@
       <div class="ms-auto d-flex align-items-center gap-2">
         {% if current_user %}
           <span class="navbar-text text-white">Hello, {{ current_user.username }}!</span>
+          <a href="/account" class="badge rounded-pill text-decoration-none text-bg-secondary">
+            Your account
+          </a>
           <form action="/logout" method="post" class="d-inline m-0">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button type="submit" class="btn btn-outline-light btn-sm">Log out</button>
@@ -89,5 +93,6 @@
   </footer>
 
   <script src="/static/bootstrap.bundle.min.js"></script>
+  {% block extra_scripts %}{% endblock %}
 </body>
 </html>

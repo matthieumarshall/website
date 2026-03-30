@@ -14,10 +14,13 @@ dependencies = [
     "uvicorn[standard]",
     "jinja2",
     "python-multipart",
-    "sqlalchemy",
     "bcrypt",
     "itsdangerous",
     "playwright>=1.58.0",
+    "duckdb>=1.5.1",
+    "nh3>=0.3.4",
+    "slowapi>=0.1.9",
+    "fastapi-permissions>=0.2.7",
 ]
 
 [project.optional-dependencies]
@@ -35,6 +38,7 @@ dev = [
     "pip-audit>=2.6",
     "pip-licenses>=4.3",
     "bandit>=1.7",
+    "djlint>=1.36.4",
 ]
 
 ci = [
