@@ -5,7 +5,7 @@ import types
 import duckdb
 import pytest
 
-from website.database import get_db, run_migrations
+from website.database import _get_db_path, get_db, run_migrations
 
 
 def _make_request_with_db(con: duckdb.DuckDBPyConnection) -> object:
@@ -97,3 +97,18 @@ class TestRunMigrations:
         assert row is not None
         assert row[0] == "db_test_user"
         assert row[1] == "admin"
+
+
+class TestGetDbPath:
+    def test_returns_database_url_when_set(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("DATABASE_URL", "custom/path.duckdb")
+        assert _get_db_path() == "custom/path.duckdb"
+
+    def test_returns_default_path_when_env_not_set(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("DATABASE_URL", raising=False)
+        result = _get_db_path()
+        assert "app.duckdb" in result

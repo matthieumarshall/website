@@ -8,6 +8,8 @@ omit =
     __pycache__/*
     .venv/*
     tests/*
+    src/website/seed_user.py
+    src/website/seed_results.py
 
 [report]
 exclude_lines =
