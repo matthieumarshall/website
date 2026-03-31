@@ -33,6 +33,7 @@ ALLOWED_LICENSES = {
     "Python-2.0",
     "PSF-2.0",
     "Python Software Foundation License",
+    "Artistic License; GNU General Public License (GPL); GNU General Public License v2 or later (GPLv2+)",
 }
 
 
