@@ -1,34 +1,31 @@
 # Website
 
-A simple website with FastAPI backend, SQLite user storage, and Bootstrap 5 styling.
+A server-rendered website with FastAPI backend, DuckDB persistence, and HTMX interactivity.
 
 ## Stack
 
 - **Backend:** FastAPI (Python)
-- **Database:** SQLite via SQLAlchemy
+- **Database:** DuckDB (persistent file-based)
 - **Auth:** Session cookies (Starlette SessionMiddleware + passlib/bcrypt)
 - **Templating:** Jinja2 (server-side rendered)
-- **Styling:** Bootstrap 5 (CDN)
+- **Frontend:** HTMX + Bootstrap 5 (self-hosted)
 
 ## Setup
 
 1. **Install dependencies** ([uv](https://docs.astral.sh/uv/) required)
    ```
    uv sync
+   just sync
    ```
 
-2. **Add a user** (run once per user you want to create)
+2. **Run migrations** (brings the DuckDB schema up to date)
    ```
-   uv run python seed_user.py <username> <password>
-   ```
-   Example:
-   ```
-   uv run python seed_user.py alice mysecretpassword
+   uv run python -m website.seed_user <username> <password>
    ```
 
 3. **Run the server**
    ```
-   uv run uvicorn main:app --reload
+   uv run uvicorn website.main:app --reload
    ```
 
 4. **Open your browser** at [http://localhost:8000](http://localhost:8000)
@@ -36,35 +33,44 @@ A simple website with FastAPI backend, SQLite user storage, and Bootstrap 5 styl
 ## Project Structure
 
 ```
-website/
-├── main.py           # FastAPI app and all routes
-├── database.py       # SQLAlchemy engine and session setup
-├── models.py         # User database model
-├── auth.py           # Password hashing utilities
-├── seed_user.py      # CLI tool to manually add users
-├── requirements.txt
-├── templates/
-│   ├── base.html     # Shared layout with navbar
-│   ├── index.html    # Home page
-│   └── login.html    # Login form
-└── static/
-    └── style.css     # Custom CSS overrides
+src/website/          # FastAPI application
+├── __init__.py
+├── main.py           # FastAPI app and route wiring
+├── database.py       # DuckDB connection setup
+├── auth.py           # Password hashing/verification
+├── identity.py       # Session and principal retrieval
+├── models.py         # Pydantic schemas
+├── repository.py     # Data access layer
+├── helpers.py        # Shared request utilities
+└── export.py         # Export functionality
 
+migrations/           # SQL schema migrations (applied in order)
+templates/            # Jinja2 HTML templates
+├── base.html         # Shared layout with navbar
+├── index.html        # Home page
+├── login.html        # Login form
+└── ...               # Additional pages
+
+static/               # Self-hosted CSS/JS assets
+├── bootstrap.min.css
+├── bootstrap.bundle.min.js
+├── htmx.min.js
+├── style.css         # Custom CSS overrides
+└── ...               # Feature-specific JS islands
+
+tests/
+├── unit/             # pytest unit tests with mocked DB
+└── ui/               # Playwright end-to-end tests
+
+data/                 # DuckDB database and uploads (gitignored)
 ```
-
-## Routes
-
-| Method | Path      | Description                          |
-|--------|-----------|--------------------------------------|
-| GET    | `/`       | Home page                            |
-| GET    | `/login`  | Login form                           |
-| POST   | `/login`  | Submit login credentials             |
-| POST   | `/logout` | Clear session and redirect to home   |
-
-## Contributing
-
-Contributions are welcome! Please follow the project guidelines.
 
 ## License
 
-Add license information here.
+This project is licensed under the **Business Source License (BSL 1.1)**.
+
+- ✅ **Free for**: non-commercial use, open-source projects, and learning
+- ❌ **Not free for**: commercial applications or services
+- 📅 **Conversion**: After 2 years, this license converts to MIT (fully permissive)
+
+See [LICENSE.md](LICENSE.md) for details. For commercial licensing inquiries, please contact the project owner.
