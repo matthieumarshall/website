@@ -20,6 +20,8 @@ dependencies = [
     "nh3>=0.3.4",
     "slowapi>=0.1.9",
     "fastapi-permissions>=0.2.7",
+    "httpx>=0.28.1",
+    "fpdf2>=2.8.7",
 ]
 
 [project.optional-dependencies]

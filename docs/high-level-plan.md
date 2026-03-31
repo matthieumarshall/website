@@ -67,19 +67,19 @@ Planned islands:
 - Fixture detail panel (HTMX tab interaction) — **DONE**
 - Timetable editor (JSON array, custom JS) — **DONE**
 - Fixture history from past seasons — **DONE**
-- Map of location (embedded map from coordinates or address) — *not started*
+- Map of location (embedded map from address) — **DONE**
 - What3Words location support — *not started*
-- Course map image uploads (support multiple images per fixture) — *not started*
+- Course map image uploads (support multiple images per fixture) — **DONE**
 
 ---
 
 ## Phase 4: Results & Standings
 
 ### 4.1 Results History
-- Results page (currently a "coming soon" placeholder) — *not started*
-- Display all historical results in web page — *not started*
-- Export results to Excel — *not started*
-- Export results to PDF — *not started*
+- Results page (currently a "coming soon" placeholder) — **DONE**
+- Display all historical results in web page — **DONE**
+- Export results to CSV — **DONE**
+- Export results to PDF — **DONE**
 
 ### 4.2 Standings
 - Calculate standings dynamically per season — *not started*

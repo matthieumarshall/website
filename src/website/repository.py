@@ -1,10 +1,14 @@
 import json
+import re as _re
 import duckdb
 
 from website.models import (
     Fixture,
+    FixtureImage,
     PaginatedPosts,
     Post,
+    Race,
+    Result,
     Season,
     TimetableEntry,
     User,
@@ -202,6 +206,9 @@ def _row_to_fixture(row: tuple) -> Fixture:
         timetable=timetable_entries,
         travel_instructions=row[7],
         created_at=row[8],
+        latitude=row[9],
+        longitude=row[10],
+        what3words=row[11],
     )
 
 
@@ -212,13 +219,18 @@ def count_fixtures_for_season(db: duckdb.DuckDBPyConnection, season_id: int) -> 
     return result[0] if result else 0
 
 
+_FIXTURE_SELECT = (
+    "SELECT id, season_id, title, date, location_name, address, timetable,"
+    " travel_instructions, created_at, latitude, longitude, what3words"
+    " FROM fixtures"
+)
+
+
 def list_fixtures_for_season(
     db: duckdb.DuckDBPyConnection, season_id: int
 ) -> list[Fixture]:
     rows = db.execute(
-        "SELECT id, season_id, title, date, location_name, address, timetable,"
-        " travel_instructions, created_at"
-        " FROM fixtures WHERE season_id = ? ORDER BY date ASC",
+        f"{_FIXTURE_SELECT} WHERE season_id = ? ORDER BY date ASC",  # noqa: S608
         [season_id],
     ).fetchall()
     return [_row_to_fixture(r) for r in rows]
@@ -226,9 +238,7 @@ def list_fixtures_for_season(
 
 def get_fixture_by_id(db: duckdb.DuckDBPyConnection, fixture_id: int) -> Fixture | None:
     row = db.execute(
-        "SELECT id, season_id, title, date, location_name, address, timetable,"
-        " travel_instructions, created_at"
-        " FROM fixtures WHERE id = ?",
+        f"{_FIXTURE_SELECT} WHERE id = ?",  # noqa: S608
         [fixture_id],
     ).fetchone()
     return _row_to_fixture(row) if row else None
@@ -243,6 +253,8 @@ def create_fixture(
     address: str,
     timetable: list[TimetableEntry],
     travel_instructions: str,
+    latitude: float | None = None,
+    longitude: float | None = None,
 ) -> Fixture:
     current_count = count_fixtures_for_season(db, season_id)
     if current_count >= _MAX_FIXTURES_PER_SEASON:
@@ -253,8 +265,9 @@ def create_fixture(
     timetable_json = json.dumps([e.model_dump() for e in timetable])
     db.execute(
         "INSERT INTO fixtures"
-        " (season_id, title, date, location_name, address, timetable, travel_instructions)"
-        " VALUES (?, ?, ?, ?, ?, ?, ?)",
+        " (season_id, title, date, location_name, address, timetable,"
+        " travel_instructions, latitude, longitude)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
             season_id,
             title,
@@ -263,12 +276,12 @@ def create_fixture(
             address,
             timetable_json,
             travel_instructions,
+            latitude,
+            longitude,
         ],
     )
     row = db.execute(
-        "SELECT id, season_id, title, date, location_name, address, timetable,"
-        " travel_instructions, created_at"
-        " FROM fixtures WHERE season_id = ? ORDER BY created_at DESC LIMIT 1",
+        f"{_FIXTURE_SELECT} WHERE season_id = ? ORDER BY created_at DESC LIMIT 1",  # noqa: S608
         [season_id],
     ).fetchone()
     assert row is not None  # noqa: S101 # nosec B101 — just inserted
@@ -284,11 +297,14 @@ def update_fixture(
     address: str,
     timetable: list[TimetableEntry],
     travel_instructions: str,
+    latitude: float | None = None,
+    longitude: float | None = None,
 ) -> Fixture | None:
     timetable_json = json.dumps([e.model_dump() for e in timetable])
     db.execute(
         "UPDATE fixtures SET title = ?, date = ?, location_name = ?, address = ?,"
-        " timetable = ?, travel_instructions = ? WHERE id = ?",
+        " timetable = ?, travel_instructions = ?, latitude = ?, longitude = ?"
+        " WHERE id = ?",
         [
             title,
             date,
@@ -296,6 +312,8 @@ def update_fixture(
             address,
             timetable_json,
             travel_instructions,
+            latitude,
+            longitude,
             fixture_id,
         ],
     )
@@ -305,3 +323,206 @@ def update_fixture(
 def delete_fixture(db: duckdb.DuckDBPyConnection, fixture_id: int) -> bool:
     db.execute("DELETE FROM fixtures WHERE id = ?", [fixture_id])
     return True
+
+
+# ---------------------------------------------------------------------------
+# Fixture images
+# ---------------------------------------------------------------------------
+
+
+def _row_to_fixture_image(row: tuple) -> FixtureImage:
+    return FixtureImage(
+        id=row[0],
+        fixture_id=row[1],
+        filename=row[2],
+        uploaded_at=row[3],
+    )
+
+
+def list_fixture_images(
+    db: duckdb.DuckDBPyConnection, fixture_id: int
+) -> list[FixtureImage]:
+    rows = db.execute(
+        "SELECT id, fixture_id, filename, uploaded_at"
+        " FROM fixture_images WHERE fixture_id = ? ORDER BY uploaded_at ASC",
+        [fixture_id],
+    ).fetchall()
+    return [_row_to_fixture_image(r) for r in rows]
+
+
+def get_fixture_image_by_id(
+    db: duckdb.DuckDBPyConnection, image_id: int
+) -> FixtureImage | None:
+    row = db.execute(
+        "SELECT id, fixture_id, filename, uploaded_at FROM fixture_images WHERE id = ?",
+        [image_id],
+    ).fetchone()
+    return _row_to_fixture_image(row) if row else None
+
+
+def create_fixture_image(
+    db: duckdb.DuckDBPyConnection, fixture_id: int, filename: str
+) -> FixtureImage:
+    db.execute(
+        "INSERT INTO fixture_images (fixture_id, filename) VALUES (?, ?)",
+        [fixture_id, filename],
+    )
+    row = db.execute(
+        "SELECT id, fixture_id, filename, uploaded_at"
+        " FROM fixture_images WHERE fixture_id = ? ORDER BY uploaded_at DESC LIMIT 1",
+        [fixture_id],
+    ).fetchone()
+    assert row is not None  # noqa: S101 # nosec B101 — just inserted
+    return _row_to_fixture_image(row)
+
+
+def delete_fixture_image(db: duckdb.DuckDBPyConnection, image_id: int) -> str | None:
+    """Delete a fixture image record by ID. Returns the filename, or None if not found."""
+    row = db.execute(
+        "SELECT filename FROM fixture_images WHERE id = ?", [image_id]
+    ).fetchone()
+    if row is None:
+        return None
+    filename: str = row[0]
+    db.execute("DELETE FROM fixture_images WHERE id = ?", [image_id])
+    return filename
+
+
+# ---------------------------------------------------------------------------
+# Races & Results
+# ---------------------------------------------------------------------------
+
+
+def _race_canonical_key(name: str) -> tuple[int, int, str]:
+    """Sort key: junior races (U9, U11, …) ordered by age first, then alpha."""
+    m = _re.search(r"\bU(\d+)\b", name, _re.IGNORECASE)
+    if m:
+        return (0, int(m.group(1)), name.lower())
+    return (1, 0, name.lower())
+
+
+def _row_to_race(row: tuple) -> Race:
+    return Race(
+        id=row[0],
+        fixture_id=row[1],
+        name=row[2],
+        display_order=row[3],
+        created_at=row[4],
+    )
+
+
+def _row_to_result(row: tuple) -> Result:
+    return Result(
+        id=row[0],
+        race_id=row[1],
+        position=row[2],
+        race_number=row[3],
+        athlete_name=row[4],
+        time=row[5],
+        category=row[6],
+        category_position=row[7],
+        gender=row[8],
+        gender_position=row[9],
+        club=row[10],
+    )
+
+
+def list_races_for_fixture(
+    db: duckdb.DuckDBPyConnection, fixture_id: int
+) -> list[Race]:
+    rows = db.execute(
+        "SELECT id, fixture_id, name, display_order, created_at"
+        " FROM races WHERE fixture_id = ?",
+        [fixture_id],
+    ).fetchall()
+    races = [_row_to_race(r) for r in rows]
+    return sorted(races, key=lambda r: _race_canonical_key(r.name))
+
+
+def get_race_by_id(db: duckdb.DuckDBPyConnection, race_id: int) -> Race | None:
+    row = db.execute(
+        "SELECT id, fixture_id, name, display_order, created_at"
+        " FROM races WHERE id = ?",
+        [race_id],
+    ).fetchone()
+    return _row_to_race(row) if row else None
+
+
+def list_results_for_race(db: duckdb.DuckDBPyConnection, race_id: int) -> list[Result]:
+    rows = db.execute(
+        "SELECT id, race_id, position, race_number, athlete_name, time,"
+        " category, category_position, gender, gender_position, club"
+        " FROM results WHERE race_id = ? ORDER BY position ASC",
+        [race_id],
+    ).fetchall()
+    return [_row_to_result(r) for r in rows]
+
+
+def fixture_has_results(db: duckdb.DuckDBPyConnection, fixture_id: int) -> bool:
+    row = db.execute(
+        "SELECT COUNT(*) FROM results r"
+        " JOIN races rc ON rc.id = r.race_id"
+        " WHERE rc.fixture_id = ?",
+        [fixture_id],
+    ).fetchone()
+    return bool(row and row[0] > 0)
+
+
+def create_race(
+    db: duckdb.DuckDBPyConnection,
+    fixture_id: int,
+    name: str,
+    display_order: int = 0,
+) -> Race:
+    db.execute(
+        "INSERT INTO races (fixture_id, name, display_order) VALUES (?, ?, ?)",
+        [fixture_id, name, display_order],
+    )
+    row = db.execute(
+        "SELECT id, fixture_id, name, display_order, created_at"
+        " FROM races WHERE fixture_id = ? ORDER BY created_at DESC LIMIT 1",
+        [fixture_id],
+    ).fetchone()
+    assert row is not None  # noqa: S101 # nosec B101 — just inserted
+    return _row_to_race(row)
+
+
+def create_result(
+    db: duckdb.DuckDBPyConnection,
+    race_id: int,
+    position: int,
+    athlete_name: str,
+    time: str,
+    category: str,
+    gender: str,
+    race_number: int | None = None,
+    category_position: int | None = None,
+    gender_position: int | None = None,
+    club: str | None = None,
+) -> Result:
+    db.execute(
+        "INSERT INTO results"
+        " (race_id, position, race_number, athlete_name, time, category,"
+        " category_position, gender, gender_position, club)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+            race_id,
+            position,
+            race_number,
+            athlete_name,
+            time,
+            category,
+            category_position,
+            gender,
+            gender_position,
+            club,
+        ],
+    )
+    row = db.execute(
+        "SELECT id, race_id, position, race_number, athlete_name, time,"
+        " category, category_position, gender, gender_position, club"
+        " FROM results WHERE race_id = ? ORDER BY id DESC LIMIT 1",
+        [race_id],
+    ).fetchone()
+    assert row is not None  # noqa: S101 # nosec B101 — just inserted
+    return _row_to_result(row)

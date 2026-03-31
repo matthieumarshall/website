@@ -115,6 +115,18 @@ class Fixture(BaseModel):
     timetable: list[TimetableEntry]
     travel_instructions: str
     created_at: datetime
+    latitude: float | None = None
+    longitude: float | None = None
+    what3words: str | None = None
+
+
+class FixtureImage(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    id: int
+    fixture_id: int
+    filename: str
+    uploaded_at: datetime
 
 
 class FixtureCreate(BaseModel):
@@ -133,3 +145,41 @@ class FixtureUpdate(BaseModel):
     address: str
     timetable: list[TimetableEntry]
     travel_instructions: str
+
+
+# ---------------------------------------------------------------------------
+# Races & Results
+# ---------------------------------------------------------------------------
+
+
+class Race(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    id: int
+    fixture_id: int
+    name: str
+    display_order: int
+    created_at: datetime
+
+
+class Result(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    id: int
+    race_id: int
+    position: int
+    race_number: int | None
+    athlete_name: str
+    time: str
+    category: str
+    category_position: int | None
+    gender: str
+    gender_position: int | None
+    club: str | None
+
+
+class RaceWithResults(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    race: Race
+    results: list[Result]

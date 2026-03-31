@@ -607,6 +607,466 @@ class TestFixturesCopy:
         )
         assert resp.status_code == 404
 
+
+# ---------------------------------------------------------------------------
+# Login/logout
+# ---------------------------------------------------------------------------
+
+
+class TestLoginPageAlreadyAuthenticated:
+    def test_redirects_to_news_when_logged_in(self, admin_client: TestClient) -> None:
+        resp = admin_client.get("/login", follow_redirects=False)
+        assert resp.status_code == 302
+        assert resp.headers["location"] == "/news"
+
+
+class TestLoginBadCredentials:
+    def test_invalid_password_returns_401(self, test_client: TestClient) -> None:
+        login_page = test_client.get("/login")
+        match = re.search(r'name="csrf_token"\s+value="([^"]+)"', login_page.text)
+        assert match
+        resp = test_client.post(
+            "/login",
+            data={
+                "username": "nonexistent",
+                "password": "wrongpass",
+                "csrf_token": match.group(1),
+            },
+        )
+        assert resp.status_code == 401
+        assert "Invalid username or password" in resp.text
+
+
+class TestLogout:
+    def test_logout_redirects_to_news(self, admin_client: TestClient) -> None:
+        news_page = admin_client.get("/news")
+        csrf_match = re.search(r'name="csrf_token"\s+value="([^"]+)"', news_page.text)
+        assert csrf_match
+        resp = admin_client.post(
+            "/logout",
+            data={"csrf_token": csrf_match.group(1)},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+        assert resp.headers["location"] == "/news"
+
+    def test_logout_clears_session(self, admin_client: TestClient) -> None:
+        news_page = admin_client.get("/news")
+        csrf_match = re.search(r'name="csrf_token"\s+value="([^"]+)"', news_page.text)
+        assert csrf_match
+        admin_client.post(
+            "/logout",
+            data={"csrf_token": csrf_match.group(1)},
+            follow_redirects=True,
+        )
+        # After logout, account page should redirect to login
+        resp = admin_client.get("/account", follow_redirects=False)
+        assert resp.status_code == 302
+        assert resp.headers["location"] == "/login"
+
+
+# ---------------------------------------------------------------------------
+# Privacy policy
+# ---------------------------------------------------------------------------
+
+
+class TestPrivacyPolicyRoute:
+    def test_privacy_policy_page_loads(self, test_client: TestClient) -> None:
+        resp = test_client.get("/privacy-policy")
+        assert resp.status_code == 200
+        assert "text/html" in resp.headers.get("content-type", "")
+
+    def test_privacy_policy_contains_privacy_content(
+        self, test_client: TestClient
+    ) -> None:
+        resp = test_client.get("/privacy-policy")
+        assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Dismiss cookie notice
+# ---------------------------------------------------------------------------
+
+
+class TestDismissCookieNotice:
+    def test_dismiss_sets_cookie(self, test_client: TestClient) -> None:
+        news_page = test_client.get("/news")
+        csrf_match = re.search(r'name="csrf_token"\s+value="([^"]+)"', news_page.text)
+        assert csrf_match
+        resp = test_client.post(
+            "/dismiss-cookie-notice",
+            data={"csrf_token": csrf_match.group(1)},
+            follow_redirects=False,
+            headers={"Referer": "http://testserver/news"},
+        )
+        assert resp.status_code == 302
+        assert "cookie_notice_dismissed" in resp.headers.get("set-cookie", "")
+
+    def test_dismiss_redirects_to_referer_path(self, test_client: TestClient) -> None:
+        news_page = test_client.get("/news")
+        csrf_match = re.search(r'name="csrf_token"\s+value="([^"]+)"', news_page.text)
+        assert csrf_match
+        resp = test_client.post(
+            "/dismiss-cookie-notice",
+            data={"csrf_token": csrf_match.group(1)},
+            follow_redirects=False,
+            headers={"Referer": "http://testserver/fixtures"},
+        )
+        assert resp.status_code == 302
+        assert resp.headers["location"] == "/fixtures"
+
+
+# ---------------------------------------------------------------------------
+# News detail / edit
+# ---------------------------------------------------------------------------
+
+
+class TestNewsDetailRoute:
+    def test_news_detail_loads_for_existing_post(
+        self, content_creator_client: TestClient, test_db: duckdb.DuckDBPyConnection
+    ) -> None:
+
+        create_page = content_creator_client.get("/news/create")
+        match = re.search(r'name="csrf_token"\s+value="([^"]+)"', create_page.text)
+        assert match
+        content_creator_client.post(
+            "/news/create",
+            data={
+                "title": "Detail Test Post",
+                "content": "<p>Detail content</p>",
+                "csrf_token": match.group(1),
+            },
+        )
+        row = test_db.execute(
+            "SELECT id FROM posts WHERE title = ?", ["Detail Test Post"]
+        ).fetchone()
+        assert row
+        post_id = row[0]
+
+        resp = content_creator_client.get(f"/news/{post_id}")
+        assert resp.status_code == 200
+        assert "Detail Test Post" in resp.text
+
+    def test_news_detail_returns_404_for_missing_post(
+        self, test_client: TestClient
+    ) -> None:
+        resp = test_client.get("/news/99999")
+        assert resp.status_code == 404
+
+
+class TestNewsEditRoute:
+    def test_edit_form_loads_for_post_author(
+        self, content_creator_client: TestClient, test_db: duckdb.DuckDBPyConnection
+    ) -> None:
+        create_page = content_creator_client.get("/news/create")
+        match = re.search(r'name="csrf_token"\s+value="([^"]+)"', create_page.text)
+        assert match
+        content_creator_client.post(
+            "/news/create",
+            data={
+                "title": "Edit Me",
+                "content": "<p>Original</p>",
+                "csrf_token": match.group(1),
+            },
+        )
+        row = test_db.execute(
+            "SELECT id FROM posts WHERE title = ?", ["Edit Me"]
+        ).fetchone()
+        assert row
+        post_id = row[0]
+
+        resp = content_creator_client.get(f"/news/{post_id}/edit")
+        assert resp.status_code == 200
+        assert "Edit Me" in resp.text
+
+    def test_edit_submit_updates_post(
+        self, content_creator_client: TestClient, test_db: duckdb.DuckDBPyConnection
+    ) -> None:
+        create_page = content_creator_client.get("/news/create")
+        match = re.search(r'name="csrf_token"\s+value="([^"]+)"', create_page.text)
+        assert match
+        content_creator_client.post(
+            "/news/create",
+            data={
+                "title": "Before Edit",
+                "content": "<p>before</p>",
+                "csrf_token": match.group(1),
+            },
+        )
+        row = test_db.execute(
+            "SELECT id FROM posts WHERE title = ?", ["Before Edit"]
+        ).fetchone()
+        assert row
+        post_id = row[0]
+
+        edit_page = content_creator_client.get(f"/news/{post_id}/edit")
+        csrf_match = re.search(r'name="csrf_token"\s+value="([^"]+)"', edit_page.text)
+        assert csrf_match
+        resp = content_creator_client.post(
+            f"/news/{post_id}/edit",
+            data={
+                "title": "After Edit",
+                "content": "<p>after</p>",
+                "csrf_token": csrf_match.group(1),
+            },
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+        updated = test_db.execute(
+            "SELECT title FROM posts WHERE id = ?", [post_id]
+        ).fetchone()
+        assert updated
+        assert updated[0] == "After Edit"
+
+
+# ---------------------------------------------------------------------------
+# Fixtures: season panel with data, fixture detail with data
+# ---------------------------------------------------------------------------
+
+
+class TestFixturesSeasonPanelWithData:
+    def test_season_panel_with_seasons_auto_selects_first(
+        self, test_client: TestClient, test_db: duckdb.DuckDBPyConnection
+    ) -> None:
+        from website import repository
+
+        season = repository.create_season(test_db, "SPanel-Season-2025")
+        repository.create_fixture(
+            test_db, season.id, "Round 1", "2025-09-01", "Venue", "Addr", [], ""
+        )
+        resp = test_client.get("/fixtures/season-panel")
+        assert resp.status_code == 200
+
+    def test_season_panel_with_fixture_loads_images(
+        self, test_client: TestClient, test_db: duckdb.DuckDBPyConnection
+    ) -> None:
+        from website import repository
+
+        season = repository.create_season(test_db, "SPanel-Imgs-2025")
+        fixture = repository.create_fixture(
+            test_db, season.id, "Round 1", "2025-10-01", "Venue", "Addr", [], ""
+        )
+        repository.create_fixture_image(test_db, fixture.id, "photo.jpg")
+        resp = test_client.get(f"/fixtures/season-panel?season_id={season.id}")
+        assert resp.status_code == 200
+
+
+class TestFixtureDetailWithData:
+    def test_fixture_detail_returns_200_for_existing_fixture(
+        self, test_client: TestClient, test_db: duckdb.DuckDBPyConnection
+    ) -> None:
+        from website import repository
+
+        season = repository.create_season(test_db, "FDetail-Season")
+        fixture = repository.create_fixture(
+            test_db, season.id, "Round 1", "2025-09-01", "Venue", "Addr", [], ""
+        )
+        resp = test_client.get(
+            f"/fixtures/fixture-detail?fixture_id={fixture.id}&season_id={season.id}"
+        )
+        assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Fixtures: new season form and cancel
+# ---------------------------------------------------------------------------
+
+
+class TestFixturesNewSeasonForm:
+    def test_new_season_form_loads_as_admin(self, admin_client: TestClient) -> None:
+        resp = admin_client.get("/fixtures/seasons/new")
+        assert resp.status_code == 200
+
+    def test_new_season_form_requires_auth(self, test_client: TestClient) -> None:
+        resp = test_client.get("/fixtures/seasons/new", follow_redirects=False)
+        assert resp.status_code in (302, 403)
+
+
+class TestFixturesNewSeasonFormCancel:
+    def test_cancel_returns_empty_fragment(self, test_client: TestClient) -> None:
+        resp = test_client.get("/fixtures/seasons/new-form-cancel")
+        assert resp.status_code == 200
+        assert resp.text.strip() == ""
+
+
+# ---------------------------------------------------------------------------
+# Fixtures: new fixture form
+# ---------------------------------------------------------------------------
+
+
+class TestFixturesNewFixtureForm:
+    def _get_csrf(self, client: TestClient) -> str:
+        resp = client.get("/fixtures")
+        match = re.search(r'name="csrf_token"\s+value="([^"]+)"', resp.text)
+        assert match
+        return match.group(1)
+
+    def test_new_fixture_form_loads_for_valid_season(
+        self, admin_client: TestClient, test_db: duckdb.DuckDBPyConnection
+    ) -> None:
+        from website import repository
+
+        season = repository.create_season(test_db, "NewFix-Form-Season")
+        resp = admin_client.get(f"/fixtures/seasons/{season.id}/fixtures/new")
+        assert resp.status_code == 200
+
+    def test_new_fixture_form_returns_404_for_missing_season(
+        self, admin_client: TestClient
+    ) -> None:
+        resp = admin_client.get(
+            "/fixtures/seasons/99999/fixtures/new", follow_redirects=False
+        )
+        assert resp.status_code == 404
+
+    def test_new_fixture_form_returns_409_when_season_full(
+        self, admin_client: TestClient, test_db: duckdb.DuckDBPyConnection
+    ) -> None:
+        from website import repository
+
+        season = repository.create_season(test_db, "Full-Season-NewFix")
+        for i in range(5):
+            repository.create_fixture(
+                test_db,
+                season.id,
+                f"Round {i + 1}",
+                f"2025-0{i + 1}-01",
+                "V",
+                "A",
+                [],
+                "",
+            )
+        resp = admin_client.get(
+            f"/fixtures/seasons/{season.id}/fixtures/new", follow_redirects=False
+        )
+        assert resp.status_code == 409
+
+
+# ---------------------------------------------------------------------------
+# Fixtures: edit form and update
+# ---------------------------------------------------------------------------
+
+
+class TestFixturesEditForm:
+    def test_edit_form_loads_for_existing_fixture(
+        self, admin_client: TestClient, test_db: duckdb.DuckDBPyConnection
+    ) -> None:
+        from website import repository
+
+        season = repository.create_season(test_db, "EditForm-Season")
+        fixture = repository.create_fixture(
+            test_db, season.id, "Round 1", "2025-09-01", "Venue", "Addr", [], ""
+        )
+        resp = admin_client.get(
+            f"/fixtures/seasons/{season.id}/fixtures/{fixture.id}/edit"
+        )
+        assert resp.status_code == 200
+        assert "Round 1" in resp.text
+
+    def test_edit_form_returns_404_for_missing_season(
+        self, admin_client: TestClient
+    ) -> None:
+        resp = admin_client.get(
+            "/fixtures/seasons/99999/fixtures/1/edit", follow_redirects=False
+        )
+        assert resp.status_code == 404
+
+    def test_edit_form_returns_404_for_missing_fixture(
+        self, admin_client: TestClient, test_db: duckdb.DuckDBPyConnection
+    ) -> None:
+        from website import repository
+
+        season = repository.create_season(test_db, "EditForm-NoFix-Season")
+        resp = admin_client.get(
+            f"/fixtures/seasons/{season.id}/fixtures/99999/edit",
+            follow_redirects=False,
+        )
+        assert resp.status_code == 404
+
+
+class TestFixturesUpdateFixture:
+    def _get_csrf(self, client: TestClient) -> str:
+        resp = client.get("/fixtures")
+        match = re.search(r'name="csrf_token"\s+value="([^"]+)"', resp.text)
+        assert match
+        return match.group(1)
+
+    def test_update_fixture_changes_title(
+        self, admin_client: TestClient, test_db: duckdb.DuckDBPyConnection
+    ) -> None:
+        import json
+        from website import repository
+
+        season = repository.create_season(test_db, "Update-Fixture-Season")
+        fixture = repository.create_fixture(
+            test_db, season.id, "Old Title", "2025-09-01", "Venue", "Addr", [], ""
+        )
+        csrf = self._get_csrf(admin_client)
+        resp = admin_client.post(
+            f"/fixtures/seasons/{season.id}/fixtures/{fixture.id}/edit",
+            data={
+                "title": "New Title",
+                "date": "2025-10-01",
+                "location_name": "New Venue",
+                "address": "New Addr",
+                "timetable_json": json.dumps([]),
+                "travel_instructions": "",
+                "csrf_token": csrf,
+            },
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+        updated = repository.get_fixture_by_id(test_db, fixture.id)
+        assert updated is not None
+        assert updated.title == "New Title"
+
+    def test_update_fixture_returns_404_for_missing_fixture(
+        self, admin_client: TestClient, test_db: duckdb.DuckDBPyConnection
+    ) -> None:
+        import json
+        from website import repository
+
+        season = repository.create_season(test_db, "Update-Missing-Season")
+        csrf = self._get_csrf(admin_client)
+        resp = admin_client.post(
+            f"/fixtures/seasons/{season.id}/fixtures/99999/edit",
+            data={
+                "title": "Whatever",
+                "date": "2025-10-01",
+                "location_name": "V",
+                "address": "A",
+                "timetable_json": json.dumps([]),
+                "travel_instructions": "",
+                "csrf_token": csrf,
+            },
+            follow_redirects=False,
+        )
+        assert resp.status_code == 404
+
+    def test_update_fixture_requires_auth(
+        self, test_client: TestClient, test_db: duckdb.DuckDBPyConnection
+    ) -> None:
+        import json
+        from website import repository
+
+        season = repository.create_season(test_db, "Update-Auth-Season")
+        fixture = repository.create_fixture(
+            test_db, season.id, "R1", "2025-09-01", "V", "A", [], ""
+        )
+        resp = test_client.post(
+            f"/fixtures/seasons/{season.id}/fixtures/{fixture.id}/edit",
+            data={
+                "title": "Hacked",
+                "date": "2025-10-01",
+                "location_name": "V",
+                "address": "A",
+                "timetable_json": json.dumps([]),
+                "travel_instructions": "",
+                "csrf_token": "fake",
+            },
+            follow_redirects=False,
+        )
+        assert resp.status_code in (302, 403)
+
     def test_copy_submit_creates_fixture_in_target_season(
         self, admin_client: TestClient, test_db: duckdb.DuckDBPyConnection
     ) -> None:

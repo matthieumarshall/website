@@ -18,7 +18,13 @@ from fastapi_permissions import (
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.responses import (
+    HTMLResponse,
+    JSONResponse,
+    RedirectResponse,
+    Response,
+    StreamingResponse,
+)
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -27,6 +33,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from website.auth import verify_password
 from website.database import get_db, run_migrations
 from website.helpers import (
+    geocode_address,
     page_context,
     parse_timetable_from_json,
     safe_referer_path,
@@ -43,6 +50,7 @@ from website.models import (
     _MAX_FIXTURES_PER_SEASON,
 )
 from website import repository
+from website.export import build_csv, build_pdf, filter_results as filter_race_results
 
 _logger = logging.getLogger(__name__)
 
@@ -56,6 +64,7 @@ if not _secret_key:
     _secret_key = "dev-only-insecure-key-do-not-use-in-prod"  # nosec B105
 
 _UPLOADS_DIR = Path("data/uploads")
+_FIXTURE_MAPS_DIR = Path("data/fixture-maps")
 _ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 _MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5 MB
 
@@ -72,11 +81,12 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "geolocation=(), camera=(), microphone=()"
         )
         # 'unsafe-inline' in style-src is required for the Quill rich-text editor
+        # tile.openstreetmap.org is required for embedded Leaflet maps
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
             "style-src 'self' 'unsafe-inline'; "
             "script-src 'self'; "
-            "img-src 'self' data:; "
+            "img-src 'self' data: https://tile.openstreetmap.org https://*.tile.openstreetmap.org; "
             "font-src 'self'; "
             "frame-ancestors 'none'"
         )
@@ -92,6 +102,7 @@ async def _lifespan(app: FastAPI):  # noqa: ARG001
     from website.database import _get_db_path
 
     _UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+    _FIXTURE_MAPS_DIR.mkdir(parents=True, exist_ok=True)
     db_path = _get_db_path()
     if db_path != ":memory:":
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
@@ -154,11 +165,15 @@ app.add_middleware(
 )
 app.add_middleware(SecurityHeadersMiddleware)  # type: ignore[arg-type]
 
-# Ensure the uploads directory exists before mounting as a static-files endpoint.
+# Ensure data directories exist before mounting as static-file endpoints.
 # (StaticFiles raises at import time if the directory is absent, which happens
 # before the lifespan startup handler gets a chance to create it.)
 _UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+_FIXTURE_MAPS_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(_UPLOADS_DIR)), name="uploads")
+app.mount(
+    "/fixture-maps", StaticFiles(directory=str(_FIXTURE_MAPS_DIR)), name="fixture-maps"
+)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
@@ -200,9 +215,205 @@ def home() -> RedirectResponse:
 
 
 @app.get("/results", response_class=HTMLResponse)
-def results(request: Request) -> HTMLResponse:
+def results(
+    request: Request,
+    season_id: int | None = None,
+    fixture_id: int | None = None,
+    race_id: int | None = None,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+) -> HTMLResponse:
+    seasons = repository.list_seasons(db)
+    if season_id is None and seasons:
+        season_id = seasons[0].id
+    selected_season = None
+    fixtures_list: list = []
+    active_fixture = None
+    races: list = []
+    active_race = None
+    race_results: list = []
+    if season_id is not None:
+        selected_season = repository.get_season_by_id(db, season_id)
+        if selected_season:
+            fixtures_list = repository.list_fixtures_for_season(db, season_id)
+    if fixture_id is None and fixtures_list:
+        fixture_id = fixtures_list[0].id
+    if fixture_id is not None:
+        active_fixture = repository.get_fixture_by_id(db, fixture_id)
+        if active_fixture:
+            races = repository.list_races_for_fixture(db, fixture_id)
+    if race_id is None and races:
+        race_id = races[0].id
+    if race_id is not None:
+        active_race = repository.get_race_by_id(db, race_id)
+        if active_race:
+            race_results = repository.list_results_for_race(db, race_id)
     return templates.TemplateResponse(
-        request, "results.html", page_context(request, "results")
+        request,
+        "results.html",
+        page_context(
+            request,
+            "results",
+            seasons=seasons,
+            selected_season=selected_season,
+            fixtures=fixtures_list,
+            active_fixture=active_fixture,
+            races=races,
+            active_race=active_race,
+            race_results=race_results,
+        ),
+    )
+
+
+@app.get("/results/fixture-panel", response_class=HTMLResponse)
+def results_fixture_panel(
+    request: Request,
+    season_id: int | None = None,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+) -> HTMLResponse:
+    seasons = repository.list_seasons(db)
+    if season_id is None and seasons:
+        season_id = seasons[0].id
+    selected_season = None
+    fixtures_list: list = []
+    active_fixture = None
+    races: list = []
+    active_race = None
+    race_results: list = []
+    if season_id is not None:
+        selected_season = repository.get_season_by_id(db, season_id)
+        if selected_season:
+            fixtures_list = repository.list_fixtures_for_season(db, season_id)
+    if fixtures_list:
+        active_fixture = fixtures_list[0]
+        races = repository.list_races_for_fixture(db, active_fixture.id)
+    if races:
+        active_race = races[0]
+        race_results = repository.list_results_for_race(db, active_race.id)
+    return templates.TemplateResponse(
+        request,
+        "_results_fixture_panel.html",
+        page_context(
+            request,
+            "results",
+            selected_season=selected_season,
+            fixtures=fixtures_list,
+            active_fixture=active_fixture,
+            races=races,
+            active_race=active_race,
+            race_results=race_results,
+        ),
+    )
+
+
+@app.get("/results/race-panel", response_class=HTMLResponse)
+def results_race_panel(
+    request: Request,
+    fixture_id: int,
+    season_id: int | None = None,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+) -> HTMLResponse:
+    active_fixture = repository.get_fixture_by_id(db, fixture_id)
+    if active_fixture is None:
+        raise HTTPException(status_code=404, detail="Fixture not found")
+    races = repository.list_races_for_fixture(db, fixture_id)
+    active_race = races[0] if races else None
+    race_results = (
+        repository.list_results_for_race(db, active_race.id) if active_race else []
+    )
+    return templates.TemplateResponse(
+        request,
+        "_results_race_panel.html",
+        page_context(
+            request,
+            "results",
+            active_fixture=active_fixture,
+            season_id=season_id,
+            races=races,
+            active_race=active_race,
+            race_results=race_results,
+        ),
+    )
+
+
+@app.get("/results/race-table", response_class=HTMLResponse)
+def results_race_table(
+    request: Request,
+    race_id: int,
+    fixture_id: int | None = None,
+    season_id: int | None = None,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+) -> HTMLResponse:
+    active_race = repository.get_race_by_id(db, race_id)
+    if active_race is None:
+        raise HTTPException(status_code=404, detail="Race not found")
+    race_results = repository.list_results_for_race(db, race_id)
+    return templates.TemplateResponse(
+        request,
+        "_results_race_table.html",
+        page_context(
+            request,
+            "results",
+            active_race=active_race,
+            race_results=race_results,
+            fixture_id=fixture_id,
+            season_id=season_id,
+        ),
+    )
+
+
+@app.get("/results/export/csv")
+def results_export_csv(
+    race_id: int,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    category: str | None = None,
+    club: str | None = None,
+    gender: str | None = None,
+    name: str | None = None,
+) -> StreamingResponse:
+    race = repository.get_race_by_id(db, race_id)
+    if race is None:
+        raise HTTPException(status_code=404, detail="Race not found")
+    fixture = repository.get_fixture_by_id(db, race.fixture_id)
+    fixture_title = fixture.title if fixture else "Unknown"
+    all_results = repository.list_results_for_race(db, race_id)
+    filtered = filter_race_results(
+        all_results, category=category, club=club, gender=gender, name=name
+    )
+    csv_str, filename = build_csv(filtered, race.name, fixture_title)
+
+    def _iter():
+        yield csv_str.encode("utf-8")
+
+    return StreamingResponse(
+        _iter(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.get("/results/export/pdf")
+def results_export_pdf(
+    race_id: int,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    category: str | None = None,
+    club: str | None = None,
+    gender: str | None = None,
+    name: str | None = None,
+) -> Response:
+    race = repository.get_race_by_id(db, race_id)
+    if race is None:
+        raise HTTPException(status_code=404, detail="Race not found")
+    fixture = repository.get_fixture_by_id(db, race.fixture_id)
+    fixture_title = fixture.title if fixture else "Unknown"
+    all_results = repository.list_results_for_race(db, race_id)
+    filtered = filter_race_results(
+        all_results, category=category, club=club, gender=gender, name=name
+    )
+    pdf_bytes, filename = build_pdf(filtered, race.name, fixture_title)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -245,6 +456,9 @@ def fixtures(
         if selected_season:
             fixtures_list = repository.list_fixtures_for_season(db, season_id)
     first_fixture = fixtures_list[0] if fixtures_list else None
+    images = (
+        repository.list_fixture_images(db, first_fixture.id) if first_fixture else []
+    )
     return templates.TemplateResponse(
         request,
         "fixtures.html",
@@ -255,6 +469,7 @@ def fixtures(
             selected_season=selected_season,
             fixtures=fixtures_list,
             active_fixture=first_fixture,
+            images=images,
         ),
     )
 
@@ -275,6 +490,9 @@ def fixtures_season_panel(
         if selected_season:
             fixtures_list = repository.list_fixtures_for_season(db, season_id)
     first_fixture = fixtures_list[0] if fixtures_list else None
+    images = (
+        repository.list_fixture_images(db, first_fixture.id) if first_fixture else []
+    )
     return templates.TemplateResponse(
         request,
         "_fixtures_season_panel.html",
@@ -285,6 +503,7 @@ def fixtures_season_panel(
             selected_season=selected_season,
             fixtures=fixtures_list,
             active_fixture=first_fixture,
+            images=images,
         ),
     )
 
@@ -299,6 +518,8 @@ def fixtures_fixture_detail(
     fixture = repository.get_fixture_by_id(db, fixture_id)
     if fixture is None:
         raise HTTPException(status_code=404, detail="Fixture not found")
+    images = repository.list_fixture_images(db, fixture_id)
+    has_results = repository.fixture_has_results(db, fixture_id)
     return templates.TemplateResponse(
         request,
         "_fixture_detail.html",
@@ -307,6 +528,8 @@ def fixtures_fixture_detail(
             "fixtures",
             fixture=fixture,
             season_id=season_id,
+            images=images,
+            has_results=has_results,
         ),
     )
 
@@ -423,6 +646,8 @@ def fixtures_create_fixture(
         timetable=timetable,
         travel_instructions=travel_instructions.strip(),
     )
+    coords = geocode_address(validated.address)
+    lat, lon = (coords[0], coords[1]) if coords else (None, None)
     try:
         repository.create_fixture(
             db,
@@ -433,6 +658,8 @@ def fixtures_create_fixture(
             address=validated.address,
             timetable=validated.timetable,
             travel_instructions=validated.travel_instructions,
+            latitude=lat,
+            longitude=lon,
         )
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
@@ -488,6 +715,8 @@ def fixtures_update_fixture(
         timetable=timetable,
         travel_instructions=travel_instructions.strip(),
     )
+    coords = geocode_address(validated.address)
+    lat, lon = (coords[0], coords[1]) if coords else (None, None)
     result = repository.update_fixture(
         db,
         fixture_id=fixture_id,
@@ -497,6 +726,8 @@ def fixtures_update_fixture(
         address=validated.address,
         timetable=validated.timetable,
         travel_instructions=validated.travel_instructions,
+        latitude=lat,
+        longitude=lon,
     )
     if result is None:
         raise HTTPException(status_code=404, detail="Fixture not found")
@@ -573,6 +804,7 @@ def fixtures_copy_submit(
         timetable=timetable,
         travel_instructions=travel_instructions.strip(),
     )
+    coords = geocode_address(validated.address)
     try:
         repository.create_fixture(
             db,
@@ -583,6 +815,8 @@ def fixtures_copy_submit(
             address=validated.address,
             timetable=validated.timetable,
             travel_instructions=validated.travel_instructions,
+            latitude=coords[0] if coords else None,
+            longitude=coords[1] if coords else None,
         )
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
@@ -590,8 +824,77 @@ def fixtures_copy_submit(
 
 
 # ---------------------------------------------------------------------------
-# Auth
+# Fixture image uploads
 # ---------------------------------------------------------------------------
+
+
+@app.post("/fixtures/seasons/{season_id}/fixtures/{fixture_id}/images")
+async def fixture_upload_image(
+    season_id: int,
+    fixture_id: int,
+    request: Request,
+    file: UploadFile,
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("create", _FIXTURES_STAFF_ACL),
+) -> HTMLResponse:
+    validate_csrf(request, csrf_token)
+    if repository.get_fixture_by_id(db, fixture_id) is None:
+        raise HTTPException(status_code=404, detail="Fixture not found")
+    if file.content_type not in _ALLOWED_IMAGE_TYPES:
+        raise HTTPException(status_code=400, detail="Unsupported image type")
+    data = await file.read(_MAX_IMAGE_BYTES + 1)
+    if len(data) > _MAX_IMAGE_BYTES:
+        raise HTTPException(status_code=413, detail="Image exceeds 5 MB limit")
+    suffix = Path(file.filename or "image").suffix.lower() or ".jpg"
+    filename = f"{uuid.uuid4().hex}{suffix}"
+    _FIXTURE_MAPS_DIR.mkdir(parents=True, exist_ok=True)
+    (Path(_FIXTURE_MAPS_DIR) / filename).write_bytes(data)
+    repository.create_fixture_image(db, fixture_id=fixture_id, filename=filename)
+    images = repository.list_fixture_images(db, fixture_id)
+    return templates.TemplateResponse(
+        request,
+        "_fixture_images.html",
+        page_context(
+            request,
+            "fixtures",
+            fixture_id=fixture_id,
+            season_id=season_id,
+            images=images,
+        ),
+    )
+
+
+@app.post(
+    "/fixtures/seasons/{season_id}/fixtures/{fixture_id}/images/{image_id}/delete"
+)
+async def fixture_delete_image(
+    season_id: int,
+    fixture_id: int,
+    image_id: int,
+    request: Request,
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("create", _FIXTURES_STAFF_ACL),
+) -> HTMLResponse:
+    validate_csrf(request, csrf_token)
+    filename = repository.delete_fixture_image(db, image_id)
+    if filename is not None:
+        filepath = Path(_FIXTURE_MAPS_DIR) / filename
+        if filepath.exists():
+            filepath.unlink()
+    images = repository.list_fixture_images(db, fixture_id)
+    return templates.TemplateResponse(
+        request,
+        "_fixture_images.html",
+        page_context(
+            request,
+            "fixtures",
+            fixture_id=fixture_id,
+            season_id=season_id,
+            images=images,
+        ),
+    )
 
 
 @app.get("/login", response_class=HTMLResponse)

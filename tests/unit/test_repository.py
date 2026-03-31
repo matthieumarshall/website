@@ -489,3 +489,73 @@ class TestCountFixturesForSeason:
         season = _make_season(db)
         repository.create_fixture(db, season.id, "R1", "2025-09-01", "V", "A", [], "")
         assert repository.count_fixtures_for_season(db, season.id) == 1
+
+
+# ---------------------------------------------------------------------------
+# Fixture image repository
+# ---------------------------------------------------------------------------
+
+
+class TestFixtureImageRepository:
+    def test_create_fixture_image_returns_image(
+        self, db: duckdb.DuckDBPyConnection
+    ) -> None:
+        season = _make_season(db)
+        fixture = repository.create_fixture(
+            db, season.id, "R1", "2025-09-01", "V", "A", [], ""
+        )
+        image = repository.create_fixture_image(db, fixture.id, "photo.jpg")
+        assert image.id > 0
+        assert image.fixture_id == fixture.id
+        assert image.filename == "photo.jpg"
+
+    def test_create_fixture_image_is_retrievable(
+        self, db: duckdb.DuckDBPyConnection
+    ) -> None:
+        season = _make_season(db)
+        fixture = repository.create_fixture(
+            db, season.id, "R1", "2025-09-01", "V", "A", [], ""
+        )
+        created = repository.create_fixture_image(db, fixture.id, "map.png")
+        fetched = repository.get_fixture_image_by_id(db, created.id)
+        assert fetched is not None
+        assert fetched.id == created.id
+        assert fetched.filename == "map.png"
+        assert fetched.fixture_id == fixture.id
+
+    def test_get_fixture_image_by_id_returns_none_for_missing(
+        self, db: duckdb.DuckDBPyConnection
+    ) -> None:
+        assert repository.get_fixture_image_by_id(db, 99999) is None
+
+    def test_delete_fixture_image_returns_filename(
+        self, db: duckdb.DuckDBPyConnection
+    ) -> None:
+        season = _make_season(db)
+        fixture = repository.create_fixture(
+            db, season.id, "R1", "2025-09-01", "V", "A", [], ""
+        )
+        image = repository.create_fixture_image(db, fixture.id, "to_delete.jpg")
+        filename = repository.delete_fixture_image(db, image.id)
+        assert filename == "to_delete.jpg"
+        assert repository.get_fixture_image_by_id(db, image.id) is None
+
+    def test_delete_fixture_image_returns_none_when_not_found(
+        self, db: duckdb.DuckDBPyConnection
+    ) -> None:
+        result = repository.delete_fixture_image(db, 99999)
+        assert result is None
+
+    def test_list_fixture_images_returns_images_for_fixture(
+        self, db: duckdb.DuckDBPyConnection
+    ) -> None:
+        season = _make_season(db)
+        fixture = repository.create_fixture(
+            db, season.id, "R1", "2025-09-01", "V", "A", [], ""
+        )
+        repository.create_fixture_image(db, fixture.id, "img1.jpg")
+        repository.create_fixture_image(db, fixture.id, "img2.png")
+        images = repository.list_fixture_images(db, fixture.id)
+        assert len(images) == 2
+        filenames = {img.filename for img in images}
+        assert {"img1.jpg", "img2.png"} == filenames
