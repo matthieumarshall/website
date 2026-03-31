@@ -1,13 +1,17 @@
 import json as _json
+import logging
 import secrets
 from typing import Any
 from urllib.parse import urlparse
 
+import httpx
 import nh3
 from fastapi import HTTPException, Request
 
-from website.identity import get_current_user
-from website.models import TimetableEntry
+_logger = logging.getLogger(__name__)
+
+from website.identity import get_current_user  # noqa: E402
+from website.models import TimetableEntry  # noqa: E402
 
 # Allowed HTML tags / attributes for sanitised post content
 _ALLOWED_TAGS = {
@@ -85,6 +89,30 @@ def page_context(request: Request, current_page: str, **extra: Any) -> dict[str,
 
 def sanitise_html(raw: str) -> str:
     return nh3.clean(raw, tags=_ALLOWED_TAGS, attributes=_ALLOWED_ATTRS)
+
+
+def geocode_address(address: str) -> tuple[float, float] | None:
+    """Geocode an address string to (latitude, longitude) using the Nominatim API.
+
+    Returns a (lat, lon) tuple on success, or None if the address cannot be found
+    or the request fails. Nominatim's usage policy requires a descriptive User-Agent.
+    """
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            response = client.get(
+                "https://nominatim.openstreetmap.org/search",
+                params={"q": address, "format": "json", "limit": "1"},
+                headers={
+                    "User-Agent": "FixtureWebsite/1.0 (fixture location geocoder)"
+                },
+            )
+            response.raise_for_status()
+            results = response.json()
+            if results:
+                return (float(results[0]["lat"]), float(results[0]["lon"]))
+    except Exception:
+        _logger.warning("Failed to geocode address: %s", address)
+    return None
 
 
 def parse_timetable_from_json(timetable_json: str) -> list[TimetableEntry]:

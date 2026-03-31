@@ -1,0 +1,42 @@
+{% if not race_results %}
+<p class="text-muted py-2">No results available for this race.</p>
+{% else %}
+<div class="table-responsive">
+  <table class="table table-sm table-hover align-middle mb-0" id="results-table">
+    <thead class="table-light">
+      <tr>
+        <th scope="col" class="col-pos">Pos</th>
+        <th scope="col">Race No</th>
+        <th scope="col">Name</th>
+        <th scope="col">Time</th>
+        <th scope="col">Category</th>
+        <th scope="col">Cat Pos</th>
+        <th scope="col">Gender</th>
+        <th scope="col" class="col-gen-pos">Gen Pos</th>
+        <th scope="col">Club</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for result in race_results %}
+      <tr
+        data-category="{{ result.category }}"
+        data-club="{{ result.club if result.club else '' }}"
+        data-gender="{{ result.gender }}"
+        data-name="{{ result.athlete_name | lower }}"
+      >
+        <td class="col-pos">{{ result.position }}</td>
+        <td>{{ result.race_number if result.race_number is not none else '—' }}</td>
+        <td>{{ result.athlete_name }}</td>
+        <td>{{ result.time }}</td>
+        <td>{{ result.category }}</td>
+        <td>{{ result.category_position if result.category_position is not none else '—' }}</td>
+        <td>{{ result.gender }}</td>
+        <td class="col-gen-pos">{{ result.gender_position if result.gender_position is not none else '—' }}</td>
+        <td>{{ result.club if result.club else '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p id="results-no-match" class="text-muted mt-2" style="display:none;">No results match the current filters.</p>
+{% endif %}

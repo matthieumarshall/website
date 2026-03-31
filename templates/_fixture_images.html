@@ -1,0 +1,68 @@
+{# _fixture_images.html — course map images partial.
+   Context vars: fixture (from _fixture_detail.html include), images (list[FixtureImage]),
+   season_id, fixture_id (used in image upload/delete routes), csrf_token, current_user. #}
+{% set _fid = fixture.id if fixture else fixture_id %}
+{% set _sid = fixture.season_id if fixture else season_id %}
+
+<h3 class="h6 mt-3">Course Maps</h3>
+
+{% if images %}
+<div class="d-flex flex-wrap gap-2 mb-2">
+  {% for img in images %}
+  <figure class="mb-0 position-relative">
+    <img
+      src="/fixture-maps/{{ img.filename }}"
+      alt="Course map image {{ loop.index }}"
+      class="img-thumbnail"
+      style="max-height: 160px; max-width: 200px; object-fit: cover;"
+    >
+    {% if current_user and current_user.role in ('admin', 'content_creator') %}
+    <form
+      action="/fixtures/seasons/{{ _sid }}/fixtures/{{ _fid }}/images/{{ img.id }}/delete"
+      method="post"
+      hx-post="/fixtures/seasons/{{ _sid }}/fixtures/{{ _fid }}/images/{{ img.id }}/delete"
+      hx-target="#fixture-images"
+      hx-swap="innerHTML"
+    >
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button
+        type="submit"
+        class="btn btn-sm btn-danger position-absolute top-0 end-0 m-1"
+        aria-label="Delete course map image {{ loop.index }}"
+        style="line-height: 1; padding: 2px 6px;"
+      >&times;</button>
+    </form>
+    {% endif %}
+  </figure>
+  {% endfor %}
+</div>
+{% else %}
+<p class="text-muted small mb-2">No course map images uploaded yet.</p>
+{% endif %}
+
+{% if current_user and current_user.role in ('admin', 'content_creator') %}
+<form
+  action="/fixtures/seasons/{{ _sid }}/fixtures/{{ _fid }}/images"
+  method="post"
+  enctype="multipart/form-data"
+  hx-post="/fixtures/seasons/{{ _sid }}/fixtures/{{ _fid }}/images"
+  hx-target="#fixture-images"
+  hx-swap="innerHTML"
+  hx-encoding="multipart/form-data"
+>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <div class="d-flex gap-2 align-items-center">
+    <label for="course-map-upload-{{ _fid }}" class="visually-hidden">Upload course map image</label>
+    <input
+      type="file"
+      id="course-map-upload-{{ _fid }}"
+      name="file"
+      class="form-control form-control-sm w-auto"
+      accept="image/jpeg,image/png,image/webp,image/gif"
+      required
+      aria-label="Choose course map image to upload"
+    >
+    <button type="submit" class="btn btn-sm btn-outline-secondary">Upload</button>
+  </div>
+</form>
+{% endif %}
