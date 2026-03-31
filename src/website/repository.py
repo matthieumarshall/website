@@ -209,7 +209,7 @@ def count_fixtures_for_season(db: duckdb.DuckDBPyConnection, season_id: int) -> 
     result = db.execute(
         "SELECT COUNT(*) FROM fixtures WHERE season_id = ?", [season_id]
     ).fetchone()
-    return result[0] if result else 0  # type: ignore[index]
+    return result[0] if result else 0
 
 
 def list_fixtures_for_season(

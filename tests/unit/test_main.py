@@ -5,7 +5,7 @@ import re
 import duckdb
 from fastapi.testclient import TestClient
 
-from website.main import SIDEBAR_ITEMS
+from website.helpers import SIDEBAR_ITEMS
 
 
 class TestHomeRoute:
@@ -538,6 +538,174 @@ class TestFixturesFixtureCrud:
 
     def test_new_season_form_requires_auth(self, test_client: TestClient) -> None:
         resp = test_client.get("/fixtures/seasons/new", follow_redirects=False)
+        assert resp.status_code in (302, 403)
+        if resp.status_code == 302:
+            assert resp.headers["location"] == "/login"
+
+
+class TestFixturesCopy:
+    def _get_csrf(self, client: TestClient) -> str:
+        import re
+
+        resp = client.get("/fixtures")
+        match = re.search(r'name="csrf_token"\s+value="([^"]+)"', resp.text)
+        assert match
+        return match.group(1)
+
+    def test_copy_form_requires_auth(
+        self, test_client: TestClient, test_db: duckdb.DuckDBPyConnection
+    ) -> None:
+        from website import repository
+
+        season = repository.create_season(test_db, "Copy-Auth-Season")
+        fixture = repository.create_fixture(
+            test_db, season.id, "R1", "2025-01-01", "V", "A", [], ""
+        )
+        resp = test_client.get(
+            f"/fixtures/seasons/{season.id}/fixtures/{fixture.id}/copy",
+            follow_redirects=False,
+        )
+        assert resp.status_code in (302, 403)
+        if resp.status_code == 302:
+            assert resp.headers["location"] == "/login"
+
+    def test_copy_form_loads_as_admin(
+        self, admin_client: TestClient, test_db: duckdb.DuckDBPyConnection
+    ) -> None:
+        from website import repository
+        from website.models import TimetableEntry
+
+        season = repository.create_season(test_db, "Copy-Form-Season")
+        fixture = repository.create_fixture(
+            test_db,
+            season.id,
+            "Source Fixture",
+            "2025-06-01",
+            "Town Hall",
+            "1 Main St",
+            [TimetableEntry(event="Start", time="09:00")],
+            "Take the bus.",
+        )
+        resp = admin_client.get(
+            f"/fixtures/seasons/{season.id}/fixtures/{fixture.id}/copy",
+            follow_redirects=False,
+        )
+        assert resp.status_code == 200
+        assert "Copy Fixture" in resp.text
+        assert "Source Fixture" in resp.text
+        assert "Save Copy" in resp.text
+
+    def test_copy_form_returns_404_for_missing_fixture(
+        self, admin_client: TestClient, test_db: duckdb.DuckDBPyConnection
+    ) -> None:
+        from website import repository
+
+        season = repository.create_season(test_db, "Copy-404-Season")
+        resp = admin_client.get(
+            f"/fixtures/seasons/{season.id}/fixtures/99999/copy",
+            follow_redirects=False,
+        )
+        assert resp.status_code == 404
+
+    def test_copy_submit_creates_fixture_in_target_season(
+        self, admin_client: TestClient, test_db: duckdb.DuckDBPyConnection
+    ) -> None:
+        import json
+        from website import repository
+
+        source_season = repository.create_season(test_db, "Copy-Src-Season")
+        target_season = repository.create_season(test_db, "Copy-Tgt-Season")
+        from website.models import TimetableEntry
+
+        fixture = repository.create_fixture(
+            test_db,
+            source_season.id,
+            "Original",
+            "2025-06-01",
+            "Town Hall",
+            "1 Main St",
+            [TimetableEntry(event="Open", time="10:00")],
+            "Bus route 42.",
+        )
+        csrf = self._get_csrf(admin_client)
+        resp = admin_client.post(
+            "/fixtures/copy",
+            data={
+                "season_id": str(target_season.id),
+                "title": "Copy of Original",
+                "date": "2026-06-01",
+                "location_name": "Town Hall",
+                "address": "1 Main St",
+                "timetable_json": json.dumps([{"event": "Open", "time": "10:00"}]),
+                "travel_instructions": "Bus route 42.",
+                "csrf_token": csrf,
+            },
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+        target_fixtures = repository.list_fixtures_for_season(test_db, target_season.id)
+        assert len(target_fixtures) == 1
+        assert target_fixtures[0].title == "Copy of Original"
+        # source season unchanged
+        assert len(repository.list_fixtures_for_season(test_db, source_season.id)) == 1
+        assert (
+            repository.list_fixtures_for_season(test_db, source_season.id)[0].id
+            == fixture.id
+        )
+
+    def test_copy_submit_to_full_season_returns_409(
+        self, admin_client: TestClient, test_db: duckdb.DuckDBPyConnection
+    ) -> None:
+        from website import repository
+
+        source_season = repository.create_season(test_db, "Copy-Full-Src")
+        target_season = repository.create_season(test_db, "Copy-Full-Tgt")
+        repository.create_fixture(
+            test_db, source_season.id, "R0", "2025-01-01", "V", "A", [], ""
+        )
+        for i in range(5):
+            repository.create_fixture(
+                test_db,
+                target_season.id,
+                f"R{i + 1}",
+                f"2025-0{i + 1}-01",
+                "V",
+                "A",
+                [],
+                "",
+            )
+        csrf = self._get_csrf(admin_client)
+        resp = admin_client.post(
+            "/fixtures/copy",
+            data={
+                "season_id": str(target_season.id),
+                "title": "Overflow",
+                "date": "2025-07-01",
+                "location_name": "V",
+                "address": "A",
+                "timetable_json": "[]",
+                "travel_instructions": "",
+                "csrf_token": csrf,
+            },
+            follow_redirects=False,
+        )
+        assert resp.status_code == 409
+
+    def test_copy_submit_requires_auth(self, test_client: TestClient) -> None:
+        resp = test_client.post(
+            "/fixtures/copy",
+            data={
+                "season_id": "1",
+                "title": "T",
+                "date": "2025-01-01",
+                "location_name": "V",
+                "address": "A",
+                "timetable_json": "[]",
+                "travel_instructions": "",
+                "csrf_token": "fake",
+            },
+            follow_redirects=False,
+        )
         assert resp.status_code in (302, 403)
         if resp.status_code == 302:
             assert resp.headers["location"] == "/login"

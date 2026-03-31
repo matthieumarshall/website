@@ -326,7 +326,7 @@ class TestDeleteSeason:
 # ---------------------------------------------------------------------------
 
 
-def _make_season(db: duckdb.DuckDBPyConnection, name: str = "2025-2026"):  # type: ignore[return]
+def _make_season(db: duckdb.DuckDBPyConnection, name: str = "2025-2026"):
     return repository.create_season(db, name)
 
 

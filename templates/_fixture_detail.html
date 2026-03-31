@@ -46,6 +46,11 @@
         class="btn btn-sm btn-outline-secondary"
       >Edit</a>
 
+      <a
+        href="/fixtures/seasons/{{ fixture.season_id }}/fixtures/{{ fixture.id }}/copy"
+        class="btn btn-sm btn-outline-primary"
+      >Copy</a>
+
       <form
         action="/fixtures/seasons/{{ fixture.season_id }}/fixtures/{{ fixture.id }}/delete"
         method="post"

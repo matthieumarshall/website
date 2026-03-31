@@ -14,7 +14,7 @@ applyTo: "{templates/**/*.html,static/**/*.{js,css}}"
 
 ## Jinja2 Templates
 
-- Auto-escaping is always on — **never** use `{{ value | safe }}` on user-supplied data.
+- Auto-escaping is always on — avoid `{{ value | safe }}` on user-supplied data. When rendering server-sanitised HTML (e.g. post content cleaned by `nh3`), `| safe` is acceptable — but never apply it to raw user input.
 - Keep logic out of templates: use template variables and simple conditionals only. Complex decisions belong in the route handler or a helper.
 - Extend `base.html` for every full-page template; use `{% block %}` for page-specific content.
 - Pass only the data a template needs — avoid passing entire ORM objects or large dicts.
@@ -23,7 +23,10 @@ applyTo: "{templates/**/*.html,static/**/*.{js,css}}"
 {# Good — explicit variables #}
 {{ username }}
 
-{# Bad — bypasses XSS protection #}
+{# OK — content was sanitised server-side by nh3 #}
+{{ post.content | safe }}
+
+{# Bad — bypasses XSS protection on raw user input #}
 {{ raw_html | safe }}
 ```
 
@@ -60,14 +63,17 @@ Only write JS when HTMX cannot express the interaction (e.g. client-side validat
 - Files live in `static/`. One file per feature; no bundler needed.
 - Use `"use strict";` at the top of every JS file.
 - Use `const` by default, `let` when reassignment is needed; never `var`.
-- Use `addEventListener` — never inline `onclick` / `onsubmit` attributes.
-- Escape any server-provided data before inserting into the DOM via `textContent`, not `innerHTML`.
+- Use `addEventListener` — prefer this over inline `onclick` / `onsubmit` attributes. Simple confirmation dialogs (e.g. `onsubmit="return confirm(...)"`) are acceptable when they avoid adding a dedicated JS file.
+- Prefer `textContent` over `innerHTML` for inserting server-provided data into the DOM. Exception: rich-text editors like Quill require `innerHTML` to function — this is acceptable when the content has been sanitised server-side.
 
 ```js
 // Good — safe DOM insertion
 el.textContent = serverProvidedValue;
 
-// Bad — XSS risk
+// OK — Quill editor integration (content sanitised by nh3 on the server)
+contentInput.value = quill.root.innerHTML;
+
+// Bad — XSS risk with unsanitised data
 el.innerHTML = serverProvidedValue;
 ```
 

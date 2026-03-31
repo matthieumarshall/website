@@ -1,14 +1,11 @@
 import logging
 import os
-import secrets
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
 
 import duckdb
-import nh3
 from fastapi import Depends, FastAPI, Form, HTTPException, Request, UploadFile
 from fastapi.exception_handlers import http_exception_handler
 from fastapi_permissions import (
@@ -27,9 +24,24 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
-from website.auth import get_active_principals, get_current_user, verify_password
+from website.auth import verify_password
 from website.database import get_db, run_migrations
-from website.models import PostResource, _MAX_FIXTURES_PER_SEASON
+from website.helpers import (
+    page_context,
+    parse_timetable_from_json,
+    safe_referer_path,
+    sanitise_html,
+    validate_csrf,
+)
+from website.identity import get_active_principals, get_current_user
+from website.models import (
+    FixtureCreate,
+    FixtureUpdate,
+    PostCreate,
+    PostResource,
+    SeasonCreate,
+    _MAX_FIXTURES_PER_SEASON,
+)
 from website import repository
 
 _logger = logging.getLogger(__name__)
@@ -46,34 +58,6 @@ if not _secret_key:
 _UPLOADS_DIR = Path("data/uploads")
 _ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 _MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5 MB
-
-# Allowed HTML tags / attributes for sanitised post content
-_ALLOWED_TAGS = {
-    "p",
-    "br",
-    "strong",
-    "em",
-    "b",
-    "i",
-    "u",
-    "s",
-    "h1",
-    "h2",
-    "h3",
-    "h4",
-    "h5",
-    "h6",
-    "ul",
-    "ol",
-    "li",
-    "blockquote",
-    "a",
-    "img",
-}
-_ALLOWED_ATTRS = {
-    "a": {"href", "title", "target"},
-    "img": {"src", "alt", "width", "height"},
-}
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -153,7 +137,7 @@ async def _rate_limit_exceeded_handler(
     return templates.TemplateResponse(
         request,
         "login.html",
-        _page_context(
+        page_context(
             request,
             "login",
             error="Too many login attempts. Please wait 15 minutes before trying again.",
@@ -205,84 +189,6 @@ def get_post_resource(
     return PostResource(post)
 
 
-SIDEBAR_ITEMS: list[dict[str, str]] = [
-    {"name": "Home / News", "route": "/news", "page": "news"},
-    {"name": "Results", "route": "/results", "page": "results"},
-    {"name": "Entries", "route": "/entries", "page": "entries"},
-    {
-        "name": "Rules and Constitution",
-        "route": "/rules-and-constitution",
-        "page": "rules_and_constitution",
-    },
-    {"name": "Administration", "route": "/administration", "page": "administration"},
-    {"name": "Fixtures", "route": "/fixtures", "page": "fixtures"},
-]
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _get_csrf_token(request: Request) -> str:
-    token: str | None = request.session.get("csrf_token")
-    if not token:
-        token = secrets.token_hex(32)
-        request.session["csrf_token"] = token
-    return token
-
-
-def _validate_csrf(request: Request, form_token: str) -> None:
-    expected: str | None = request.session.get("csrf_token")
-    if not expected or not secrets.compare_digest(expected, form_token):
-        raise HTTPException(status_code=403, detail="Invalid CSRF token")
-
-
-def _safe_referer_path(referer: str) -> str:
-    if not referer:
-        return "/news"
-    path = urlparse(referer).path
-    return path if path and path.startswith("/") else "/news"
-
-
-def _page_context(request: Request, current_page: str, **extra: Any) -> dict[str, Any]:
-    return {
-        "current_user": get_current_user(request),
-        "current_page": current_page,
-        "sidebar_items": SIDEBAR_ITEMS,
-        "csrf_token": _get_csrf_token(request),
-        "show_cookie_notice": not request.cookies.get("cookie_notice_dismissed"),
-        **extra,
-    }
-
-
-def _sanitise_html(raw: str) -> str:
-    return nh3.clean(raw, tags=_ALLOWED_TAGS, attributes=_ALLOWED_ATTRS)
-
-
-def _parse_timetable_from_json(timetable_json: str) -> list:
-    """Deserialise timetable JSON from a form hidden-input field.
-
-    Expects a JSON array of ``{"event": str, "time": str}`` objects.
-    Returns a list of ``TimetableEntry`` objects; invalid rows are silently dropped.
-    """
-    import json as _json
-
-    from website.models import TimetableEntry
-
-    try:
-        raw = _json.loads(timetable_json or "[]")
-    except ValueError:
-        return []
-    entries = []
-    for item in raw:
-        if isinstance(item, dict):
-            event = str(item.get("event", "")).strip()
-            time = str(item.get("time", "")).strip()
-            if event or time:
-                entries.append(TimetableEntry(event=event, time=time))
-    return entries
-
-
 # ---------------------------------------------------------------------------
 # Static pages
 # ---------------------------------------------------------------------------
@@ -296,14 +202,14 @@ def home() -> RedirectResponse:
 @app.get("/results", response_class=HTMLResponse)
 def results(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
-        request, "results.html", _page_context(request, "results")
+        request, "results.html", page_context(request, "results")
     )
 
 
 @app.get("/entries", response_class=HTMLResponse)
 def entries(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
-        request, "entries.html", _page_context(request, "entries")
+        request, "entries.html", page_context(request, "entries")
     )
 
 
@@ -312,14 +218,14 @@ def rules_and_constitution(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
         request,
         "rules_and_constitution.html",
-        _page_context(request, "rules_and_constitution"),
+        page_context(request, "rules_and_constitution"),
     )
 
 
 @app.get("/administration", response_class=HTMLResponse)
 def administration(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
-        request, "administration.html", _page_context(request, "administration")
+        request, "administration.html", page_context(request, "administration")
     )
 
 
@@ -342,7 +248,7 @@ def fixtures(
     return templates.TemplateResponse(
         request,
         "fixtures.html",
-        _page_context(
+        page_context(
             request,
             "fixtures",
             seasons=seasons,
@@ -372,7 +278,7 @@ def fixtures_season_panel(
     return templates.TemplateResponse(
         request,
         "_fixtures_season_panel.html",
-        _page_context(
+        page_context(
             request,
             "fixtures",
             seasons=seasons,
@@ -396,7 +302,7 @@ def fixtures_fixture_detail(
     return templates.TemplateResponse(
         request,
         "_fixture_detail.html",
-        _page_context(
+        page_context(
             request,
             "fixtures",
             fixture=fixture,
@@ -423,7 +329,7 @@ def fixtures_new_season_form(
     return templates.TemplateResponse(
         request,
         "_season_form.html",
-        _page_context(request, "fixtures"),
+        page_context(request, "fixtures"),
     )
 
 
@@ -441,12 +347,12 @@ def fixtures_create_season(
     db: duckdb.DuckDBPyConnection = Depends(get_db),
     _: list = Permission("create", _FIXTURES_STAFF_ACL),
 ) -> Response:
-    _validate_csrf(request, csrf_token)
-    name = name.strip()
-    if not name:
+    validate_csrf(request, csrf_token)
+    validated = SeasonCreate(name=name.strip())
+    if not validated.name:
         raise HTTPException(status_code=422, detail="Season name cannot be empty")
     try:
-        season = repository.create_season(db, name)
+        season = repository.create_season(db, validated.name)
     except Exception:
         raise HTTPException(
             status_code=409, detail="A season with that name already exists"
@@ -462,7 +368,7 @@ def fixtures_delete_season(
     db: duckdb.DuckDBPyConnection = Depends(get_db),
     _: list = Permission("create", _FIXTURES_STAFF_ACL),
 ) -> Response:
-    _validate_csrf(request, csrf_token)
+    validate_csrf(request, csrf_token)
     try:
         repository.delete_season(db, season_id)
     except ValueError as exc:
@@ -489,7 +395,7 @@ def fixtures_new_fixture_form(
     return templates.TemplateResponse(
         request,
         "_fixture_form.html",
-        _page_context(request, "fixtures", season=season, fixture=None),
+        page_context(request, "fixtures", season=season, fixture=None),
     )
 
 
@@ -507,18 +413,26 @@ def fixtures_create_fixture(
     db: duckdb.DuckDBPyConnection = Depends(get_db),
     _: list = Permission("create", _FIXTURES_STAFF_ACL),
 ) -> Response:
-    _validate_csrf(request, csrf_token)
-    timetable = _parse_timetable_from_json(timetable_json)
+    validate_csrf(request, csrf_token)
+    timetable = parse_timetable_from_json(timetable_json)
+    validated = FixtureCreate(
+        title=title.strip(),
+        date=date,  # type: ignore[invalid-argument-type]  # Pydantic coerces str to date
+        location_name=location_name.strip(),
+        address=address.strip(),
+        timetable=timetable,
+        travel_instructions=travel_instructions.strip(),
+    )
     try:
         repository.create_fixture(
             db,
             season_id=season_id,
-            title=title.strip(),
-            date=date,
-            location_name=location_name.strip(),
-            address=address.strip(),
-            timetable=timetable,
-            travel_instructions=travel_instructions.strip(),
+            title=validated.title,
+            date=str(validated.date),
+            location_name=validated.location_name,
+            address=validated.address,
+            timetable=validated.timetable,
+            travel_instructions=validated.travel_instructions,
         )
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
@@ -545,7 +459,7 @@ def fixtures_edit_form(
     return templates.TemplateResponse(
         request,
         "_fixture_form.html",
-        _page_context(request, "fixtures", season=season, fixture=fixture),
+        page_context(request, "fixtures", season=season, fixture=fixture),
     )
 
 
@@ -564,17 +478,25 @@ def fixtures_update_fixture(
     db: duckdb.DuckDBPyConnection = Depends(get_db),
     _: list = Permission("create", _FIXTURES_STAFF_ACL),
 ) -> Response:
-    _validate_csrf(request, csrf_token)
-    timetable = _parse_timetable_from_json(timetable_json)
-    result = repository.update_fixture(
-        db,
-        fixture_id=fixture_id,
+    validate_csrf(request, csrf_token)
+    timetable = parse_timetable_from_json(timetable_json)
+    validated = FixtureUpdate(
         title=title.strip(),
-        date=date,
+        date=date,  # type: ignore[invalid-argument-type]  # Pydantic coerces str to date
         location_name=location_name.strip(),
         address=address.strip(),
         timetable=timetable,
         travel_instructions=travel_instructions.strip(),
+    )
+    result = repository.update_fixture(
+        db,
+        fixture_id=fixture_id,
+        title=validated.title,
+        date=str(validated.date),
+        location_name=validated.location_name,
+        address=validated.address,
+        timetable=validated.timetable,
+        travel_instructions=validated.travel_instructions,
     )
     if result is None:
         raise HTTPException(status_code=404, detail="Fixture not found")
@@ -590,8 +512,80 @@ def fixtures_delete_fixture(
     db: duckdb.DuckDBPyConnection = Depends(get_db),
     _: list = Permission("create", _FIXTURES_STAFF_ACL),
 ) -> Response:
-    _validate_csrf(request, csrf_token)
+    validate_csrf(request, csrf_token)
     repository.delete_fixture(db, fixture_id)
+    return RedirectResponse(url=f"/fixtures?season_id={season_id}", status_code=302)
+
+
+@app.get(
+    "/fixtures/seasons/{season_id}/fixtures/{fixture_id}/copy",
+    response_class=HTMLResponse,
+)
+def fixtures_copy_form(
+    season_id: int,
+    fixture_id: int,
+    request: Request,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("create", _FIXTURES_STAFF_ACL),
+) -> HTMLResponse:
+    fixture = repository.get_fixture_by_id(db, fixture_id)
+    if fixture is None:
+        raise HTTPException(status_code=404, detail="Fixture not found")
+    seasons = repository.list_seasons(db)
+    source_season = repository.get_season_by_id(db, season_id)
+    return templates.TemplateResponse(
+        request,
+        "_fixture_form.html",
+        page_context(
+            request,
+            "fixtures",
+            # fixture=None means "create new"; prefill carries the source data
+            fixture=None,
+            prefill=fixture,
+            season=source_season,
+            seasons=seasons,
+            copy_mode=True,
+        ),
+    )
+
+
+@app.post("/fixtures/copy")
+def fixtures_copy_submit(
+    request: Request,
+    season_id: int = Form(...),
+    title: str = Form(...),
+    date: str = Form(...),
+    location_name: str = Form(...),
+    address: str = Form(...),
+    timetable_json: str = Form(default="[]"),
+    travel_instructions: str = Form(""),
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("create", _FIXTURES_STAFF_ACL),
+) -> Response:
+    validate_csrf(request, csrf_token)
+    timetable = parse_timetable_from_json(timetable_json)
+    validated = FixtureCreate(
+        title=title.strip(),
+        date=date,  # type: ignore[invalid-argument-type]  # Pydantic coerces str to date
+        location_name=location_name.strip(),
+        address=address.strip(),
+        timetable=timetable,
+        travel_instructions=travel_instructions.strip(),
+    )
+    try:
+        repository.create_fixture(
+            db,
+            season_id=season_id,
+            title=validated.title,
+            date=str(validated.date),
+            location_name=validated.location_name,
+            address=validated.address,
+            timetable=validated.timetable,
+            travel_instructions=validated.travel_instructions,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
     return RedirectResponse(url=f"/fixtures?season_id={season_id}", status_code=302)
 
 
@@ -605,7 +599,7 @@ def login_page(request: Request) -> Response:
     if get_current_user(request):
         return RedirectResponse(url="/news", status_code=302)
     return templates.TemplateResponse(
-        request, "login.html", _page_context(request, "login", error=None)
+        request, "login.html", page_context(request, "login", error=None)
     )
 
 
@@ -618,14 +612,14 @@ def login_submit(
     csrf_token: str = Form(...),
     db: duckdb.DuckDBPyConnection = Depends(get_db),
 ) -> Response:
-    _validate_csrf(request, csrf_token)
+    validate_csrf(request, csrf_token)
     user = repository.get_user_by_username(db, username)
     if not user or not verify_password(password, user.hashed_password):
         _logger.warning("Failed login attempt for username: %s", username)
         return templates.TemplateResponse(
             request,
             "login.html",
-            _page_context(request, "login", error="Invalid username or password."),
+            page_context(request, "login", error="Invalid username or password."),
             status_code=401,
         )
     # Session fixation: clear before setting new user session data
@@ -638,7 +632,7 @@ def login_submit(
 
 @app.post("/logout")
 def logout(request: Request, csrf_token: str = Form(...)) -> RedirectResponse:
-    _validate_csrf(request, csrf_token)
+    validate_csrf(request, csrf_token)
     request.session.clear()
     return RedirectResponse(url="/news", status_code=302)
 
@@ -647,8 +641,8 @@ def logout(request: Request, csrf_token: str = Form(...)) -> RedirectResponse:
 def dismiss_cookie_notice(
     request: Request, csrf_token: str = Form(...)
 ) -> RedirectResponse:
-    _validate_csrf(request, csrf_token)
-    redirect_to = _safe_referer_path(request.headers.get("referer", ""))
+    validate_csrf(request, csrf_token)
+    redirect_to = safe_referer_path(request.headers.get("referer", ""))
     response = RedirectResponse(url=redirect_to, status_code=302)
     response.set_cookie(
         "cookie_notice_dismissed",
@@ -664,7 +658,7 @@ def dismiss_cookie_notice(
 @app.get("/privacy-policy", response_class=HTMLResponse)
 def privacy_policy(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
-        request, "privacy.html", _page_context(request, "privacy")
+        request, "privacy.html", page_context(request, "privacy")
     )
 
 
@@ -674,7 +668,7 @@ def account(
     _: list = Permission("view", _AUTH_ACL),
 ) -> HTMLResponse:
     return templates.TemplateResponse(
-        request, "account.html", _page_context(request, "account")
+        request, "account.html", page_context(request, "account")
     )
 
 
@@ -694,7 +688,7 @@ def news(
     return templates.TemplateResponse(
         request,
         "news.html",
-        _page_context(request, "news", paginated=paginated, base_url="/news"),
+        page_context(request, "news", paginated=paginated, base_url="/news"),
     )
 
 
@@ -706,7 +700,7 @@ def news_create_form(
     return templates.TemplateResponse(
         request,
         "post_form.html",
-        _page_context(request, "news", post=None, form_action="/news/create"),
+        page_context(request, "news", post=None, form_action="/news/create"),
     )
 
 
@@ -719,11 +713,13 @@ def news_create_submit(
     db: duckdb.DuckDBPyConnection = Depends(get_db),
     _: list = Permission("create", _STAFF_ACL),
 ) -> Response:
-    _validate_csrf(request, csrf_token)
-    safe_content = _sanitise_html(content)
+    validate_csrf(request, csrf_token)
+    validated = PostCreate(title=title, content=sanitise_html(content))
     user = get_current_user(request)
     assert user is not None  # guaranteed by Permission("create") check
-    repository.create_post(db, title=title, content=safe_content, author_id=user["id"])
+    repository.create_post(
+        db, title=validated.title, content=validated.content, author_id=user["id"]
+    )
     return RedirectResponse(url="/news", status_code=302)
 
 
@@ -741,7 +737,7 @@ def news_detail(
     return templates.TemplateResponse(
         request,
         "post_detail.html",
-        _page_context(request, "news", post=post, can_edit=can_edit),
+        page_context(request, "news", post=post, can_edit=can_edit),
     )
 
 
@@ -754,7 +750,7 @@ def news_edit_form(
     return templates.TemplateResponse(
         request,
         "post_form.html",
-        _page_context(request, "news", post=post, form_action=f"/news/{post.id}/edit"),
+        page_context(request, "news", post=post, form_action=f"/news/{post.id}/edit"),
     )
 
 
@@ -767,10 +763,13 @@ def news_edit_submit(
     db: duckdb.DuckDBPyConnection = Depends(get_db),
     post_resource: PostResource = Permission("edit", get_post_resource),
 ) -> Response:
-    _validate_csrf(request, csrf_token)
-    safe_content = _sanitise_html(content)
+    validate_csrf(request, csrf_token)
+    validated = PostCreate(title=title, content=sanitise_html(content))
     repository.update_post(
-        db, post_id=post_resource.post.id, title=title, content=safe_content
+        db,
+        post_id=post_resource.post.id,
+        title=validated.title,
+        content=validated.content,
     )
     return RedirectResponse(url=f"/news/{post_resource.post.id}", status_code=302)
 
@@ -782,7 +781,7 @@ def news_delete(
     db: duckdb.DuckDBPyConnection = Depends(get_db),
     post_resource: PostResource = Permission("delete", get_post_resource),
 ) -> Response:
-    _validate_csrf(request, csrf_token)
+    validate_csrf(request, csrf_token)
     repository.delete_post(db, post_resource.post.id)
     return RedirectResponse(url="/news", status_code=302)
 
