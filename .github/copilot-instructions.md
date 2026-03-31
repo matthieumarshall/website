@@ -10,7 +10,7 @@ static/          # CSS and any minimal JS
 templates/       # Jinja2 HTML templates
 tests/unit/      # pytest unit tests
 tests/ui/        # Playwright end-to-end tests
-data/            # Local parquet data lake (gitignored except schema/seed fixtures)
+data/            # DuckDB database and uploads (gitignored)
 ```
 
 The backend owns all routing, auth, and data access. The frontend is thin: Jinja2 templates + HTMX attributes for dynamic behaviour. Reach for plain JavaScript only when HTMX cannot express the interaction.
@@ -19,7 +19,7 @@ The backend owns all routing, auth, and data access. The frontend is thin: Jinja
 
 - **Dependency management**: always use `uv`. Add runtime deps with `uv add <pkg>`, dev/test deps with `uv add --dev <pkg>` or `uv add --optional dev <pkg>`.
 - **SOLID in practice**:
-  - One responsibility per module: `auth.py` for credential logic, `database.py` for DuckDB connection setup, `models.py` for dataclass/Pydantic schemas, `main.py` for route wiring only.
+  - One responsibility per module: `auth.py` for password hashing/verification, `identity.py` for session/user/principal retrieval, `database.py` for DuckDB connection setup, `models.py` for dataclass/Pydantic schemas, `helpers.py` for shared request helpers (CSRF, page context, sanitisation), `main.py` for route wiring only.
   - Depend on abstractions: pass a `duckdb.DuckDBPyConnection` via `Depends(get_db)`, not global state.
   - Prefer small, focused functions over large route handlers; extract business logic out of route functions.
 - **Type hints** on all function signatures.
@@ -28,22 +28,24 @@ The backend owns all routing, auth, and data access. The frontend is thin: Jinja
 
 ## Database
 
-The data layer uses **DuckDB** querying a local **Parquet data lake** (files under `data/`).
+The data layer uses **DuckDB** with a persistent database file (`data/app.duckdb`).
 
-- **Connection**: open a single per-request connection via `get_db()` in `database.py`; inject with `Depends(get_db)` and always close with a `try/finally` or a context manager.
-- **Parquet layout**: one file (or partitioned directory) per logical table, e.g. `data/users.parquet`. Use DuckDB's `CREATE OR REPLACE TABLE … AS SELECT` pattern to materialise views when needed.
-- **Queries**: use DuckDB's parameterised queries (`con.execute(sql, [params])`) — never f-strings or string concatenation in SQL.
-- **Writes**: use `INSERT INTO` or `COPY … TO '…parquet'` via DuckDB; keep write helpers in `database.py` or a dedicated `repository.py`.
+- **Connection**: a single shared DuckDB connection is opened at application startup (in the lifespan handler) and stored on `app.state.db`. The `get_db()` dependency in `database.py` yields a **cursor** from that shared connection — this avoids OS-level file-lock conflicts (especially on Windows) while still giving each request an isolated cursor. The cursor is closed in a `try/finally` block after the request completes.
+- **Queries**: use DuckDB's parameterised queries (`cur.execute(sql, [params])`) — never f-strings or string concatenation in SQL.
+- **Writes**: use `INSERT INTO … VALUES (?, ?)` via DuckDB; keep write helpers in `repository.py`.
 - **Schema evolution**: version schema changes with plain SQL migration scripts in `migrations/` (e.g. `0001_add_users.sql`). Apply them in order; do not use Alembic (no SQLAlchemy ORM in this project).
 - **Testing**: use an in-memory DuckDB database (`:memory:`) in unit tests; never read or write the real `data/` directory in tests.
-- **`data/` hygiene**: add `data/` to `.gitignore`. Commit only seed fixtures for local dev (e.g. `data/seed/`) and document how to regenerate them.
+- **`data/` hygiene**: `*.duckdb` files and `data/uploads/` are gitignored. Do not commit database files.
 
 ## Frontend
+
+This project uses an **Islands Architecture**: pages are server-rendered Jinja2 HTML; JavaScript is introduced only as isolated islands of interactivity where HTMX cannot express the interaction.
 
 - Use **HTMX** attributes (`hx-get`, `hx-post`, `hx-target`, `hx-swap`) for partial page updates before writing custom JS.
 - Return HTML fragments from FastAPI endpoints that are intended for HTMX responses.
 - Keep `static/style.css` minimal — prefer semantic HTML and browser defaults over heavy styling frameworks.
-- JavaScript files live in `static/`. Only add a JS file when there is no HTMX alternative.
+- JavaScript islands live in `static/<feature>.js`. Each island is self-contained, initialised via a sentinel `<div id="...">` in the template, and communicates back to the server through a hidden form field or `fetch`. Existing islands: `post-editor.js` (Quill), `timetable-editor.js` (custom drag UI).
+- Only add a JS file when there is no HTMX alternative (e.g. third-party SDKs like Stripe.js, rich client-side state, drag-and-drop).
 
 ## Security
 
@@ -55,7 +57,7 @@ Follow OWASP Top 10 mitigations by default:
 | **Passwords** | bcrypt via `auth.py` (`hash_password` / `verify_password`). Never roll a custom scheme. |
 | **Session cookies** | `SessionMiddleware` with `https_only=_IS_PRODUCTION` and `same_site="lax"`. The `https_only` flag is env-gated so local dev works over HTTP. |
 | **SQL injection** | DuckDB parameterised queries only (`con.execute(sql, [params])`). Never use f-strings or `%`-formatting in SQL. |
-| **XSS** | Jinja2 auto-escaping is always on. Never use `| safe` on user-supplied data. |
+| **XSS** | Jinja2 auto-escaping is always on. Avoid `| safe` on user-supplied data. When rendering server-sanitised HTML (e.g. post content cleaned by `nh3`), `| safe` is acceptable — but never apply it to raw user input. |
 | **CSRF** | All state-changing POST routes validate a CSRF token via `_validate_csrf(request, form_token)`. Templates receive the token through `_page_context` and render it as `<input type="hidden" name="csrf_token" value="{{ csrf_token }}">`. |
 | **Security headers** | `SecurityHeadersMiddleware` in `main.py` sets CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, and (in production) HSTS on every response. |
 | **No CDN** | All static assets (Bootstrap CSS/JS) are self-hosted under `static/`. Never add CDN links — they leak user IPs to third parties. |

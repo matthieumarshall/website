@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{# src = existing fixture (edit) or source fixture (copy); None for a blank create #}
+{% set src = fixture or prefill %}
+
+{% block title %}
+  {% if fixture %}Edit Fixture
+  {% elif copy_mode %}Copy Fixture
+  {% else %}New Fixture
+  {% endif %} — My Website
+{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <h1 class="h3">
+    {% if fixture %}Edit Fixture
+    {% elif copy_mode %}Copy Fixture
+    {% else %}New Fixture
+    {% endif %}
+  </h1>
+  {% if season and not copy_mode %}<p class="text-muted mb-0">Season: {{ season.name }}</p>{% endif %}
+</div>
+
+{% if copy_mode and src %}
+<div class="alert alert-info py-2 mb-3" role="note">
+  Copying from: <strong>{{ src.title }}</strong>
+  {% if season %} ({{ season.name }}){% endif %}.
+  Edit the fields below and choose the target season before saving.
+</div>
+{% endif %}
+
+<form
+  action="{% if fixture %}/fixtures/seasons/{{ season.id }}/fixtures/{{ fixture.id }}/edit{% elif copy_mode %}/fixtures/copy{% else %}/fixtures/seasons/{{ season.id }}/fixtures{% endif %}"
+  method="post"
+  id="fixture-form"
+  novalidate
+>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {# Timetable rows are serialised to JSON by timetable-editor.js on submit #}
+  <input type="hidden" name="timetable_json" id="timetable-json-input">
+
+  {% if copy_mode %}
+  <div class="mb-3">
+    <label for="copy-season-select" class="form-label">Target Season <span aria-hidden="true" class="text-danger">*</span></label>
+    <select
+      id="copy-season-select"
+      name="season_id"
+      class="form-select"
+      required
+      aria-describedby="copy-season-hint"
+    >
+      {% for s in seasons %}
+      <option
+        value="{{ s.id }}"
+        {% if season and s.id == season.id %}selected{% endif %}
+      >{{ s.name }}</option>
+      {% endfor %}
+    </select>
+    <div id="copy-season-hint" class="form-text">Choose which season the copied fixture should belong to.</div>
+  </div>
+  {% endif %}
+
+  <div class="mb-3">
+    <label for="fixture-title" class="form-label">Title <span aria-hidden="true" class="text-danger">*</span></label>
+    <input
+      type="text"
+      class="form-control"
+      id="fixture-title"
+      name="title"
+      value="{{ src.title if src else '' }}"
+      required
+      maxlength="255"
+    >
+  </div>
+
+  <div class="mb-3">
+    <label for="fixture-date" class="form-label">Date <span aria-hidden="true" class="text-danger">*</span></label>
+    <input
+      type="date"
+      class="form-control"
+      id="fixture-date"
+      name="date"
+      value="{{ src.date.isoformat() if src else '' }}"
+      required
+    >
+  </div>
+
+  <div class="mb-3">
+    <label for="fixture-location" class="form-label">Location / Venue <span aria-hidden="true" class="text-danger">*</span></label>
+    <input
+      type="text"
+      class="form-control"
+      id="fixture-location"
+      name="location_name"
+      value="{{ src.location_name if src else '' }}"
+      required
+      maxlength="255"
+    >
+  </div>
+
+  <div class="mb-3">
+    <label for="fixture-address" class="form-label">Address <span aria-hidden="true" class="text-danger">*</span></label>
+    <input
+      type="text"
+      class="form-control"
+      id="fixture-address"
+      name="address"
+      value="{{ src.address if src else '' }}"
+      required
+      maxlength="255"
+    >
+  </div>
+
+  {# ---- Timetable ---- #}
+  <fieldset class="mb-3">
+    <legend class="fs-6 fw-semibold">Timetable</legend>
+    <div id="timetable-rows">
+      {% if src and src.timetable %}
+        {% for entry in src.timetable %}
+        <div class="timetable-row d-flex gap-2 mb-2 align-items-center">
+          <input
+            type="time"
+            class="form-control w-auto"
+            aria-label="Time for row {{ loop.index }}"
+            data-timetable="time"
+            value="{{ entry.time }}"
+          >
+          <input
+            type="text"
+            class="form-control"
+            aria-label="Event for row {{ loop.index }}"
+            data-timetable="event"
+            value="{{ entry.event }}"
+            maxlength="255"
+          >
+          <button
+            type="button"
+            class="btn btn-outline-danger btn-sm flex-shrink-0"
+            aria-label="Remove row {{ loop.index }}"
+          >Remove</button>
+        </div>
+        {% endfor %}
+      {% endif %}
+    </div>
+    <button type="button" id="add-timetable-row" class="btn btn-outline-secondary btn-sm">
+      + Add row
+    </button>
+  </fieldset>
+
+  <div class="mb-3">
+    <label for="fixture-travel" class="form-label">Travel Instructions</label>
+    <textarea
+      class="form-control"
+      id="fixture-travel"
+      name="travel_instructions"
+      rows="5"
+    >{{ src.travel_instructions if src else '' }}</textarea>
+  </div>
+
+  <div class="d-flex gap-2">
+    <button type="submit" class="btn btn-primary">
+      {% if fixture %}Save Changes
+      {% elif copy_mode %}Save Copy
+      {% else %}Create Fixture
+      {% endif %}
+    </button>
+    <a
+      href="/fixtures{% if season %}?season_id={{ season.id }}{% endif %}"
+      class="btn btn-outline-secondary"
+    >Cancel</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/timetable-editor.js"></script>
+{% endblock %}

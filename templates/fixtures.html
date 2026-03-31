@@ -5,6 +5,69 @@
 {% block content %}
 <div>
   <h1 class="h3 mb-3">Fixtures</h1>
-  <p class="text-muted">Fixtures content coming soon.</p>
+
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+    {% if seasons %}
+    <label for="season-select" class="form-label mb-0 fw-semibold">Season:</label>
+    <select
+      id="season-select"
+      name="season_id"
+      class="form-select w-auto"
+      hx-get="/fixtures/season-panel"
+      hx-trigger="change"
+      hx-target="#season-panel"
+      hx-swap="innerHTML"
+      hx-push-url="true"
+      aria-label="Select season"
+    >
+      {% for season in seasons %}
+      <option
+        value="{{ season.id }}"
+        {% if selected_season and selected_season.id == season.id %}selected{% endif %}
+      >{{ season.name }}</option>
+      {% endfor %}
+    </select>
+    {% else %}
+    <p class="text-muted mb-0">No seasons yet.</p>
+    {% endif %}
+
+    {% if current_user and current_user.role in ('admin', 'content_creator') %}
+    <button
+      type="button"
+      class="btn btn-outline-primary btn-sm"
+      hx-get="/fixtures/seasons/new"
+      hx-target="#season-crud-panel"
+      hx-swap="innerHTML"
+      aria-label="Add new season"
+    >+ New Season</button>
+
+    {% if selected_season %}
+    <a
+      href="/fixtures/seasons/{{ selected_season.id }}/fixtures/new"
+      class="btn btn-outline-secondary btn-sm"
+      aria-label="Add new fixture"
+    >+ Add Fixture</a>
+
+    <form
+      action="/fixtures/seasons/{{ selected_season.id }}/delete"
+      method="post"
+      class="d-inline"
+    >
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn btn-outline-danger btn-sm">Delete Season</button>
+    </form>
+    {% endif %}
+    {% endif %}
+  </div>
+
+  {# Inline season CRUD forms are swapped here #}
+  <div id="season-crud-panel" class="mb-3"></div>
+
+  {# Season panel: tabs + fixture detail — swapped on season change #}
+  <div id="season-panel">
+    {% include "_fixtures_season_panel.html" %}
+  </div>
 </div>
 {% endblock %}
+
+{% block extra_scripts %}{% endblock %}

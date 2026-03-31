@@ -26,7 +26,7 @@ class TestUserModel:
     def test_frozen(self) -> None:
         u = User(id=1, username="alice", hashed_password="hash", role=UserRole.admin)
         with pytest.raises(Exception):
-            u.username = "bob"  # type: ignore[misc]  # verifying frozen model raises
+            u.username = "bob"  # verifying frozen model raises
 
     def test_role_coercion_from_string(self) -> None:
         u = User(id=1, username="x", hashed_password="h", role="admin")  # type: ignore[arg-type]
@@ -58,7 +58,7 @@ class TestPostModel:
     def test_frozen(self) -> None:
         p = self._make_post()
         with pytest.raises(Exception):
-            p.title = "Changed"  # type: ignore[misc]
+            p.title = "Changed"
 
 
 class TestPostCreate:

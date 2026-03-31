@@ -19,7 +19,9 @@ applyTo: "**/*.py"
 |--------|------|
 | `main.py` | Route declarations, middleware wiring — no business logic |
 | `auth.py` | Password hashing and verification only |
-| `database.py` | DuckDB connection factory (`get_db`) and write helpers |
+| `identity.py` | Session user retrieval (`get_current_user`) and principal lists (`get_active_principals`) |
+| `helpers.py` | Shared request helpers: CSRF token handling, page context builder, HTML sanitisation, safe redirect paths |
+| `database.py` | DuckDB connection factory (`get_db`) and migration runner |
 | `models.py` | Pydantic schemas and dataclasses — no I/O |
 | `repository.py` | Data-access functions (queries/writes) — one per domain entity |
 
@@ -44,28 +46,27 @@ def login(form: LoginForm, db: duckdb.DuckDBPyConnection = Depends(get_db)) -> H
 
 ## Dependency Injection & Database
 
-```python
-# database.py — connection factory
-from contextlib import contextmanager
-import duckdb
+A single shared DuckDB connection is opened at startup and stored on `app.state.db`. The `get_db()` dependency yields a **cursor** from that connection — this avoids OS-level file-lock conflicts on Windows while giving each request an isolated cursor.
 
-def get_db() -> Generator[duckdb.DuckDBPyConnection, None, None]:
-    con = duckdb.connect()
+```python
+# database.py — cursor factory
+def get_db(request: Request) -> Generator[duckdb.DuckDBPyConnection, None, None]:
+    cursor = request.app.state.db.cursor()
     try:
-        yield con
+        yield cursor
     finally:
-        con.close()
+        cursor.close()
 ```
 
-- Every route that touches data must receive a connection via `Depends(get_db)`.
+- Every route that touches data must receive a cursor via `Depends(get_db)`.
 - **Always** use parameterised queries. Never use f-strings or `%`-formatting in SQL:
   ```python
   # Good
-  con.execute("SELECT * FROM users WHERE username = ?", [username])
+  cur.execute("SELECT * FROM users WHERE username = ?", [username])
   # Bad — SQL injection risk
-  con.execute(f"SELECT * FROM users WHERE username = '{username}'")
+  cur.execute(f"SELECT * FROM users WHERE username = '{username}'")
   ```
-- Writes must use `INSERT INTO … VALUES (?, ?)` or `COPY … TO '…parquet'`; keep them in `repository.py` or `database.py`.
+- Writes must use `INSERT INTO … VALUES (?, ?)`; keep them in `repository.py`.
 
 ## Pydantic Models
 
@@ -84,7 +85,7 @@ def get_db() -> Generator[duckdb.DuckDBPyConnection, None, None]:
 - Unit tests live in `tests/unit/`; use `pytest` with an in-memory DuckDB connection (`:memory:`).
 - Mock the database connection using `monkeypatch` or `pytest` fixtures — never touch `data/` in tests.
 - Aim for one test file per source module (e.g. `test_auth.py` tests `auth.py`).
-- Use `httpx.AsyncClient` with `app` for route-level tests.
+- Use `fastapi.testclient.TestClient` for synchronous route-level tests.
 
 ## Security & GDPR
 

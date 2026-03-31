@@ -1,0 +1,67 @@
+{% if fixture %}
+<article class="card">
+  <div class="card-body">
+    <h2 class="card-title h5">{{ fixture.title }}</h2>
+
+    <dl class="row mb-0">
+      <dt class="col-sm-3">Date</dt>
+      <dd class="col-sm-9">{{ fixture.date.strftime('%A') }}, {{ fixture.date.day }} {{ fixture.date.strftime('%B %Y') if fixture.date else '—' }}</dd>
+
+      <dt class="col-sm-3">Location</dt>
+      <dd class="col-sm-9">{{ fixture.location_name }}</dd>
+
+      <dt class="col-sm-3">Address</dt>
+      <dd class="col-sm-9">{{ fixture.address }}</dd>
+    </dl>
+
+    {% if fixture.timetable %}
+    <h3 class="h6 mt-3">Timetable</h3>
+    <table class="table table-sm table-bordered w-auto">
+      <thead>
+        <tr>
+          <th scope="col">Time</th>
+          <th scope="col">Event</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for entry in fixture.timetable %}
+        <tr>
+          <td>{{ entry.time }}</td>
+          <td>{{ entry.event }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    {% if fixture.travel_instructions %}
+    <h3 class="h6 mt-3">Travel Instructions</h3>
+    <p class="mb-0" style="white-space: pre-wrap;">{{ fixture.travel_instructions }}</p>
+    {% endif %}
+
+    {% if current_user and current_user.role in ('admin', 'content_creator') %}
+    <div class="d-flex gap-2 mt-3 pt-3 border-top">
+      <a
+        href="/fixtures/seasons/{{ fixture.season_id }}/fixtures/{{ fixture.id }}/edit"
+        class="btn btn-sm btn-outline-secondary"
+      >Edit</a>
+
+      <a
+        href="/fixtures/seasons/{{ fixture.season_id }}/fixtures/{{ fixture.id }}/copy"
+        class="btn btn-sm btn-outline-primary"
+      >Copy</a>
+
+      <form
+        action="/fixtures/seasons/{{ fixture.season_id }}/fixtures/{{ fixture.id }}/delete"
+        method="post"
+      >
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+</article>
+{% else %}
+<p class="text-muted">Select a fixture above.</p>
+{% endif %}
