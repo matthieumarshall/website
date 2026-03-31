@@ -39,10 +39,13 @@ The data layer uses **DuckDB** with a persistent database file (`data/app.duckdb
 
 ## Frontend
 
+This project uses an **Islands Architecture**: pages are server-rendered Jinja2 HTML; JavaScript is introduced only as isolated islands of interactivity where HTMX cannot express the interaction.
+
 - Use **HTMX** attributes (`hx-get`, `hx-post`, `hx-target`, `hx-swap`) for partial page updates before writing custom JS.
 - Return HTML fragments from FastAPI endpoints that are intended for HTMX responses.
 - Keep `static/style.css` minimal — prefer semantic HTML and browser defaults over heavy styling frameworks.
-- JavaScript files live in `static/`. Only add a JS file when there is no HTMX alternative.
+- JavaScript islands live in `static/<feature>.js`. Each island is self-contained, initialised via a sentinel `<div id="...">` in the template, and communicates back to the server through a hidden form field or `fetch`. Existing islands: `post-editor.js` (Quill), `timetable-editor.js` (custom drag UI).
+- Only add a JS file when there is no HTMX alternative (e.g. third-party SDKs like Stripe.js, rich client-side state, drag-and-drop).
 
 ## Security
 

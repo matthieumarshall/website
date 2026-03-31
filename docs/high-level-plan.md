@@ -2,6 +2,19 @@
 
 ---
 
+## Architecture
+
+This project uses an **Islands Architecture** on the frontend: pages are server-rendered (FastAPI + Jinja2) with HTMX handling partial updates. JavaScript is introduced only as isolated islands where HTMX is insufficient — each island lives in its own `static/<feature>.js` file.
+
+Existing islands:
+- `static/post-editor.js` — Quill rich-text editor (Phase 2)
+- `static/timetable-editor.js` — timetable drag/edit UI (Phase 3)
+
+Planned islands:
+- `static/entry-payment.js` — Stripe.js payment widget (Phase 5); note Stripe.js must be loaded from `js.stripe.com` (PCI DSS requirement — documented exception to the self-hosting rule)
+
+---
+
 ## Phase 1: Foundation & Authentication
 
 ### 1.1 Security Fundamentals
@@ -85,7 +98,15 @@
 - Assign competition numbers — *not started*
 - Link athletes to their results — *not started*
 
-### 5.2 GDPR Compliance for Athlete Data
+### 5.3 Payments
+- Stripe integration (server-side PaymentIntent via Python `stripe` SDK) — *not started*
+- `static/entry-payment.js` island — mounts Stripe Elements widget, submits payment — *not started*
+- Post-payment confirmation page (server redirect, no JS) — *not started*
+- Webhook handler for async payment events (`/webhooks/stripe`) — *not started*
+- Update CSP to allow `js.stripe.com` and `api.stripe.com` (PCI DSS requirement) — *not started*
+- Document Stripe cookie / data collection in `templates/privacy.html` — *not started*
+
+### 5.3 GDPR Compliance for Athlete Data
 - Lawful basis for processing personal data — *not started*
 - Right to access data (data export) — *not started*
 - Right to erasure (deletion flow) — *not started*

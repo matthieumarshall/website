@@ -5,12 +5,28 @@ applyTo: "{templates/**/*.html,static/**/*.{js,css}}"
 
 # Frontend Coding Standards
 
+## Architecture: Islands Pattern
+
+This project uses an **Islands Architecture**: pages are server-rendered Jinja2 HTML by default; JavaScript is only introduced as isolated "islands" of interactivity where HTMX alone is insufficient.
+
+Existing islands:
+- `static/post-editor.js` — mounts a Quill rich-text editor inside a server-rendered form
+- `static/timetable-editor.js` — custom JS island for the timetable UI on fixtures
+
+Each island:
+- Lives in its own `static/<feature>.js` file
+- Is initialised by finding a sentinel `<div id="...">` that the Jinja2 template renders
+- Communicates with the server via a hidden `<input>` field (serialised JSON or plain value) submitted with the surrounding form, or via `fetch` for async operations
+- Must not break the page if JavaScript is disabled (degrade gracefully)
+
+**When to add a new island vs. use HTMX**: if the interaction requires a third-party JS SDK (e.g. Stripe.js for payments), client-side state across multiple steps, or rich drag-and-drop/canvas UI — create a new island file. For anything else (partial swaps, form submissions, tab switching) use HTMX.
+
 ## General Principles
 
 - **HTMX first**: reach for `hx-*` attributes before writing any JavaScript. Only add a `.js` file when the interaction cannot be expressed with HTMX alone.
 - **Semantic HTML**: use the right element for the job (`<button>`, `<nav>`, `<main>`, `<form>`, etc.) — do not use `<div>` for everything.
 - **Accessibility**: every form control needs a `<label>`. Interactive elements must be keyboard-reachable. Maintain sufficient colour contrast (WCAG 2.1 AA).
-- **Minimal frameworks**: Minimise React, Vue, Alpine, or CSS-in-JS. Keep the stack minimal.
+- **Minimal frameworks**: avoid React, Vue, Alpine, or CSS-in-JS unless an island explicitly requires one. Keep the stack minimal.
 
 ## Jinja2 Templates
 
