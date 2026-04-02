@@ -68,7 +68,7 @@ Planned islands:
 - Timetable editor (JSON array, custom JS) — **DONE**
 - Fixture history from past seasons — **DONE**
 - Map of location (embedded map from address) — **DONE**
-- What3Words location support (needs API registration) — *not started*
+- What3Words location support. User provides three words in separate small text boxes and we convert that ourselves to a what3words style clickable url — *not started*
 - Course map image uploads (support multiple images per fixture) — **DONE**
 
 ---

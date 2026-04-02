@@ -632,6 +632,9 @@ def fixtures_create_fixture(
     address: str = Form(...),
     timetable_json: str = Form(default="[]"),
     travel_instructions: str = Form(""),
+    what3words_word1: str = Form(default=""),
+    what3words_word2: str = Form(default=""),
+    what3words_word3: str = Form(default=""),
     csrf_token: str = Form(...),
     db: duckdb.DuckDBPyConnection = Depends(get_db),
     _: list = Permission("create", _FIXTURES_STAFF_ACL),
@@ -645,7 +648,24 @@ def fixtures_create_fixture(
         address=address.strip(),
         timetable=timetable,
         travel_instructions=travel_instructions.strip(),
+        what3words_word1=what3words_word1,
+        what3words_word2=what3words_word2,
+        what3words_word3=what3words_word3,
     )
+    # Assemble what3words: either all three provided or none
+    words = [
+        validated.what3words_word1,
+        validated.what3words_word2,
+        validated.what3words_word3,
+    ]
+    has_any_word = any(w for w in words)
+    if has_any_word and not all(words):
+        raise HTTPException(
+            status_code=400,
+            detail="All three What3Words words must be provided together",
+        )
+    what3words_str = ".".join(words) if all(words) else None
+
     coords = geocode_address(validated.address)
     lat, lon = (coords[0], coords[1]) if coords else (None, None)
     try:
@@ -660,6 +680,7 @@ def fixtures_create_fixture(
             travel_instructions=validated.travel_instructions,
             latitude=lat,
             longitude=lon,
+            what3words=what3words_str,
         )
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
@@ -701,6 +722,9 @@ def fixtures_update_fixture(
     address: str = Form(...),
     timetable_json: str = Form(default="[]"),
     travel_instructions: str = Form(""),
+    what3words_word1: str = Form(default=""),
+    what3words_word2: str = Form(default=""),
+    what3words_word3: str = Form(default=""),
     csrf_token: str = Form(...),
     db: duckdb.DuckDBPyConnection = Depends(get_db),
     _: list = Permission("create", _FIXTURES_STAFF_ACL),
@@ -714,7 +738,24 @@ def fixtures_update_fixture(
         address=address.strip(),
         timetable=timetable,
         travel_instructions=travel_instructions.strip(),
+        what3words_word1=what3words_word1,
+        what3words_word2=what3words_word2,
+        what3words_word3=what3words_word3,
     )
+    # Assemble what3words: either all three provided or none
+    words = [
+        validated.what3words_word1,
+        validated.what3words_word2,
+        validated.what3words_word3,
+    ]
+    has_any_word = any(w for w in words)
+    if has_any_word and not all(words):
+        raise HTTPException(
+            status_code=400,
+            detail="All three What3Words words must be provided together",
+        )
+    what3words_str = ".".join(words) if all(words) else None
+
     coords = geocode_address(validated.address)
     lat, lon = (coords[0], coords[1]) if coords else (None, None)
     result = repository.update_fixture(
@@ -728,6 +769,7 @@ def fixtures_update_fixture(
         travel_instructions=validated.travel_instructions,
         latitude=lat,
         longitude=lon,
+        what3words=what3words_str,
     )
     if result is None:
         raise HTTPException(status_code=404, detail="Fixture not found")
@@ -790,6 +832,9 @@ def fixtures_copy_submit(
     address: str = Form(...),
     timetable_json: str = Form(default="[]"),
     travel_instructions: str = Form(""),
+    what3words_word1: str = Form(default=""),
+    what3words_word2: str = Form(default=""),
+    what3words_word3: str = Form(default=""),
     csrf_token: str = Form(...),
     db: duckdb.DuckDBPyConnection = Depends(get_db),
     _: list = Permission("create", _FIXTURES_STAFF_ACL),
@@ -803,7 +848,24 @@ def fixtures_copy_submit(
         address=address.strip(),
         timetable=timetable,
         travel_instructions=travel_instructions.strip(),
+        what3words_word1=what3words_word1,
+        what3words_word2=what3words_word2,
+        what3words_word3=what3words_word3,
     )
+    # Assemble what3words: either all three provided or none
+    words = [
+        validated.what3words_word1,
+        validated.what3words_word2,
+        validated.what3words_word3,
+    ]
+    has_any_word = any(w for w in words)
+    if has_any_word and not all(words):
+        raise HTTPException(
+            status_code=400,
+            detail="All three What3Words words must be provided together",
+        )
+    what3words_str = ".".join(words) if all(words) else None
+
     coords = geocode_address(validated.address)
     try:
         repository.create_fixture(
@@ -817,6 +879,7 @@ def fixtures_copy_submit(
             travel_instructions=validated.travel_instructions,
             latitude=coords[0] if coords else None,
             longitude=coords[1] if coords else None,
+            what3words=what3words_str,
         )
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc))

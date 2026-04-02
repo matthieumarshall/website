@@ -111,6 +111,45 @@
     >
   </div>
 
+  <div class="mb-3">
+    <label for="fixture-what3words" class="form-label">What3Words Location</label>
+    <div class="d-flex gap-2 align-items-center">
+      <input
+        type="text"
+        class="form-control"
+        id="fixture-w3w-word1"
+        name="what3words_word1"
+        placeholder="word"
+        value="{% if src and src.what3words %}{{ src.what3words.split('.')[0] }}{% endif %}"
+        maxlength="255"
+        aria-label="What3Words first word"
+      >
+      <span class="fw-semibold" aria-hidden="true">•</span>
+      <input
+        type="text"
+        class="form-control"
+        id="fixture-w3w-word2"
+        name="what3words_word2"
+        placeholder="word"
+        value="{% if src and src.what3words %}{{ src.what3words.split('.')[1] }}{% endif %}"
+        maxlength="255"
+        aria-label="What3Words second word"
+      >
+      <span class="fw-semibold" aria-hidden="true">•</span>
+      <input
+        type="text"
+        class="form-control"
+        id="fixture-w3w-word3"
+        name="what3words_word3"
+        placeholder="word"
+        value="{% if src and src.what3words %}{{ src.what3words.split('.')[2] }}{% endif %}"
+        maxlength="255"
+        aria-label="What3Words third word"
+      >
+    </div>
+    <div class="form-text">Enter all three words from your What3Words location, or leave empty. Format: word•word•word</div>
+  </div>
+
   {# ---- Timetable ---- #}
   <fieldset class="mb-3">
     <legend class="fs-6 fw-semibold">Timetable</legend>

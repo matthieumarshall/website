@@ -255,6 +255,7 @@ def create_fixture(
     travel_instructions: str,
     latitude: float | None = None,
     longitude: float | None = None,
+    what3words: str | None = None,
 ) -> Fixture:
     current_count = count_fixtures_for_season(db, season_id)
     if current_count >= _MAX_FIXTURES_PER_SEASON:
@@ -266,8 +267,8 @@ def create_fixture(
     db.execute(
         "INSERT INTO fixtures"
         " (season_id, title, date, location_name, address, timetable,"
-        " travel_instructions, latitude, longitude)"
-        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        " travel_instructions, latitude, longitude, what3words)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
             season_id,
             title,
@@ -278,6 +279,7 @@ def create_fixture(
             travel_instructions,
             latitude,
             longitude,
+            what3words,
         ],
     )
     row = db.execute(
@@ -299,11 +301,12 @@ def update_fixture(
     travel_instructions: str,
     latitude: float | None = None,
     longitude: float | None = None,
+    what3words: str | None = None,
 ) -> Fixture | None:
     timetable_json = json.dumps([e.model_dump() for e in timetable])
     db.execute(
         "UPDATE fixtures SET title = ?, date = ?, location_name = ?, address = ?,"
-        " timetable = ?, travel_instructions = ?, latitude = ?, longitude = ?"
+        " timetable = ?, travel_instructions = ?, latitude = ?, longitude = ?, what3words = ?"
         " WHERE id = ?",
         [
             title,
@@ -314,6 +317,7 @@ def update_fixture(
             travel_instructions,
             latitude,
             longitude,
+            what3words,
             fixture_id,
         ],
     )

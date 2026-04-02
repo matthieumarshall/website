@@ -12,6 +12,11 @@
 
       <dt class="col-sm-3">Address</dt>
       <dd class="col-sm-9">{{ fixture.address }}</dd>
+
+      {% if fixture.what3words %}
+      <dt class="col-sm-3">What3Words</dt>
+      <dd class="col-sm-9"><a href="https://what3words.com/{{ fixture.what3words }}" target="_blank" rel="noopener noreferrer">///{{ fixture.what3words }}</a></dd>
+      {% endif %}
     </dl>
 
     {% if fixture.latitude and fixture.longitude %}
