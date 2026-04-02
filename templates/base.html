@@ -3,16 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}My Website{% endblock %}</title>
+  <title>{% block title %}Oxfordshire Cross Country League{% endblock %}</title>
   <link href="/static/bootstrap.min.css" rel="stylesheet">
   <link href="/static/style.css" rel="stylesheet">
   {% block extra_head %}{% endblock %}
 </head>
 <body>
 
-  <nav class="navbar navbar-expand-lg navbar-dark bg-dark" aria-label="Site navigation">
+  <nav class="navbar navbar-expand-lg navbar-dark bg-brand" aria-label="Site navigation">
     <div class="container-fluid px-3">
-      <a class="navbar-brand" href="/news">My Website</a>
+      <a class="navbar-brand" href="/news">Oxfordshire Cross Country League</a>
 
       <div class="ms-auto d-flex align-items-center gap-2">
         {% if current_user %}
@@ -75,7 +75,7 @@
   </div>
 
   {% if show_cookie_notice %}
-  <div id="cookie-notice" class="fixed-bottom bg-dark text-white py-2 px-3 d-flex flex-wrap align-items-center gap-2 small">
+  <div id="cookie-notice" class="fixed-bottom bg-brand text-white py-2 px-3 d-flex flex-wrap align-items-center gap-2 small">
     <span>
       This site uses a strictly necessary session cookie to keep you logged in.
       No tracking or advertising cookies are used.
