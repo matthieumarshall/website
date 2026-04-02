@@ -68,7 +68,7 @@ Planned islands:
 - Timetable editor (JSON array, custom JS) — **DONE**
 - Fixture history from past seasons — **DONE**
 - Map of location (embedded map from address) — **DONE**
-- What3Words location support — *not started*
+- What3Words location support (needs API registration) — *not started*
 - Course map image uploads (support multiple images per fixture) — **DONE**
 
 ---
@@ -124,7 +124,7 @@ Planned islands:
 - Website must be WCAG 2.1 Level AA compliant — *in progress*
 - Keyboard navigation support for all interactive elements — *not started*
 - Proper semantic HTML and ARIA labels where required — *not started*
-- Sufficient colour contrast ratios (4.5:1 for normal text) — *not started*
+- Sufficient colour contrast ratios (4.5:1 for normal text) — **DONE**
 - Alt text on all images — *not started*
 - Accessible form labels and error messaging — *not started*
 - Screen reader testing (NVDA, JAWS) — *not started*
@@ -197,7 +197,7 @@ Planned islands:
 - Login rate limiting already covers brute force — **DONE**
 
 ### 10.4 Dependency & Vulnerability Management
-- `pip-audit` / Dependabot for known CVEs — *not started*
+- `pip-audit` / Dependabot for known CVEs — **DONE**
 - Bandit SAST scan (zero findings required) — **DONE**
 - License validation script (`scripts/validate-licenses.py`) — **DONE**
 
