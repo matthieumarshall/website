@@ -52,7 +52,7 @@ Planned islands:
 - Image upload (MIME allowlist, 5 MB cap, staff only) — **DONE**
 - HTML sanitisation with `nh3` before DB write — **DONE**
 - Publish / draft toggle (column exists in DB, no UI yet) — *not started*
-
+- Custom fonts - *not started*
 ---
 
 ## Phase 3: Fixtures
@@ -68,7 +68,7 @@ Planned islands:
 - Timetable editor (JSON array, custom JS) — **DONE**
 - Fixture history from past seasons — **DONE**
 - Map of location (embedded map from address) — **DONE**
-- What3Words location support — *not started*
+- What3Words location support. User provides three words in separate small text boxes and we convert that ourselves to a what3words style clickable url — *not started*
 - Course map image uploads (support multiple images per fixture) — **DONE**
 
 ---
@@ -113,86 +113,104 @@ Planned islands:
 
 ---
 
-## Phase 6: Legal & Compliance
+## Phase 6: Accessibility & Mobile-First Design
 
-### 6.1 Privacy & Consent
+### 6.1 Mobile Responsiveness
+- Website must be mobile-friendly and responsive across all device sizes (mobile, tablet, desktop) — *in progress*
+- Test layout and usability on common mobile devices and screen sizes — *not started*
+- Ensure touch-friendly interactive elements (sufficient tap target size) — *not started*
+
+### 6.2 Web Content Accessibility Guidelines (WCAG) 2.1 AA
+- Website must be WCAG 2.1 Level AA compliant — *in progress*
+- Keyboard navigation support for all interactive elements — *not started*
+- Proper semantic HTML and ARIA labels where required — *not started*
+- Sufficient colour contrast ratios (4.5:1 for normal text) — **DONE**
+- Alt text on all images — *not started*
+- Accessible form labels and error messaging — *not started*
+- Screen reader testing (NVDA, JAWS) — *not started*
+- Automated accessibility testing in CI/CD pipeline — *not started*
+
+---
+
+## Phase 7: Legal & Compliance
+
+### 7.1 Privacy & Consent
 - Privacy policy page — **DONE**
 - Cookie consent banner (dismissible, 1-year persistence) — **DONE**
 - Terms & conditions page — *not started*
 
-### 6.2 GDPR Operational Requirements
+### 7.2 GDPR Operational Requirements
 - Data breach notification procedure (internal runbook) — *not started*
 - Documented data inventory (what is collected, why, retention) — *not started*
 
 ---
 
-## Phase 7: Infrastructure & Deployment
+## Phase 8: Infrastructure & Deployment
 
-### 7.1 CI/CD
+### 8.1 CI/CD
 - GitHub Actions pipeline (lint, security scan, tests on push/PR) — **DONE**
 - Automated deployment to production on merge to `main` — *not started*
 
-### 7.2 Production Server
-- Production WSGI/ASGI server (Gunicorn or similar) — *not started*
-- Dockerfile for reproducible deployments — *not started*
+### 8.2 Production Server
+- Production WSGI/ASGI server (Gunicorn or similar) — **DONE**
 - Environment parity (dev / staging / production) — *not started*
 - Rollback procedure documented — *not started*
 
-### 7.3 Hosting
-- Fly.io (or equivalent) hosting — *not started*
-- HTTPS / SSL certificate (Let's Encrypt via Fly.io or Cloudflare) — *not started*
-- Domain registration and DNS configuration — *not started*
+### 8.3 Hosting
+- fasthosts VPS hosting — **DONE**
+- HTTPS / SSL certificate (Let's Encrypt via Fly.io or Cloudflare) — **DONE**
+- Domain registration and DNS configuration — **DONE**
 - Auto-renewal on domain — *not started*
 
-### 7.4 Database & Backups
+### 8.4 Database & Backups
 - Automated DB backups to off-site storage (S3 / B2) — *not started*
 - Test restore from backup (documented and verified) — *not started*
 
 ---
 
-## Phase 8: Email
+## Phase 9: Email
 
-### 8.1 Transactional Email
+### 9.1 Transactional Email
 - Password reset emails — *not started*
 - Account confirmation emails — *not started*
 - Use a managed email service (Resend / Postmark / SendGrid) — *not started*
 
-### 8.2 Email Deliverability
+### 9.2 Email Deliverability
 - SPF / DKIM / DMARC DNS records — *not started*
 
 ---
 
-## Phase 9: Monitoring & Reliability
+## Phase 10: Monitoring & Reliability
 
-### 9.1 Logging
+### 10.1 Logging
 - Structured JSON logging — *not started*
 - Ship logs to centralised location — *not started*
 - Never log passwords, tokens, or PII — **DONE** *(policy enforced in code)*
 
-### 9.2 Error Tracking & Uptime
+### 10.2 Error Tracking & Uptime
 - Sentry (or equivalent) for unhandled exception tracking — *not started*
 - Uptime monitoring (UptimeRobot / Better Uptime) — *not started*
 
-### 9.3 Bot & Abuse Protection
+### 10.3 Bot & Abuse Protection
 - Bot restriction / Cloudflare challenge — *not started*
 - Login rate limiting already covers brute force — **DONE**
 
-### 9.4 Dependency & Vulnerability Management
-- `pip-audit` / Dependabot for known CVEs — *not started*
+### 10.4 Dependency & Vulnerability Management
+- `pip-audit` / Dependabot for known CVEs — **DONE**
 - Bandit SAST scan (zero findings required) — **DONE**
 - License validation script (`scripts/validate-licenses.py`) — **DONE**
 
 ---
 
-## Phase 10: Performance
+## Phase 11: Performance
 
-### 10.1 Asset Optimisation
+### 11.1 Asset Optimisation
 - Minify CSS/JS, compress images, use modern formats (WebP/AVIF) — *not started*
 - gzip/brotli response compression — *not started*
 - All static assets self-hosted (no CDN leaking user IPs) — **DONE**
 
-### 10.2 Caching
+### 11.2 Caching
 - Server-side caching for expensive queries (Redis / in-memory) — *not started*
 
-### 10.3 Load Testing
+### 11.3 Load Testing
 - Establish baseline concurrent-user capacity (`locust` / `k6`) — *not started*

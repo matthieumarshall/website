@@ -3,7 +3,7 @@ from datetime import date, datetime
 from enum import Enum
 
 from fastapi_permissions import Allow
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class UserRole(str, Enum):
@@ -136,6 +136,23 @@ class FixtureCreate(BaseModel):
     address: str
     timetable: list[TimetableEntry]
     travel_instructions: str
+    what3words_word1: str = ""
+    what3words_word2: str = ""
+    what3words_word3: str = ""
+
+    @field_validator(
+        "what3words_word1", "what3words_word2", "what3words_word3", mode="before"
+    )
+    @classmethod
+    def validate_what3words_word(cls, v: str) -> str:
+        """Validate what3words word: lowercase, alphanumeric only, stripped."""
+        if not isinstance(v, str):
+            return ""
+        v = v.strip().lower()
+        # Allow only lowercase letters; what3words words contain only letters
+        if v and not all(c.isalpha() for c in v):
+            raise ValueError("What3Words words must contain only letters")
+        return v
 
 
 class FixtureUpdate(BaseModel):
@@ -145,6 +162,23 @@ class FixtureUpdate(BaseModel):
     address: str
     timetable: list[TimetableEntry]
     travel_instructions: str
+    what3words_word1: str = ""
+    what3words_word2: str = ""
+    what3words_word3: str = ""
+
+    @field_validator(
+        "what3words_word1", "what3words_word2", "what3words_word3", mode="before"
+    )
+    @classmethod
+    def validate_what3words_word(cls, v: str) -> str:
+        """Validate what3words word: lowercase, alphanumeric only, stripped."""
+        if not isinstance(v, str):
+            return ""
+        v = v.strip().lower()
+        # Allow only lowercase letters; what3words words contain only letters
+        if v and not all(c.isalpha() for c in v):
+            raise ValueError("What3Words words must contain only letters")
+        return v
 
 
 # ---------------------------------------------------------------------------

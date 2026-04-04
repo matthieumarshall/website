@@ -7,7 +7,7 @@
     <button
       type="button"
       class="btn btn-outline-secondary{% if active_race and active_race.id == race.id %} active{% endif %}"
-      hx-get="/results/race-table?race_id={{ race.id }}&fixture_id={{ active_fixture.id }}&season_id={{ season_id }}"
+      hx-get="/results/race-table?race_id={{ race.id }}&fixture_id={{ active_fixture.id }}{% if season_id %}&season_id={{ season_id }}{% endif %}"
       hx-target="#race-table"
       hx-swap="innerHTML"
       hx-push-url="true"

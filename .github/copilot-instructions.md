@@ -46,6 +46,8 @@ This project uses an **Islands Architecture**: pages are server-rendered Jinja2 
 - Keep `static/style.css` minimal — prefer semantic HTML and browser defaults over heavy styling frameworks.
 - JavaScript islands live in `static/<feature>.js`. Each island is self-contained, initialised via a sentinel `<div id="...">` in the template, and communicates back to the server through a hidden form field or `fetch`. Existing islands: `post-editor.js` (Quill), `timetable-editor.js` (custom drag UI).
 - Only add a JS file when there is no HTMX alternative (e.g. third-party SDKs like Stripe.js, rich client-side state, drag-and-drop).
+- **Mobile-first responsive design**: website must be mobile-friendly and fully functional across all device sizes (mobile, tablet, desktop). Use responsive CSS and test on common mobile devices.
+- **WCAG 2.1 Level AA accessibility**: Ensure keyboard navigation, semantic HTML, ARIA labels where needed, sufficient colour contrast (4.5:1), alt text on images, accessible form labels, and screen reader compatibility. Run automated accessibility tests in CI/CD.
 
 ## Security
 
