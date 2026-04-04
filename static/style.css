@@ -36,7 +36,7 @@
 /* Barlow Condensed — SemiBold (600) */
 @font-face {
   font-family: 'Barlow Condensed';
-  src: url('/static/fonts/barlow-condensed-600.woff2') format('woff2');
+  src: url('/static/fonts/barlow-condensed-600.ttf') format('truetype');
   font-weight: 600;
   font-style: normal;
   font-display: swap;
@@ -45,26 +45,17 @@
 /* Barlow Condensed — Bold (700) */
 @font-face {
   font-family: 'Barlow Condensed';
-  src: url('/static/fonts/barlow-condensed-700.woff2') format('woff2');
+  src: url('/static/fonts/barlow-condensed-700.ttf') format('truetype');
   font-weight: 700;
   font-style: normal;
   font-display: swap;
 }
 
-/* DM Sans — Regular (400) */
+/* DM Sans — Variable Font (supports weights 100-900) */
 @font-face {
   font-family: 'DM Sans';
-  src: url('/static/fonts/dm-sans-400.woff2') format('woff2');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-/* DM Sans — Medium (500) */
-@font-face {
-  font-family: 'DM Sans';
-  src: url('/static/fonts/dm-sans-500.woff2') format('woff2');
-  font-weight: 500;
+  src: url('/static/fonts/dm-sans.ttf') format('truetype');
+  font-weight: 100 900;
   font-style: normal;
   font-display: swap;
 }
@@ -104,6 +95,16 @@ body {
   font-size: 1.4rem;
   letter-spacing: 1px;
   text-transform: uppercase;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Mobile: reduce font size and letter-spacing for better fit */
+@media (max-width: 767.98px) {
+  .navbar-brand {
+    font-size: 1rem;
+    letter-spacing: 0.5px;
+  }
 }
 
 /* ============================================================================
