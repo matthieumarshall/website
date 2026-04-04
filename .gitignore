@@ -65,3 +65,4 @@ node_modules/
 # Temporary files
 tmp/
 temp/
+docs/setup.md
