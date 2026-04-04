@@ -52,7 +52,7 @@ Planned islands:
 - Image upload (MIME allowlist, 5 MB cap, staff only) — **DONE**
 - HTML sanitisation with `nh3` before DB write — **DONE**
 - Publish / draft toggle (column exists in DB, no UI yet) — *not started*
-
+- Custom fonts - *not started*
 ---
 
 ## Phase 3: Fixtures
@@ -152,15 +152,14 @@ Planned islands:
 - Automated deployment to production on merge to `main` — *not started*
 
 ### 8.2 Production Server
-- Production WSGI/ASGI server (Gunicorn or similar) — *not started*
-- Dockerfile for reproducible deployments — *not started*
+- Production WSGI/ASGI server (Gunicorn or similar) — **DONE**
 - Environment parity (dev / staging / production) — *not started*
 - Rollback procedure documented — *not started*
 
 ### 8.3 Hosting
-- Fly.io (or equivalent) hosting — *not started*
-- HTTPS / SSL certificate (Let's Encrypt via Fly.io or Cloudflare) — *not started*
-- Domain registration and DNS configuration — *not started*
+- fasthosts VPS hosting — **DONE**
+- HTTPS / SSL certificate (Let's Encrypt via Fly.io or Cloudflare) — **DONE**
+- Domain registration and DNS configuration — **DONE**
 - Auto-renewal on domain — *not started*
 
 ### 8.4 Database & Backups
