@@ -18,8 +18,6 @@ first if you need to re-import.
 """
 
 import argparse
-import csv
-import io
 import sys
 from pathlib import Path
 
@@ -97,24 +95,20 @@ def import_results(
             )
             sys.exit(1)
 
-        # Detect encoding — files exported from Excel are often UTF-16 LE with BOM.
-        # Decode to a string first so csv.DictReader doesn't have to deal with
-        # UTF-16 line endings directly (which causes decode errors on Python 3.12).
-        raw = csv_path.read_bytes()
-        if raw[:2] in (b"\xff\xfe", b"\xfe\xff"):
-            encoding = "utf-16"
-        else:
-            encoding = "utf-8-sig"
-        text = raw.decode(encoding)
+        # Use DuckDB to read the CSV — handles encoding, BOM, and quoting automatically
+        try:
+            result = con.execute(
+                "SELECT * FROM read_csv_auto(?, all_varchar=true, header=true)",
+                [str(csv_path)],
+            )
+        except duckdb.Error as exc:
+            print(f"Error: Could not read CSV file: {exc}")
+            sys.exit(1)
 
-        reader = csv.DictReader(io.StringIO(text))
         # Normalise headers: strip whitespace, lowercase, map display names
-        raw_fields = [f.strip() for f in (reader.fieldnames or [])]
+        raw_fields = [desc[0].strip() for desc in (result.description or [])]
         normalised = {_HEADER_MAP.get(f.lower(), f.lower()) for f in raw_fields}
-        field_remap = {
-            f.strip(): _HEADER_MAP.get(f.strip().lower(), f.strip().lower())
-            for f in raw_fields
-        }
+        field_remap = {f: _HEADER_MAP.get(f.lower(), f.lower()) for f in raw_fields}
 
         missing = _REQUIRED_HEADERS - normalised
         if missing:
@@ -124,8 +118,11 @@ def import_results(
             sys.exit(1)
 
         rows = [
-            {field_remap[k.strip()]: v for k, v in row.items() if k is not None}
-            for row in reader
+            {
+                field_remap[raw_fields[i]]: (str(val) if val is not None else "")
+                for i, val in enumerate(row)
+            }
+            for row in result.fetchall()
         ]
 
         if not rows:
