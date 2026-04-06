@@ -28,7 +28,7 @@
       const formData = new FormData();
       formData.append("file", file);
 
-      fetch("/uploads/image", { method: "POST", body: formData })
+      fetch("/api/upload/image", { method: "POST", body: formData })
         .then(function (resp) {
           if (!resp.ok) throw new Error("Upload failed: " + resp.status);
           return resp.json();
