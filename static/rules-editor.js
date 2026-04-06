@@ -1,10 +1,15 @@
 "use strict";
 
-(function () {
+function initializeRulesEditor() {
+  var editor = document.getElementById("editor");
+  if (!editor) {
+    console.warn("rules-editor: #editor element not found on page, skipping initialization");
+    return;
+  }
+
   function showEditorError(msg) {
-    var editorDiv = document.getElementById("editor");
-    if (editorDiv) {
-      editorDiv.innerHTML =
+    if (editor) {
+      editor.innerHTML =
         '<div style="color:red;padding:1rem;border:1px solid red;border-radius:4px">' +
         "<strong>Editor failed to load:</strong> " + msg +
         "<br><small>Open browser DevTools (F12) → Console for details.</small></div>";
@@ -110,7 +115,17 @@
   var form = document.getElementById("rules-form");
   var contentInput = document.getElementById("rules-content-input");
 
-  form.addEventListener("submit", function () {
-    contentInput.value = quill.root.innerHTML;
-  });
-})();
+  if (form && contentInput) {
+    form.addEventListener("submit", function () {
+      contentInput.value = quill.root.innerHTML;
+    });
+  }
+}
+
+// Wait for DOM to be ready before initializing
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initializeRulesEditor);
+} else {
+  // DOM is already loaded (e.g., script loaded after DOMContentLoaded)
+  initializeRulesEditor();
+}

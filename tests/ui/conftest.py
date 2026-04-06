@@ -123,6 +123,17 @@ def admin_browser(server_process):
         page.click("button[type='submit']")
         page.wait_for_load_state("networkidle")
 
+        # Verify login was successful by checking we're not on the login page anymore
+        # The login page should redirect to /news after successful login
+        if page.url == "http://localhost:8000/login":
+            # If still on login page, there was an authentication error
+            # Dump any error messages for debugging
+            error_msgs = page.locator(".alert-danger").all_text_contents()
+            raise RuntimeError(
+                f"Admin login failed. Page still on login. "
+                f"Errors: {error_msgs if error_msgs else 'No errors shown'}"
+            )
+
         yield page
 
         page.close()
