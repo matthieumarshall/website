@@ -42,6 +42,8 @@ dev = [
     "pip-licenses>=4.3",
     "bandit>=1.7",
     "djlint>=1.36.4",
+    "pdfplumber>=0.11.9",
+    "markdown>=3.5",
 ]
 
 ci = [

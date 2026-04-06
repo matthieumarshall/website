@@ -8,6 +8,10 @@ sync:
     uv run python -m pre_commit install
     if (-not (Test-Path .env)) { Copy-Item .env.example .env; Write-Host "Created .env from .env.example — edit SECRET_KEY before deploying to production." }
 
+# Run Python dependency sync only
+sync-python:
+    uv sync --all-extras
+
 # Run pre-commit hooks on all files.
 lint:
     uv run python -m pre_commit run --all-files

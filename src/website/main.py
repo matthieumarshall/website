@@ -50,7 +50,12 @@ from website.models import (
     _MAX_FIXTURES_PER_SEASON,
 )
 from website import repository
-from website.export import build_csv, build_pdf, filter_results as filter_race_results
+from website.export import (
+    build_csv,
+    build_pdf,
+    build_rules_pdf,
+    filter_results as filter_race_results,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -188,6 +193,9 @@ _STAFF_ACL = [
     (Allow, "role:admin", All),
     (Allow, "role:content_creator", ("create", "upload")),
 ]
+
+# ACL for routes only accessible to admins
+_ADMIN_ACL = [(Allow, "role:admin", All)]
 
 # ACL for routes accessible to any authenticated user
 _AUTH_ACL = [(Allow, Authenticated, "view")]
@@ -425,11 +433,72 @@ def entries(request: Request) -> HTMLResponse:
 
 
 @app.get("/rules-and-constitution", response_class=HTMLResponse)
-def rules_and_constitution(request: Request) -> HTMLResponse:
+def rules_and_constitution(
+    request: Request,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+) -> HTMLResponse:
+    page = repository.get_static_page(db, "rules-and-constitution")
+    principals = get_active_principals(request)
+    is_admin = "role:admin" in principals
     return templates.TemplateResponse(
         request,
         "rules_and_constitution.html",
-        page_context(request, "rules_and_constitution"),
+        page_context(
+            request,
+            "rules_and_constitution",
+            content=page.content if page else "",
+            is_admin=is_admin,
+        ),
+    )
+
+
+@app.get("/rules-and-constitution/edit", response_class=HTMLResponse)
+def rules_and_constitution_edit_form(
+    request: Request,
+    _: list = Permission("edit", _ADMIN_ACL),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+) -> HTMLResponse:
+    page = repository.get_static_page(db, "rules-and-constitution")
+    return templates.TemplateResponse(
+        request,
+        "rules_and_constitution_form.html",
+        page_context(
+            request,
+            "rules_and_constitution",
+            content=page.content if page else "",
+        ),
+    )
+
+
+@app.post("/rules-and-constitution/edit")
+def rules_and_constitution_edit_submit(
+    request: Request,
+    csrf_token: str = Form(...),
+    content: str = Form(...),
+    _: list = Permission("edit", _ADMIN_ACL),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+) -> RedirectResponse:
+    validate_csrf(request, csrf_token)
+    user = get_current_user(request)
+    author_id: int | None = user["id"] if user else None
+    clean_content = sanitise_html(content)
+    repository.upsert_static_page(
+        db, "rules-and-constitution", clean_content, author_id
+    )
+    return RedirectResponse(url="/rules-and-constitution", status_code=303)
+
+
+@app.get("/rules-and-constitution/export/pdf")
+def rules_and_constitution_export_pdf(
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+) -> Response:
+    page = repository.get_static_page(db, "rules-and-constitution")
+    html_content = page.content if page else ""
+    pdf_bytes = build_rules_pdf(html_content)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=oxl-league-manual.pdf"},
     )
 
 

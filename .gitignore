@@ -34,6 +34,7 @@ wheels/
 *.duckdb
 data/uploads/
 !data/uploads/.gitkeep
+*.duckdb.wal
 
 # Environment variables
 .env
@@ -65,3 +66,7 @@ node_modules/
 # Temporary files
 tmp/
 temp/
+docs/setup.md
+OXL_League_Manual.pdf
+scripts/download-fonts.ps1
+scripts/pdf_to_markdown.py

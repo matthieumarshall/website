@@ -1,11 +1,17 @@
 {
   "name": "website",
   "private": true,
+  "dependencies": {
+    "quill-better-table": "^1.2.10"
+  },
   "devDependencies": {
     "@playwright/test": "^1.40.0"
   },
   "scripts": {
     "lint:html": "uv run djlint templates/ --lint",
     "test:ui": "playwright test"
+  },
+  "dependencies": {
+    "quill-better-table": "^1.2.10"
   }
 }
