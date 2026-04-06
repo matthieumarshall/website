@@ -108,31 +108,54 @@ def browser(server_process):
         browser.close()
 
 
-@pytest.fixture
-def admin_browser(server_process):
-    """Provide a Playwright browser context pre-logged-in as admin"""
+@pytest.fixture(scope="session")
+def admin_auth_state(server_process):
+    """Log in as admin once per session and return the saved cookie/storage state.
+
+    Using session scope means we perform exactly one login for the entire test
+    suite, so we never hit the login rate-limit regardless of how many tests
+    use the admin_browser fixture.
+    """
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         context = browser.new_context()
         page = context.new_page()
 
-        # Log in as admin
         page.goto("http://localhost:8000/login")
         page.fill("input[name='username']", "admin_user")
         page.fill("input[name='password']", "AdminPassword123!@#")
         page.click("button[type='submit']")
         page.wait_for_load_state("networkidle")
 
-        # Verify login was successful by checking we're not on the login page anymore
-        # The login page should redirect to /news after successful login
         if page.url == "http://localhost:8000/login":
-            # If still on login page, there was an authentication error
-            # Dump any error messages for debugging
             error_msgs = page.locator(".alert-danger").all_text_contents()
             raise RuntimeError(
                 f"Admin login failed. Page still on login. "
                 f"Errors: {error_msgs if error_msgs else 'No errors shown'}"
             )
+
+        # Capture authenticated cookies so every test can reuse them
+        state = context.storage_state()
+
+        page.close()
+        context.close()
+        browser.close()
+
+    return state
+
+
+@pytest.fixture
+def admin_browser(server_process, admin_auth_state):
+    """Provide a Playwright browser context pre-logged-in as admin.
+
+    Reuses the session-level auth cookies captured by admin_auth_state, so no
+    additional login requests are made — avoiding the login rate-limit.
+    """
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        # Inject saved cookies — no login request needed
+        context = browser.new_context(storage_state=admin_auth_state)
+        page = context.new_page()
 
         yield page
 
