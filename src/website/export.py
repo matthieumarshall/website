@@ -3,6 +3,7 @@
 import csv
 import io
 import re
+from pathlib import Path
 
 from fpdf import FPDF
 
@@ -125,3 +126,32 @@ def build_pdf(
     filename = f"{_safe_filename(race_name)}_{_safe_filename(fixture_title)}.pdf"
     raw = pdf.output()
     return bytes(raw) if raw is not None else b"", filename
+
+
+def build_rules_pdf(html_content: str) -> bytes:
+    """Render the rules-and-constitution HTML content to an A4 portrait PDF."""
+    from fpdf.html import HTMLMixin  # noqa: PLC0415 — local import to avoid circular
+
+    class _RulesPDF(FPDF, HTMLMixin):
+        pass
+
+    _FONT_PATH = Path("static/fonts/dm-sans.ttf")
+
+    pdf = _RulesPDF(orientation="P", unit="mm", format="A4")
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.set_margins(left=20, top=20, right=20)
+
+    if _FONT_PATH.exists():
+        # fpdf2.add_font() accepts 'uni' parameter for Unicode support, but type stubs don't recognize it
+        pdf.add_font("DM Sans", style="", fname=str(_FONT_PATH), uni=True)  # type: ignore[unknown-argument]
+        pdf.add_font("DM Sans", style="B", fname=str(_FONT_PATH), uni=True)  # type: ignore[unknown-argument]
+        pdf.add_font("DM Sans", style="I", fname=str(_FONT_PATH), uni=True)  # type: ignore[unknown-argument]
+        pdf.add_font("DM Sans", style="BI", fname=str(_FONT_PATH), uni=True)  # type: ignore[unknown-argument]
+        pdf.set_font("DM Sans", size=11)
+    else:
+        pdf.set_font("Helvetica", size=11)
+
+    pdf.add_page()
+    pdf.write_html(html_content)
+    raw = pdf.output()
+    return bytes(raw) if raw is not None else b""

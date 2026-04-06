@@ -1,10 +1,163 @@
 {% extends "base.html" %}
 
-{% block title %}Rules and Constitution — My Website{% endblock %}
+{% block title %}Rules and Constitution — Oxfordshire Cross Country League{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* Sticky TOC sidebar */
+  #toc {
+    position: sticky;
+    top: 1rem;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+    font-size: 0.875rem;
+  }
+  #toc-list {
+    list-style: none;
+    padding-left: 0;
+    margin: 0;
+  }
+  #toc-list li a {
+    display: block;
+    padding: 0.2rem 0.4rem;
+    color: var(--bs-body-color);
+    text-decoration: none;
+    border-left: 2px solid transparent;
+    line-height: 1.3;
+  }
+  #toc-list li a:hover,
+  #toc-list li a.active {
+    color: var(--bs-primary);
+    border-left-color: var(--bs-primary);
+    background: rgba(0, 0, 0, 0.04);
+  }
+  #toc-list li.toc-h2 { padding-left: 0.75rem; }
+  #toc-list li.toc-h3 { padding-left: 1.5rem; }
+
+  /* Rules content typography */
+  #rules-content h1 { font-size: 1.5rem; margin-top: 2rem; }
+  #rules-content h2 { font-size: 1.25rem; margin-top: 1.5rem; }
+  #rules-content h3 { font-size: 1.1rem; margin-top: 1.25rem; }
+  #rules-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: 0.9rem;
+  }
+  #rules-content th,
+  #rules-content td {
+    border: 1px solid #dee2e6;
+    padding: 0.4rem 0.6rem;
+    vertical-align: top;
+  }
+  #rules-content th {
+    background: #f8f9fa;
+    font-weight: 600;
+  }
+
+  @media print {
+    #toc, .btn, nav.sidebar { display: none !important; }
+    main { padding: 0 !important; }
+    #rules-content { max-width: 100%; }
+  }
+</style>
+{% endblock %}
 
 {% block content %}
-<div>
-  <h1 class="h3 mb-3">Rules and Constitution</h1>
-  <p class="text-muted">Rules and Constitution content coming soon.</p>
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h1 class="h3 mb-0">Rules and Constitution</h1>
+  <div class="d-flex gap-2">
+    {% if is_admin %}
+    <a href="/rules-and-constitution/edit" class="btn btn-outline-secondary btn-sm">Edit</a>
+    {% endif %}
+    <a href="/rules-and-constitution/export/pdf"
+       class="btn btn-outline-primary btn-sm"
+       aria-label="Export Rules and Constitution as PDF">
+      Export PDF
+    </a>
+  </div>
 </div>
+
+<div class="row g-4">
+  {# Main content column #}
+  <div class="col-lg-9">
+    {% if content %}
+    <div id="rules-content">{{ content | safe }}</div>
+    {% else %}
+    <p class="text-muted">
+      No content yet.
+      {% if is_admin %}
+        <a href="/rules-and-constitution/edit">Add content</a>
+      {% endif %}
+    </p>
+    {% endif %}
+  </div>
+
+  {# Sticky TOC sidebar — hidden on mobile #}
+  <div class="col-lg-3 d-none d-lg-block">
+    <nav id="toc" aria-label="Page contents">
+      <h6 class="text-muted text-uppercase fw-semibold mb-2" style="font-size:0.75rem;letter-spacing:.05em;">Contents</h6>
+      <ul id="toc-list"></ul>
+    </nav>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var content = document.getElementById("rules-content");
+  var tocList = document.getElementById("toc-list");
+  if (!content || !tocList) return;
+
+  var headings = content.querySelectorAll("h1, h2, h3");
+  if (headings.length === 0) return;
+
+  var slugCount = {};
+
+  headings.forEach(function (heading) {
+    var text = heading.textContent.trim();
+    var base = text
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+    if (!base) base = "section";
+
+    if (slugCount[base] === undefined) {
+      slugCount[base] = 0;
+    } else {
+      slugCount[base] += 1;
+      base = base + "-" + slugCount[base];
+    }
+
+    if (!heading.id) heading.id = base;
+
+    var li = document.createElement("li");
+    li.className = "toc-" + heading.tagName.toLowerCase();
+
+    var a = document.createElement("a");
+    a.href = "#" + heading.id;
+    a.textContent = text;
+    li.appendChild(a);
+    tocList.appendChild(li);
+  });
+
+  if (!("IntersectionObserver" in window)) return;
+
+  var links = tocList.querySelectorAll("a");
+  var observer = new IntersectionObserver(
+    function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          links.forEach(function (l) { l.classList.remove("active"); });
+          var active = tocList.querySelector("a[href='#" + entry.target.id + "']");
+          if (active) active.classList.add("active");
+        }
+      });
+    },
+    { rootMargin: "0px 0px -60% 0px" }
+  );
+
+  headings.forEach(function (h) { observer.observe(h); });
+})();
+</script>
 {% endblock %}

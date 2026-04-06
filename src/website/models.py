@@ -217,3 +217,18 @@ class RaceWithResults(BaseModel):
 
     race: Race
     results: list[Result]
+
+
+# ---------------------------------------------------------------------------
+# Static Pages
+# ---------------------------------------------------------------------------
+
+
+class StaticPage(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    id: int
+    slug: str
+    content: str
+    updated_at: datetime
+    updated_by_id: int | None

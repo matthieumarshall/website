@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Rules and Constitution — Oxfordshire Cross Country League{% endblock %}
+
+{% block extra_head %}
+<link href="/static/quill.snow.css" rel="stylesheet">
+<link href="/static/quill-better-table.css" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h3 mb-0">Edit Rules and Constitution</h1>
+  <a href="/rules-and-constitution" class="btn btn-outline-secondary btn-sm">Cancel</a>
+</div>
+
+<form action="/rules-and-constitution/edit" method="post" id="rules-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {# Hidden field receives sanitised HTML from Quill on submit #}
+  <input type="hidden" name="content" id="rules-content-input">
+
+  <div class="mb-3">
+    <div id="editor" style="min-height: 500px;">
+      {{ content | safe }}
+    </div>
+  </div>
+
+  <div class="d-flex gap-2 mt-3">
+    <button type="submit" class="btn btn-primary">Save Changes</button>
+    <a href="/rules-and-constitution" class="btn btn-outline-secondary">Cancel</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/quill.min.js"></script>
+<script src="/static/quill-better-table.min.js"></script>
+<script src="/static/rules-editor.js"></script>
+{% endblock %}

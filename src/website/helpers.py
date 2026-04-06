@@ -35,10 +35,25 @@ _ALLOWED_TAGS = {
     "blockquote",
     "a",
     "img",
+    "table",
+    "thead",
+    "tbody",
+    "tfoot",
+    "tr",
+    "th",
+    "td",
+    "colgroup",
+    "col",
+    "span",
 }
 _ALLOWED_ATTRS = {
     "a": {"href", "title", "target"},
     "img": {"src", "alt", "width", "height"},
+    "td": {"colspan", "rowspan", "data-row", "data-cell"},
+    "th": {"colspan", "rowspan", "scope"},
+    "col": {"width"},
+    "table": {"class"},
+    "span": {"class", "data-row", "data-cell"},
 }
 
 SIDEBAR_ITEMS: list[dict[str, str]] = [

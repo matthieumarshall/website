@@ -10,6 +10,7 @@ from website.models import (
     Race,
     Result,
     Season,
+    StaticPage,
     TimetableEntry,
     User,
     UserRole,
@@ -530,3 +531,51 @@ def create_result(
     ).fetchone()
     assert row is not None  # noqa: S101 # nosec B101 — just inserted
     return _row_to_result(row)
+
+
+# ---------------------------------------------------------------------------
+# Static Pages
+# ---------------------------------------------------------------------------
+
+
+def _row_to_static_page(row: tuple) -> StaticPage:
+    return StaticPage(
+        id=row[0],
+        slug=row[1],
+        content=row[2],
+        updated_at=row[3],
+        updated_by_id=row[4],
+    )
+
+
+def get_static_page(db: duckdb.DuckDBPyConnection, slug: str) -> StaticPage | None:
+    row = db.execute(
+        "SELECT id, slug, content, updated_at, updated_by_id"
+        " FROM static_pages WHERE slug = ?",
+        [slug],
+    ).fetchone()
+    return _row_to_static_page(row) if row else None
+
+
+def upsert_static_page(
+    db: duckdb.DuckDBPyConnection,
+    slug: str,
+    content: str,
+    updated_by_id: int | None = None,
+) -> StaticPage:
+    db.execute(
+        "INSERT INTO static_pages (slug, content, updated_by_id)"
+        " VALUES (?, ?, ?)"
+        " ON CONFLICT (slug) DO UPDATE"
+        " SET content = excluded.content,"
+        "     updated_at = now(),"
+        "     updated_by_id = excluded.updated_by_id",
+        [slug, content, updated_by_id],
+    )
+    row = db.execute(
+        "SELECT id, slug, content, updated_at, updated_by_id"
+        " FROM static_pages WHERE slug = ?",
+        [slug],
+    ).fetchone()
+    assert row is not None  # noqa: S101 # nosec B101 — just upserted
+    return _row_to_static_page(row)
