@@ -18,6 +18,8 @@ first if you need to re-import.
 """
 
 import argparse
+import csv
+import io
 import sys
 from pathlib import Path
 
@@ -95,20 +97,24 @@ def import_results(
             )
             sys.exit(1)
 
-        # Use DuckDB to read the CSV — handles encoding, BOM, and quoting automatically
-        try:
-            result = con.execute(
-                "SELECT * FROM read_csv_auto(?, all_varchar=true, header=true)",
-                [str(csv_path)],
-            )
-        except duckdb.Error as exc:
-            print(f"Error: Could not read CSV file: {exc}")
-            sys.exit(1)
+        # Decode the CSV in Python first (handles UTF-16 BOM and CRLF line endings
+        # that confuse DuckDB's sniffer), then parse with csv.DictReader.
+        raw = csv_path.read_bytes()
+        if raw[:2] == b"\xff\xfe":
+            text = raw[2:].decode("utf-16-le", errors="replace")
+        elif raw[:2] == b"\xfe\xff":
+            text = raw[2:].decode("utf-16-be", errors="replace")
+        else:
+            text = raw.decode("utf-8-sig", errors="replace")
 
+        reader = csv.DictReader(io.StringIO(text))
         # Normalise headers: strip whitespace, lowercase, map display names
-        raw_fields = [desc[0].strip() for desc in (result.description or [])]
+        raw_fields = [f.strip() for f in (reader.fieldnames or [])]
         normalised = {_HEADER_MAP.get(f.lower(), f.lower()) for f in raw_fields}
-        field_remap = {f: _HEADER_MAP.get(f.lower(), f.lower()) for f in raw_fields}
+        field_remap = {
+            f.strip(): _HEADER_MAP.get(f.strip().lower(), f.strip().lower())
+            for f in raw_fields
+        }
 
         missing = _REQUIRED_HEADERS - normalised
         if missing:
@@ -117,41 +123,52 @@ def import_results(
             )
             sys.exit(1)
 
-        rows = [
-            {
-                field_remap[raw_fields[i]]: (str(val) if val is not None else "")
-                for i, val in enumerate(row)
+        raw_rows = list(reader)
+        rows = []
+        for row in raw_rows:
+            mapped = {
+                field_remap[k.strip()]: v for k, v in row.items() if k is not None
             }
-            for row in result.fetchall()
-        ]
+            pos = mapped.get("position", "").strip()
+            if pos and pos.lstrip("-").isdigit():
+                rows.append(mapped)
 
         if not rows:
             print("Error: CSV file contains no data rows.")
             sys.exit(1)
 
-        race = repository.create_race(con, fixture_id=fixture.id, name=race_name)
+        con.execute("BEGIN")
+        try:
+            race = repository.create_race(con, fixture_id=fixture.id, name=race_name)
 
-        inserted = 0
-        for i, row in enumerate(rows, start=2):  # line 2 = first data row
-            try:
-                repository.create_result(
-                    con,
-                    race_id=race.id,
-                    position=int(row["position"].strip()),
-                    athlete_name=row["athlete_name"].strip(),
-                    time=row["time"].strip(),
-                    category=row["category"].strip(),
-                    gender=row["gender"].strip(),
-                    race_number=_int_or_none(row.get("race_number", "")),
-                    category_position=_int_or_none(row.get("category_position", "")),
-                    gender_position=_int_or_none(row.get("gender_position", "")),
-                    club=row.get("club", "").strip() or None,
-                )
-                inserted += 1
-            except (ValueError, KeyError) as exc:
-                print(f"Error on CSV row {i}: {exc}")
-                con.close()
-                sys.exit(1)
+            inserted = 0
+            for i, row in enumerate(rows, start=2):  # line 2 = first data row
+                try:
+                    repository.create_result(
+                        con,
+                        race_id=race.id,
+                        position=int(row["position"].strip()),
+                        athlete_name=row["athlete_name"].strip(),
+                        time=row["time"].strip(),
+                        category=row["category"].strip(),
+                        gender=row["gender"].strip(),
+                        race_number=_int_or_none(row.get("race_number", "")),
+                        category_position=_int_or_none(
+                            row.get("category_position", "")
+                        ),
+                        gender_position=_int_or_none(row.get("gender_position", "")),
+                        club=row.get("club", "").strip() or None,
+                    )
+                    inserted += 1
+                except (ValueError, KeyError) as exc:
+                    con.execute("ROLLBACK")
+                    print(f"Error on CSV row {i}: {exc}")
+                    sys.exit(1)
+
+            con.execute("COMMIT")
+        except Exception:
+            con.execute("ROLLBACK")
+            raise
 
         print(
             f"Imported {inserted} result(s) into race '{race_name}' "
