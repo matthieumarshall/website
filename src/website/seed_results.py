@@ -2,15 +2,15 @@
 CLI script to import race results for a fixture from a CSV file.
 
 Usage:
-    python -m website.seed_results <fixture_id> <race_name> <csv_file>
+    python -m website.seed_results <season_name> <fixture_title> <race_name> <csv_file>
 
 The CSV file must have a header row with these columns (order does not matter):
     position, athlete_name, time, category, gender
     [optional: race_number, category_position, gender_position, club]
 
 Example:
-    python -m website.seed_results 3 "Men" results/men.csv
-    python -m website.seed_results 3 "U13 Girls" results/u13_girls.csv
+    python -m website.seed_results "2025-2026" "Round 1" "Men" results/men.csv
+    python -m website.seed_results "2025-2026" "Round 1" "U13 Girls" results/u13_girls.csv
 
 Run the command once per race. If a race with the same name already exists on
 that fixture the script will exit without inserting duplicates — delete the race
@@ -19,6 +19,7 @@ first if you need to re-import.
 
 import argparse
 import csv
+import io
 import sys
 from pathlib import Path
 
@@ -51,7 +52,9 @@ def _int_or_none(value: str) -> int | None:
     return int(stripped)
 
 
-def import_results(fixture_id: int, race_name: str, csv_path: Path) -> None:
+def import_results(
+    season_name: str, fixture_title: str, race_name: str, csv_path: Path
+) -> None:
     if not csv_path.exists():
         print(f"Error: CSV file not found: {csv_path}")
         sys.exit(1)
@@ -61,13 +64,32 @@ def import_results(fixture_id: int, race_name: str, csv_path: Path) -> None:
     try:
         run_migrations(con)
 
-        fixture = repository.get_fixture_by_id(con, fixture_id)
-        if fixture is None:
-            print(f"Error: No fixture found with id={fixture_id}.")
+        seasons = repository.list_seasons(con)
+        matching_seasons = [s for s in seasons if s.name.lower() == season_name.lower()]
+        if not matching_seasons:
+            available = ", ".join(f'"{s.name}"' for s in seasons) or "none"
+            print(
+                f"Error: No season found with name '{season_name}'. "
+                f"Available seasons: {available}"
+            )
             sys.exit(1)
+        season = matching_seasons[0]
+
+        fixtures = repository.list_fixtures_for_season(con, season.id)
+        matching_fixtures = [
+            f for f in fixtures if f.title.lower() == fixture_title.lower()
+        ]
+        if not matching_fixtures:
+            available = ", ".join(f'"{f.title}"' for f in fixtures) or "none"
+            print(
+                f"Error: No fixture found with title '{fixture_title}' in season "
+                f"'{season.name}'. Available fixtures: {available}"
+            )
+            sys.exit(1)
+        fixture = matching_fixtures[0]
 
         # Prevent duplicate races
-        existing = repository.list_races_for_fixture(con, fixture_id)
+        existing = repository.list_races_for_fixture(con, fixture.id)
         if any(r.name.lower() == race_name.lower() for r in existing):
             print(
                 f"Error: Race '{race_name}' already exists for fixture "
@@ -75,40 +97,42 @@ def import_results(fixture_id: int, race_name: str, csv_path: Path) -> None:
             )
             sys.exit(1)
 
-        # Detect encoding — files exported from Excel are often UTF-16 LE with BOM
+        # Detect encoding — files exported from Excel are often UTF-16 LE with BOM.
+        # Decode to a string first so csv.DictReader doesn't have to deal with
+        # UTF-16 line endings directly (which causes decode errors on Python 3.12).
         raw = csv_path.read_bytes()
         if raw[:2] in (b"\xff\xfe", b"\xfe\xff"):
             encoding = "utf-16"
         else:
             encoding = "utf-8-sig"
+        text = raw.decode(encoding)
 
-        with csv_path.open(newline="", encoding=encoding) as fh:
-            reader = csv.DictReader(fh)
-            # Normalise headers: strip whitespace, lowercase, map display names
-            raw_fields = [f.strip() for f in (reader.fieldnames or [])]
-            normalised = {_HEADER_MAP.get(f.lower(), f.lower()) for f in raw_fields}
-            field_remap = {
-                f.strip(): _HEADER_MAP.get(f.strip().lower(), f.strip().lower())
-                for f in raw_fields
-            }
+        reader = csv.DictReader(io.StringIO(text))
+        # Normalise headers: strip whitespace, lowercase, map display names
+        raw_fields = [f.strip() for f in (reader.fieldnames or [])]
+        normalised = {_HEADER_MAP.get(f.lower(), f.lower()) for f in raw_fields}
+        field_remap = {
+            f.strip(): _HEADER_MAP.get(f.strip().lower(), f.strip().lower())
+            for f in raw_fields
+        }
 
-            missing = _REQUIRED_HEADERS - normalised
-            if missing:
-                print(
-                    f"Error: CSV is missing required columns: {', '.join(sorted(missing))}"
-                )
-                sys.exit(1)
+        missing = _REQUIRED_HEADERS - normalised
+        if missing:
+            print(
+                f"Error: CSV is missing required columns: {', '.join(sorted(missing))}"
+            )
+            sys.exit(1)
 
-            rows = [
-                {field_remap[k.strip()]: v for k, v in row.items() if k is not None}
-                for row in reader
-            ]
+        rows = [
+            {field_remap[k.strip()]: v for k, v in row.items() if k is not None}
+            for row in reader
+        ]
 
         if not rows:
             print("Error: CSV file contains no data rows.")
             sys.exit(1)
 
-        race = repository.create_race(con, fixture_id=fixture_id, name=race_name)
+        race = repository.create_race(con, fixture_id=fixture.id, name=race_name)
 
         inserted = 0
         for i, row in enumerate(rows, start=2):  # line 2 = first data row
@@ -134,7 +158,7 @@ def import_results(fixture_id: int, race_name: str, csv_path: Path) -> None:
 
         print(
             f"Imported {inserted} result(s) into race '{race_name}' "
-            f"for fixture '{fixture.title}' (id={fixture_id})."
+            f"for fixture '{fixture.title}' (id={fixture.id})."
         )
     finally:
         con.close()
@@ -144,8 +168,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Import race results for a fixture from a CSV file."
     )
-    parser.add_argument("fixture_id", type=int, help="ID of the fixture")
+    parser.add_argument("season_name", help='Season name, e.g. "2025-2026"')
+    parser.add_argument("fixture_title", help='Fixture title, e.g. "Round 1"')
     parser.add_argument("race_name", help='Name of the race, e.g. "Men" or "U13 Girls"')
     parser.add_argument("csv_file", type=Path, help="Path to the CSV file")
     args = parser.parse_args()
-    import_results(args.fixture_id, args.race_name, args.csv_file)
+    import_results(args.season_name, args.fixture_title, args.race_name, args.csv_file)
