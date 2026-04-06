@@ -120,39 +120,36 @@ The Club Affiliation Fee for the League is based on the number of participants i
 
 A list of current member clubs, with links to their websites, is below:
 
-| Club |  |  | OXL
-Code |  |  | OpenTrack
-Code |  |  | Oxfordshire
-Club |  |  |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Abingdon AC |  |  | Abi |  |  | ABN |  |  | Y |  |  |
-| Alchester Running Club |  |  | Alc |  |  | ALCH |  |  | Y |  |  |
-| Banbury Harriers AC |  |  | Ban |  |  | BANBH |  |  | Y |  |  |
-| Benson Striders Running Club |  |  | BnS |  |  | BENSN |  |  | Y |  |  |
-| Bicester AC |  |  | Bic |  |  | BIC |  |  | Y |  |  |
-| Cherwell Runners & Joggers |  |  | Chw |  |  | CHERJ |  |  | Y |  |  |
-| Didcot Runners |  |  | Did |  |  | DIDCT |  |  | Y |  |  |
-| Eynsham Roadrunners |  |  | Eyn |  |  | EYNRR |  |  | Y |  |  |
-| Great Milton AC |  |  | GtM |  |  | GMILT |  |  | Y |  |  |
-| Harwell Harriers Running Club |  |  | HwH |  |  | HARWH |  |  | Y |  |  |
-| Headington RoadRunners |  |  | Hea |  |  | HEAD |  |  | Y |  |  |
-| Highworth Running Club |  |  | Hig |  |  | HIGHW |  |  |  |  |  |
-| Hook Norton Harriers |  |  | HkN |  |  | HOOK |  |  | Y |  |  |
-|  | Kidlington RC |  |  | KIDRC |  |  | KIDRC |  |  | Y |  |
-| Newbury AC |  |  | New |  |  | NEWB |  |  |  |  |  |
-| Oxford Brookes Running & Athletic Club |  |  | OxB |  |  | OXBRO |  |  | Y |  |  |
-| Oxford City AC |  |  | OxC |  |  | OXFC |  |  | Y |  |  |
-| Oxford Tri Club |  |  | OTC |  |  | OXTRI |  |  | Y |  |  |
-| Radley AC |  |  | Rad |  |  | RAD |  |  | Y |  |  |
-| Reading AC |  |  | READ |  |  | READ |  |  |  |  |  |
-| Swindon Harriers |  |  | SwH |  |  | SWINH |  |  |  |  |  |
-| Swindon Striders |  |  | SwS |  |  | SWINS |  |  |  |  |  |
-| Team Kennet Athletics & Triathlon Club |  |  | TKT |  |  | TKTRI |  |  |  |  |  |
-| Thame Runners |  |  | THAMR |  |  | THAMR |  |  | Y |  |  |
-| White Horse Harriers AC |  |  | WHH |  |  | WHH |  |  | Y |  |  |
-| Witney Roadrunners |  |  | Wit |  |  | WITRR |  |  | Y |  |  |
-| Woodstock Harriers AC |  |  | Wds |  |  | WOODH |  |  | Y |  |  |
-| Proportion of member clubs in Oxfordshire (67% required): |  |  |  |  |  | 78% |  |  | 21/27 |  |  |
+| Club | OXL Code | OpenTrack Code | Oxfordshire Club |
+| --- | --- | --- | --- |
+| Abingdon AC | Abi | ABN | Y |
+| Alchester Running Club | Alc | ALCH | Y |
+| Banbury Harriers AC | Ban | BANBH | Y |
+| Benson Striders Running Club | BnS | BENSN | Y |
+| Bicester AC | Bic | BIC | Y |
+| Cherwell Runners & Joggers | Chw | CHERJ | Y |
+| Didcot Runners | Did | DIDCT | Y |
+| Eynsham Roadrunners | Eyn | EYNRR | Y |
+| Great Milton AC | GtM | GMILT | Y |
+| Harwell Harriers Running Club | HwH | HARWH | Y |
+| Headington RoadRunners | Hea | HEAD | Y |
+| Highworth Running Club | Hig | HIGHW | |
+| Hook Norton Harriers | HkN | HOOK | Y |
+| Kidlington RC | KIDRC | KIDRC | Y |
+| Newbury AC | New | NEWB | |
+| Oxford Brookes Running & Athletic Club | OxB | OXBRO | Y |
+| Oxford City AC | OxC | OXFC | Y |
+| Oxford Tri Club | OTC | OXTRI | Y |
+| Radley AC | Rad | RAD | Y |
+| Reading AC | READ | READ | |
+| Swindon Harriers | SwH | SWINH | |
+| Swindon Striders | SwS | SWINS | |
+| Team Kennet Athletics & Triathlon Club | TKT | TKTRI | |
+| Thame Runners | THAMR | THAMR | Y |
+| White Horse Harriers AC | WHH | WHH | Y |
+| Witney Roadrunners | Wit | WITRR | Y |
+| Woodstock Harriers AC | Wds | WOODH | Y |
+| **Proportion of member clubs in Oxfordshire (67% required):** | | 78% | 21/27 |
 
 # League Season
 
@@ -162,11 +159,7 @@ As stated in Section 10 of the OXL Constitution, the league season will normally
 
 The following race day schedule will apply to each of the 5 fixtures:
 
-| Race
-Number | Age Group | Start Time | OXL Target
-Distance | UKA Max
-Distance | Team
-Size |
+| Race Number | Age Group | Start Time | OXL Target Distance | UKA Max Distance | Team Size |
 | --- | --- | --- | --- | --- | --- |
 | 1 | U9 Boys & Girls | 09:55 | 1200m | 1600m* | 3 |
 | 2 | U11 Boys & Girls | 10:05 | 1500m | 2000m* | 3 |
@@ -176,7 +169,10 @@ Size |
 | 6 | U20/Senior/Veteran Men | 11:20 | 7-9000m | 10000m** | 7 |
 | 7 | U20/Senior/Veteran Women | 11:50 | 7-9000m | 10000m** | 4 |
 
-* Distances for U9 and U11 age groups are recommended maximums ** Distances for U20 age groups are limited to 10,000; Seniors are unlimited In the event the fixture schedule needs to be altered, as much notice will be given as possible.
+\* Distances for U9 and U11 age groups are recommended maximums
+\*\* Distances for U20 age groups are limited to 10,000; Seniors are unlimited
+
+In the event the fixture schedule needs to be altered, as much notice will be given as possible.
 
 ### Event Cancellation
 
@@ -188,24 +184,25 @@ As stated in Section 11 of the OXL Constitution, the aim is to hold most fixture
 
 ### Venues
 
-Below are the venues used by the OXL over the last 10 seasons. Venue County Last Used Available
+Below are the venues used by the OXL over the last 10 seasons:
 
-|  | Moredon Sports Hub |  |  | Wilts |  |  | Dec-25 |  |  | Yes |  |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-|  | Henley Showground |  |  | Oxon |  |  | Mar-25 |  |  | Yes |  |
-|  | Cotswold Farm Park |  |  | Glos |  |  | Feb-25 |  |  | Yes |  |
-|  | Horspath Stadium, Oxford |  |  | Oxon |  |  | Jan-25 |  |  | Yes |  |
-|  | Cirencester Park |  |  | Glos |  |  | Dec-24 |  |  | No |  |
-|  | Cornbury Park Estate |  |  | Oxon |  |  | Nov-24 |  |  | ? |  |
-|  | Newbury Showground |  |  | Berks |  |  | Nov-22 |  |  | ? |  |
-|  | Bicester Heritage |  |  | Oxon |  |  | Nov-21 |  |  | No |  |
-|  | Lawns Park, Swindon |  |  | Wilts |  |  | Feb-20 |  |  | No |  |
-|  | Bo Peep Farm, Adderbury |  |  | Oxon |  |  | Jan-20 |  |  | No |  |
-|  | Kilkenny Country Park, Carterton |  |  | Oxon |  |  | Dec-17 |  |  | No |  |
-|  | Hill End Centre, Farmoor |  |  | Oxon |  |  | Mar-17 |  |  | No |  |
-|  | RAL, Harwell |  |  | Oxon |  |  | Feb-17 |  |  | No |  |
-|  | Culham Park |  |  | Oxon |  |  | Dec-15 |  |  | No |  |
-|  | Ascott-under-Wychwood |  |  | Oxon |  |  | Nov-15 |  |  | ? |  |
+| Venue | County | Last Used | Available |
+| --- | --- | --- | --- |
+| Moredon Sports Hub | Wilts | Dec-25 | Yes |
+| Henley Showground | Oxon | Mar-25 | Yes |
+| Cotswold Farm Park | Glos | Feb-25 | Yes |
+| Horspath Stadium, Oxford | Oxon | Jan-25 | Yes |
+| Cirencester Park | Glos | Dec-24 | No |
+| Cornbury Park Estate | Oxon | Nov-24 | ? |
+| Newbury Showground | Berks | Nov-22 | ? |
+| Bicester Heritage | Oxon | Nov-21 | No |
+| Lawns Park, Swindon | Wilts | Feb-20 | No |
+| Bo Peep Farm, Adderbury | Oxon | Jan-20 | No |
+| Kilkenny Country Park, Carterton | Oxon | Dec-17 | No |
+| Hill End Centre, Farmoor | Oxon | Mar-17 | No |
+| RAL, Harwell | Oxon | Feb-17 | No |
+| Culham Park | Oxon | Dec-15 | No |
+| Ascott-under-Wychwood | Oxon | Nov-15 | ? |
 
 # Athlete Entries
 
@@ -221,7 +218,22 @@ An athlete’s first claim club status takes precedence. No athlete may compete 
 
 ### Guests
 
-‘Guest’ athletes may be permitted to run with the prior permission of the League Manager provided they are a member of an EA affiliated club and are registered as paid–up EA affiliated athlete, but will not be eligible for prizes. A ‘Guest’ athlete is non–scoring in that they will not appear in the team results, or take any score in their respective individual race category. The information we will need for guest athletes is: First Name, Last Name, Date of Birth, Gender, URN, Club Please also confirm that payment will be made to the League using the following bank details: Sort Code: 54-21-23, Account No: 50527355, Account Name: Oxfordshire Cross Country League Please use the narrative: athlete name Guest.
+'Guest' athletes may be permitted to run with the prior permission of the League Manager provided they are a member of an EA affiliated club and are registered as paid–up EA affiliated athlete, but will not be eligible for prizes. A 'Guest' athlete is non–scoring in that they will not appear in the team results, or take any score in their respective individual race category.
+
+The information we will need for guest athletes is:
+- First Name
+- Last Name
+- Date of Birth
+- Gender
+- URN
+- Club
+
+Please also confirm that payment will be made to the League using the following bank details:
+- Sort Code: 54-21-23
+- Account No: 50527355
+- Account Name: Oxfordshire Cross Country League
+
+Please use the narrative: athlete name Guest.
 
 ### Entry Fees
 
@@ -239,11 +251,27 @@ Changes to athlete fees will be proposed as part of the following season budget 
 
 ### Entry Process & Deadlines
 
-All athlete entries are to be made by the Team Manager through the OpenTrack platform: https://data.opentrack.run/leagues/oxl/ A guide to the process is available on OpenTrack here: https://www.opentrack.run/leagues/oxl/ All entries to be paid for when they are made. No entries can be accepted without payment. Team Managers need to be logged in to OpenTrack to enter athletes. If you require a log in, contact the OXL Committee to arrange one. Team Managers can make online entries via OpenTrack for all EA registered first-claim athletes at any time, subject to the athlete being available in OpenTrack and the club having available numbers in their allocation. However, it is recommended to enter athletes by the entry deadline mentioned below to ensure time is available for the Committee to work through any queries with the Team Manager:  Entries for Round 1 are to be received by 23:59 on the Sunday, 13 days prior to the fixture.  Entries for other rounds are to be received by 23:59 on the Sunday, 6 days prior to each subsequent fixture. PLEASE NOTE: Any second claim or U9/U11 athletes who are not registered with EA must be submitted to the Committee prior to the above deadlines due to the additional admin required.
+All athlete entries are to be made by the Team Manager through the OpenTrack platform: https://data.opentrack.run/leagues/oxl/ A guide to the process is available on OpenTrack here: https://www.opentrack.run/leagues/oxl/ All entries to be paid for when they are made. No entries can be accepted without payment. Team Managers need to be logged in to OpenTrack to enter athletes. If you require a log in, contact the OXL Committee to arrange one. Team Managers can make online entries via OpenTrack for all EA registered first-claim athletes at any time, subject to the athlete being available in OpenTrack and the club having available numbers in their allocation. However, it is recommended to enter athletes by the entry deadline mentioned below to ensure time is available for the Committee to work through any queries with the Team Manager: Entries for Round 1 are to be received by 23:59 on the Sunday, 13 days prior to the fixture.
+Entries for other rounds are to be received by 23:59 on the Sunday, 6 days prior to each subsequent fixture. PLEASE NOTE: Any second claim or U9/U11 athletes who are not registered with EA must be submitted to the Committee prior to the above deadlines due to the additional admin required.
 
 ### Entering Second Claim Athletes
 
-Second claim athletes need to be registered but do not show up in your club listing. OpenTrack have not been able to find a way of submitting entries online. Can you please email all second claim athlete entries to the OXL Committee by the entry deadline. These will then be manually entered and allocated to your club. The information we will need for these second claim athletes is: First Name, Last Name, Date of Birth, Gender, URN, Club Please also confirm that payment will be made to the League using the following bank details: Sort Code: 54-21-23, Account No: 50527355, Account Name: Oxfordshire Cross Country League Please use the narrative: clubname Second Claim.
+Second claim athletes need to be registered but do not show up in your club listing. OpenTrack have not been able to find a way of submitting entries online. Can you please email all second claim athlete entries to the OXL Committee by the entry deadline. These will then be manually entered and allocated to your club.
+
+The information we will need for these second claim athletes is:
+- First Name
+- Last Name
+- Date of Birth
+- Gender
+- URN
+- Club
+
+Please also confirm that payment will be made to the League using the following bank details:
+- Sort Code: 54-21-23
+- Account No: 50527355
+- Account Name: Oxfordshire Cross Country League
+
+Please use the narrative: clubname Second Claim.
 
 ### Age Date & Categories (& any age-related exceptions)
 
@@ -303,17 +331,9 @@ The same method of scoring will apply to all other (i.e. B, C, etc.) teams, with
 
 The team standings for Women & Men are split into three divisions. As approved at the 2018 AGM team promotions/relegations for the season–end 2018–19 results onwards will operate on a straight 2 up/2 down basis (i.e. in each division the top two teams will be promoted and the bottom two relegated irrespective of points scored) at the end of each season.
 
-| For the 2025-2026 season, following a vote at the Oxfordshire XC league AGM, a new division system |
-| --- |
-| will be implemented for the team competition. This applies to the senior competitions. Junior team |
-| scores are not in divisions and so remain unchanged. |
+For the 2025-2026 season, following a vote at the Oxfordshire XC league AGM, a new division system will be implemented for the team competition. This applies to the senior competitions. Junior team scores are not in divisions and so remain unchanged.
 
-system
-
-| All teams from the same club - A, B, C and so on – will race in the same division, based on the |
-| --- |
-| performance of that club’s A team. Promotion and relegation will remain as 2 up and 2 down, again |
-| this will be based on a club’s A team performance. |
+All teams from the same club (A, B, C and so on) will race in the same division, based on the performance of that club's A team. Promotion and relegation will remain as 2 up and 2 down, again based on a club's A team performance.
 
 The Divisions for the 2025-2026 season are: WOMEN MEN Division 1 Division 2 Division 3 Division 1 Division 2 Division 3 Abingdon Didcot Alchester Abingdon Alchester Benson Str Banbury Eynsham Benson Str Didcot Banbury Cherwell Headington Hook Norton Bicester AC Headington Bicester AC Great Milton Highworth Oxford Tri Cherwell Newbury Eynsham Hook Norton Newbury Radley Great Milton Oxford City Harwell Kidlington Oxford City Thame Harwell Swindon Har Highworth Oxford Brookes Swindon Har White Horse Kidlington White Horse Thame Oxford Tri Witney Woodstock Oxford Brookes Witney Woodstock Radley Reading Reading Swindon Str Swindon Str Team Kennet Team Kennet *
 
@@ -361,7 +381,10 @@ It is also a requirement to have a ‘Sweeper’ for the final race of the day t
 
 ### Course Marshals
 
-A marshal position is required to be covered for the duration of the fixture . Positions where marshals are only required for early races or late races will be determined by the Host Club. More than one club volunteer may be provided to cover a marshal position where a volunteer wishes to run in one of the races. Marshals will need to be provided with the following information:  Emergency Telephone Number  Nearest Medical Provision at venue in relation to each position  Nearest Accident/Emergency Hospital Details Any runner seen wearing ear-plugs/headphones during a race is to be reported to Race Director and League Manager ( race number and club vest/t-shirt colour required ) immediately following the race.
+A marshal position is required to be covered for the duration of the fixture . Positions where marshals are only required for early races or late races will be determined by the Host Club. More than one club volunteer may be provided to cover a marshal position where a volunteer wishes to run in one of the races. Marshals will need to be provided with the following information:
+* Emergency Telephone Number
+* Nearest Medical Provision at venue in relation to each position
+* Nearest Accident/Emergency Hospital Details Any runner seen wearing ear-plugs/headphones during a race is to be reported to Race Director and League Manager ( race number and club vest/t-shirt colour required ) immediately following the race.
 
 ### Parking Marshals
 
@@ -369,7 +392,8 @@ Host Clubs need to assign volunteers to manage the flow of traffic and parking a
 
 ### Non-Host Club Volunteers
 
-The OXL Committee will allocate marshals to be supplied by the non-host member clubs. This will be dependent on the number of member clubs and the number of clubs involved in hosting fixtures. In the 2023-24 season, seven of the 24 clubs were involved in hosting fixtures so that meant 51 volunteers were to be supplied from non-host clubs – the equivalent of 10 volunteers per fixture. These volunteers can be allocated by the host club into any volunteer position at the finish, on the course or with car parking. More than one club volunteer may be provided to cover a marshal position where a volunteer wishes to run in one of the races. The following details are required for each of the volunteer(s):  Name, Email Address, Mobile Number All volunteer details must be submitted to the OXL Committee by the Sunday preceding the allocated fixture to allow information to be circulated in good time.
+The OXL Committee will allocate marshals to be supplied by the non-host member clubs. This will be dependent on the number of member clubs and the number of clubs involved in hosting fixtures. In the 2023-24 season, seven of the 24 clubs were involved in hosting fixtures so that meant 51 volunteers were to be supplied from non-host clubs – the equivalent of 10 volunteers per fixture. These volunteers can be allocated by the host club into any volunteer position at the finish, on the course or with car parking. More than one club volunteer may be provided to cover a marshal position where a volunteer wishes to run in one of the races. The following details are required for each of the volunteer(s):
+Name, Email Address, Mobile Number All volunteer details must be submitted to the OXL Committee by the Sunday preceding the allocated fixture to allow information to be circulated in good time.
 
 # Host Club Guidance
 
@@ -377,7 +401,14 @@ This section outlines what is required for Host Clubs to put on a fixture and in
 
 ### Expectations
 
-The Host Clubs are expected to:  apply for a UKA event licence  liaise with the venue/landowner  plan the courses & marshaling requirements  arrange (& initially pay for) venue hire, medical cover & toilets  plan adequate parking  arrange for refreshment provision  provide, co-ordinate & brief the event volunteers (non-host clubs will provide a number of volunteers to assist, see Non-Host Club Volunteers section above) As a thank you for the Host Clubs’ efforts the OXL looks to reward host clubs with a financial donation, subject to AGM budget approval.
+The Host Clubs are expected to:
+* apply for a UKA event licence
+* liaise with the venue/landowner
+* plan the courses & marshaling requirements
+* arrange (& initially pay for) venue hire, medical cover & toilets
+* plan adequate parking
+* arrange for refreshment provision
+* provide, co-ordinate & brief the event volunteers (non-host clubs will provide a number of volunteers to assist, see Non-Host Club Volunteers section above) As a thank you for the Host Clubs’ efforts the OXL looks to reward host clubs with a financial donation, subject to AGM budget approval.
 
 ### Paperwork & Reference Documents
 
@@ -393,9 +424,17 @@ The Host Club must liaise with the venue to ensure permission and the appropriat
 
 ### Course Design
 
-Courses should ideally be as close as possible to the OXL target distances and certainly not exceed the UKA maximum distances. The lap length of a particular course should not be so short that slower competitors are lapped more than once. Consideration should also be given to, where possible, avoid the lead of a race catching the tail of a preceding race. Course maps are to be provided a week before the fixture that indicate the following:  Race Routes (including Start & Finish locations)  Note: If the routes have changed since the previous hosting of the fixture this needs to be clearly marked on the maps.  Race Start Times and Course Distances  Marshal Positions  Area for Club Tents
-
- Medical Services Provision Location  Access Route for Emergency Vehicles  Gated Access - that is to be manned  Catering Provision Location  Toilet Provision Location  Areas that are restricted or out-of-bounds
+Courses should ideally be as close as possible to the OXL target distances and certainly not exceed the UKA maximum distances. The lap length of a particular course should not be so short that slower competitors are lapped more than once. Consideration should also be given to, where possible, avoid the lead of a race catching the tail of a preceding race. Course maps are to be provided a week before the fixture that indicate the following:
+* Race Routes (including Start & Finish locations) Note: If the routes have changed since the previous hosting of the fixture this needs to be clearly marked on the maps.
+* Race Start Times and Course Distances
+* Marshal Positions
+* Area for Club Tents
+* Medical Services Provision Location
+* Access Route for Emergency Vehicles
+* Gated Access - that is to be manned
+* Catering Provision Location
+* Toilet Provision Location
+* Areas that are restricted or out-of-bounds
 
 ### Start & Finish
 

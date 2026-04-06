@@ -45,6 +45,12 @@ def server_process():
         hash_password("TestPassword123!@#"),
         UserRole.content_creator,
     )
+    repository.create_user(
+        con,
+        "admin_user",
+        hash_password("AdminPassword123!@#"),
+        UserRole.admin,
+    )
     con.close()
 
     # Start uvicorn server in test mode
@@ -94,6 +100,28 @@ def browser(server_process):
         browser = p.chromium.launch(headless=True)
         context = browser.new_context()
         page = context.new_page()
+
+        yield page
+
+        page.close()
+        context.close()
+        browser.close()
+
+
+@pytest.fixture
+def admin_browser(server_process):
+    """Provide a Playwright browser context pre-logged-in as admin"""
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context()
+        page = context.new_page()
+
+        # Log in as admin
+        page.goto("http://localhost:8000/login")
+        page.fill("input[name='username']", "admin_user")
+        page.fill("input[name='password']", "AdminPassword123!@#")
+        page.click("button[type='submit']")
+        page.wait_for_load_state("networkidle")
 
         yield page
 

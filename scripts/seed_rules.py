@@ -27,7 +27,7 @@ import duckdb
 # Paths
 # ---------------------------------------------------------------------------
 _ROOT = Path(__file__).parent.parent
-_MD_PATH = _ROOT / "OXL_League_Manual.md"
+_MD_PATH = _ROOT / "docs" / "OXL_League_Manual.md"
 _DB_PATH = _ROOT / "data" / "app.duckdb"
 _SLUG = "rules-and-constitution"
 

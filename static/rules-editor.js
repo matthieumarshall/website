@@ -1,11 +1,41 @@
 "use strict";
 
 (function () {
-  // Register the quill-better-table module before creating the Quill instance.
-  Quill.register(
-    { "modules/better-table": QuillBetterTable },
-    true
-  );
+  function showEditorError(msg) {
+    var editorDiv = document.getElementById("editor");
+    if (editorDiv) {
+      editorDiv.innerHTML =
+        '<div style="color:red;padding:1rem;border:1px solid red;border-radius:4px">' +
+        "<strong>Editor failed to load:</strong> " + msg +
+        "<br><small>Open browser DevTools (F12) → Console for details.</small></div>";
+    }
+    console.error("rules-editor: " + msg);
+  }
+
+  if (typeof Quill === "undefined") {
+    showEditorError("quill.min.js did not load.");
+    return;
+  }
+
+  // quill-better-table exposes itself as window.quillBetterTable.
+  // Guard against both a direct class export and an ES-module-style { default } wrapper.
+  var BetterTable =
+    (typeof quillBetterTable !== "undefined" && quillBetterTable) ||
+    (typeof window.quillBetterTable !== "undefined" && window.quillBetterTable);
+  if (!BetterTable) {
+    showEditorError("quill-better-table.min.js did not load.");
+    return;
+  }
+  if (BetterTable.default) {
+    BetterTable = BetterTable.default;
+  }
+
+  try {
+    Quill.register({ "modules/better-table": BetterTable }, true);
+  } catch (e) {
+    showEditorError("Quill.register failed: " + e.message);
+    return;
+  }
 
   var toolbarOptions = [
     [{ header: [1, 2, 3, false] }],
@@ -17,30 +47,36 @@
     ["clean"],
   ];
 
-  var quill = new Quill("#editor", {
-    theme: "snow",
-    modules: {
-      toolbar: {
-        container: toolbarOptions,
-        handlers: { image: imageHandler },
-      },
-      "better-table": {
-        operationMenu: {
-          items: {
-            insertColumnRight: { text: "Insert column right" },
-            insertColumnLeft: { text: "Insert column left" },
-            insertRowUp: { text: "Insert row above" },
-            insertRowDown: { text: "Insert row below" },
-            mergeCells: { text: "Merge cells" },
-            unmergeCells: { text: "Unmerge cells" },
-            deleteColumn: { text: "Delete column" },
-            deleteRow: { text: "Delete row" },
-            deleteTable: { text: "Delete table" },
+  var quill;
+  try {
+    quill = new Quill("#editor", {
+      theme: "snow",
+      modules: {
+        toolbar: {
+          container: toolbarOptions,
+          handlers: { image: imageHandler },
+        },
+        "better-table": {
+          operationMenu: {
+            items: {
+              insertColumnRight: { text: "Insert column right" },
+              insertColumnLeft: { text: "Insert column left" },
+              insertRowUp: { text: "Insert row above" },
+              insertRowDown: { text: "Insert row below" },
+              mergeCells: { text: "Merge cells" },
+              unmergeCells: { text: "Unmerge cells" },
+              deleteColumn: { text: "Delete column" },
+              deleteRow: { text: "Delete row" },
+              deleteTable: { text: "Delete table" },
+            },
           },
         },
       },
-    },
-  });
+    });
+  } catch (e) {
+    showEditorError("new Quill() failed: " + e.message);
+    return;
+  }
 
   function imageHandler() {
     var input = document.createElement("input");
