@@ -22,6 +22,7 @@ dependencies = [
     "fastapi-permissions>=0.2.7",
     "httpx>=0.28.1",
     "fpdf2>=2.8.7",
+    "cryptography>46.0.6",
 ]
 
 [project.optional-dependencies]
