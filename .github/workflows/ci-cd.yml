@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
 
 jobs:
   # Job 1: Code Quality & Validation
@@ -16,7 +16,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
@@ -49,7 +49,7 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
@@ -93,13 +93,13 @@ jobs:
         run: |
           echo "Generating SBOM from installed packages..."
           uv pip list --format=json > sbom-python.json
-          echo "✅ Python SBOM generated"
+          echo "Python SBOM generated"
 
       - name: Generate Node.js SBOM
         run: |
           echo "Generating Node.js SBOM..."
           npm list --all --json > sbom-npm.json || true
-          echo "✅ Node.js SBOM generated"
+          echo "Node.js SBOM generated"
 
       - name: Generate pip-licenses report
         run: |
@@ -146,7 +146,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
@@ -168,7 +168,7 @@ jobs:
           with open('coverage.json') as f:
               data = json.load(f)
               total = data['totals']['percent_covered']
-              print(f'\n📊 Coverage Summary: {total:.1f}%')
+              print(f'\nCoverage Summary: {total:.1f}%')
           "
 
       - name: Upload coverage reports
@@ -192,7 +192,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
@@ -244,12 +244,12 @@ jobs:
       - name: Create workflow summary
         run: |
           cat >> $GITHUB_STEP_SUMMARY << 'EOF'
-          # 🚀 CI/CD Pipeline Results
+          # CI/CD Pipeline Results
 
-          ## ✅ Pipeline Status
+          ## Pipeline Status
           All checks have completed. Review the artifacts below for detailed reports.
 
-          ## 📦 Artifacts Generated
+          ## Artifacts Generated
 
           ### Code Quality & Testing
           - **Coverage Report**: `coverage-reports/htmlcov/index.html`
@@ -263,10 +263,10 @@ jobs:
           ### UI Testing
           - **Playwright Report**: `playwright-reports/index.html`
 
-          ## 📊 Artifact Retention
+          ## Artifact Retention
           All artifacts are retained for **30 days** and available for download from the workflow run page.
 
-          ## 🔍 Next Steps
+          ## Next Steps
           1. Review the coverage report to identify untested code
           2. Check the SBOM for supply chain visibility
           3. Review the license report for compliance
@@ -276,5 +276,5 @@ jobs:
 
       - name: Display final status
         run: |
-          echo "✅ CI/CD Pipeline completed successfully!"
-          echo "📋 Check the artifacts section for detailed reports."
+          echo "CI/CD Pipeline completed successfully!"
+          echo "Check the artifacts section for detailed reports."

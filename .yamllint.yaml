@@ -1,0 +1,18 @@
+extends: default
+
+rules:
+  # Long shell commands in GitHub Actions `run:` blocks routinely exceed 80 chars.
+  line-length:
+    max: 160
+    level: warning
+
+  # GitHub Actions uses `on:` as a mapping key, which yamllint flags as truthy.
+  truthy:
+    allowed-values: ["true", "false", "on", "off"]
+
+  # GitHub Actions workflow files don't require a YAML document start marker.
+  document-start: disable
+
+  # Windows uses CRLF line endings; disable to allow local development on Windows.
+  # CI runners use LF so this is safe to skip locally.
+  new-lines: disable
