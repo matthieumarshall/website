@@ -41,6 +41,10 @@ data/uploads/
 .env.local
 .env.*.local
 
+# Deploy SSH keypair — never commit these; store the private key in GitHub Secrets
+deploy_key
+deploy_key.pub
+
 # IDE
 .vscode/
 .idea/

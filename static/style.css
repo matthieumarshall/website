@@ -152,6 +152,8 @@ body {
   background: #fff;
   border-bottom-left-radius: 0.375rem;
   border-bottom-right-radius: 0.375rem;
+  height: calc(100vh - 260px);
+  min-height: 300px;
 }
 
 /* ============================================================================

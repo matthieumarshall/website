@@ -28,3 +28,23 @@ test-unit:
 
 test:
     uv run pytest tests/ -v --tb=short
+
+# Add a user to the database (role: admin or content_creator)
+seed-user username password role="admin":
+    uv run python -m cli.seed_user {{username}} {{password}} --role {{role}}
+
+# Create a new season
+seed-season name:
+    uv run python -m cli.seed_season "{{name}}"
+
+# Create a new fixture within a season
+seed-fixture season title date location:
+    uv run python -m cli.seed_fixture "{{season}}" "{{title}}" "{{date}}" "{{location}}"
+
+# Import race results from a CSV file
+seed-results season fixture race csv:
+    uv run python -m cli.seed_results "{{season}}" "{{fixture}}" "{{race}}" "{{csv}}"
+
+# Seed the rules-and-constitution page from the league handbook
+seed-rules md_path="docs/OXL_League_Manual.md":
+    uv run python -m cli.seed_rules --md-path "{{md_path}}"

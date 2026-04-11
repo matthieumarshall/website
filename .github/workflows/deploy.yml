@@ -1,0 +1,140 @@
+name: Deploy to Production
+
+# Runs at midnight UTC every day.
+# Early-exits if the VPS is already on the latest commit of main, so no-change
+# nights are a no-op.  Also supports manual triggering from the Actions tab.
+#
+# Prerequisites (one-time VPS setup) — see docs/setup.md:
+#   1. Generate a deploy keypair:
+#        ssh-keygen -t ed25519 -C "github-deploy" -f deploy_key
+#      Add deploy_key.pub to /home/manager/.ssh/authorized_keys on the VPS.
+#
+#   2. Scope passwordless sudo to stop/start only:
+#        echo 'manager ALL=(ALL) NOPASSWD: /bin/systemctl stop oxcross, /bin/systemctl start oxcross' \
+#          | sudo tee /etc/sudoers.d/oxcross-deploy && sudo chmod 0440 /etc/sudoers.d/oxcross-deploy
+#
+#   3. Capture the VPS host fingerprint (prevents MITM):
+#        ssh-keyscan -H <VPS_HOST>
+#      Paste the output into the VPS_KNOWN_HOSTS secret.
+#
+# Required GitHub repository secrets:
+#   VPS_HOST         — IP address or hostname of the Fasthosts VPS
+#   VPS_USER         — SSH user (manager)
+#   VPS_SSH_KEY      — Contents of the deploy_key private key file
+#   VPS_KNOWN_HOSTS  — Output of: ssh-keyscan -H <VPS_HOST>
+#
+
+on:
+  schedule:
+    # Midnight UTC every day.
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Reason for manual deploy"
+        required: false
+        default: "Manual trigger"
+
+jobs:
+  deploy:
+    name: Deploy to Fasthosts VPS
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Set up SSH key and known hosts
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          echo "${{ secrets.VPS_KNOWN_HOSTS }}" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      # ------------------------------------------------------------------
+      # Check whether the VPS is already on the latest commit of main.
+      # If nothing has changed since the last deploy, skip the rest and
+      # write a clear message to the step summary.
+      # ------------------------------------------------------------------
+      - name: Check for new commits to deploy
+        id: check
+        run: |
+          REMOTE_HEAD=$(ssh \
+            -i ~/.ssh/deploy_key \
+            -o BatchMode=yes \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            "cd ~/login-page && git fetch --quiet origin main && git rev-parse HEAD")
+
+          ORIGIN_HEAD=$(ssh \
+            -i ~/.ssh/deploy_key \
+            -o BatchMode=yes \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            "cd ~/login-page && git rev-parse origin/main")
+
+          echo "deployed=$REMOTE_HEAD"
+          echo "latest=$ORIGIN_HEAD"
+
+          if [ "$REMOTE_HEAD" = "$ORIGIN_HEAD" ]; then
+            echo "skip=true"  >> "$GITHUB_OUTPUT"
+            echo "deployed=$REMOTE_HEAD" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "deployed=$REMOTE_HEAD" >> "$GITHUB_OUTPUT"
+            echo "latest=$ORIGIN_HEAD"   >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip — nothing to deploy
+        if: steps.check.outputs.skip == 'true'
+        run: |
+          echo "VPS is already on the latest commit of main (${{ steps.check.outputs.deployed }}). Nothing to deploy." | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # ------------------------------------------------------------------
+      # Deploy: stop service → pull → sync deps → migrate → start → check.
+      # The service is stopped before migrations because DuckDB holds an
+      # exclusive file lock on the database while uvicorn is connected.
+      # set -e ensures any failure aborts immediately; the service will
+      # remain stopped and the job will fail loudly.
+      # ------------------------------------------------------------------
+      - name: Deploy
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          ssh \
+            -i ~/.ssh/deploy_key \
+            -o BatchMode=yes \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            'set -e
+             cd ~/login-page
+
+             echo "--- Pulling latest code from main ---"
+             git pull origin main
+
+             echo "--- Syncing production dependencies ---"
+             uv sync --no-dev
+
+             echo "--- Stopping service (releases DuckDB file lock) ---"
+             sudo systemctl stop oxcross
+
+             echo "--- Running migrations ---"
+             uv run python scripts/_apply_migrations.py
+
+             echo "--- Starting service ---"
+             sudo systemctl start oxcross
+
+             echo "--- Health check ---"
+             sleep 5
+             curl --silent --fail http://localhost:8000/ --output /dev/null \
+               && echo "Health check passed." \
+               || (echo "Health check FAILED — service may not have started correctly." && exit 1)
+            '
+
+      - name: Write deployment summary
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" << EOF
+          # Deployment Complete
+
+          | | |
+          |---|---|
+          | **Previous commit** | \`${{ steps.check.outputs.deployed }}\` |
+          | **Deployed commit** | \`${{ steps.check.outputs.latest }}\` |
+          | **Triggered by** | ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.reason || 'Scheduled midnight run' }} |
+          EOF

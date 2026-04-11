@@ -2,11 +2,11 @@
 CLI script to add a user to the database.
 
 Usage:
-    python -m website.seed_user <username> <password> [--role admin|content_creator]
+    python -m cli.seed_user <username> <password> [--role admin|content_creator]
 
 Examples:
-    python -m website.seed_user alice mysecretpassword --role admin
-    python -m website.seed_user bob anotherpassword --role content_creator
+    python -m cli.seed_user alice mysecretpassword --role admin
+    python -m cli.seed_user bob anotherpassword --role content_creator
 """
 
 import argparse
@@ -17,8 +17,23 @@ import duckdb
 
 from website.auth import hash_password
 from website.database import _get_db_path, run_migrations
-from website.models import UserRole
+from website.models import User, UserRole
 from website import repository
+
+
+def _add_user(
+    con: duckdb.DuckDBPyConnection,
+    username: str,
+    password: str,
+    role: UserRole,
+) -> User:
+    """Add a user to the database.
+
+    Raises ValueError if a user with that username already exists.
+    """
+    if repository.get_user_by_username(con, username):
+        raise ValueError(f"User '{username}' already exists.")
+    return repository.create_user(con, username, hash_password(password), role)
 
 
 def add_user(username: str, password: str, role: UserRole) -> None:
@@ -28,12 +43,12 @@ def add_user(username: str, password: str, role: UserRole) -> None:
     con = duckdb.connect(db_path)
     try:
         run_migrations(con)
-        existing = repository.get_user_by_username(con, username)
-        if existing:
-            print(f"Error: User '{username}' already exists.")
+        try:
+            user = _add_user(con, username, password, role)
+        except ValueError as exc:
+            print(f"Error: {exc}")
             sys.exit(1)
-        repository.create_user(con, username, hash_password(password), role)
-        print(f"User '{username}' created with role '{role.value}'.")
+        print(f"User '{user.username}' created with role '{user.role.value}'.")
     finally:
         con.close()
 

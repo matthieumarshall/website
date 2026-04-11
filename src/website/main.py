@@ -1226,7 +1226,7 @@ def news_delete(
 # ---------------------------------------------------------------------------
 
 
-@app.post("/uploads/image")
+@app.post("/api/upload/image")
 async def upload_image(
     request: Request,
     file: UploadFile,
