@@ -23,8 +23,6 @@ name: Deploy to Production
 #   VPS_SSH_KEY      — Contents of the deploy_key private key file
 #   VPS_KNOWN_HOSTS  — Output of: ssh-keyscan -H <VPS_HOST>
 #
-# Recommended: enable branch protection on main requiring the CI/CD Pipeline
-# to pass before merging, so only green code ever lands on main.
 
 on:
   schedule:
