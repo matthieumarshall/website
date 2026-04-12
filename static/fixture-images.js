@@ -6,6 +6,7 @@ function initializeFixtureImageModal() {
   if (!modal) return;
 
   const modalContent = document.getElementById('fixture-image-modal-content');
+  const closeButton = document.querySelector('.fixture-image-modal-close');
   const fixtureImages = document.querySelectorAll('.fixture-image');
 
   // Open modal when image is clicked
@@ -26,6 +27,13 @@ function initializeFixtureImageModal() {
       }
     });
   });
+
+  // Close modal when close button is clicked
+  if (closeButton) {
+    closeButton.addEventListener('click', () => {
+      modal.close();
+    });
+  }
 
   // Close modal when backdrop is clicked
   modal.addEventListener('click', (e) => {
