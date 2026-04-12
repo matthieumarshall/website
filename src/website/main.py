@@ -318,13 +318,19 @@ def results_race_panel(
     request: Request,
     fixture_id: int,
     season_id: int | None = None,
+    race_id: int | None = None,
     db: duckdb.DuckDBPyConnection = Depends(get_db),
 ) -> HTMLResponse:
     active_fixture = repository.get_fixture_by_id(db, fixture_id)
     if active_fixture is None:
         raise HTTPException(status_code=404, detail="Fixture not found")
     races = repository.list_races_for_fixture(db, fixture_id)
-    active_race = races[0] if races else None
+    # If race_id is provided, use that; otherwise default to first race
+    active_race = None
+    if race_id is not None:
+        active_race = repository.get_race_by_id(db, race_id)
+    elif races:
+        active_race = races[0]
     race_results = (
         repository.list_results_for_race(db, active_race.id) if active_race else []
     )

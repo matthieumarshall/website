@@ -7,14 +7,17 @@
 <h3 class="h6 mt-3">Course Maps</h3>
 
 {% if images %}
-<div class="d-flex flex-wrap gap-2 mb-2">
+<div class="d-flex flex-wrap gap-3 mb-3">
   {% for img in images %}
-  <figure class="mb-0 position-relative">
+  <figure class="mb-0 position-relative" id="fixture-image-{{ img.id }}">
     <img
       src="/fixture-maps/{{ img.filename }}"
       alt="Course map image {{ loop.index }}"
-      class="img-thumbnail"
-      style="max-height: 160px; max-width: 200px; object-fit: cover;"
+      class="img-thumbnail fixture-image"
+      role="button"
+      tabindex="0"
+      aria-label="Click to enlarge course map image {{ loop.index }}"
+      data-image-id="{{ img.id }}"
     >
     {% if current_user and current_user.role in ('admin', 'content_creator') %}
     <form
@@ -36,6 +39,18 @@
   </figure>
   {% endfor %}
 </div>
+
+<!-- Modal for enlarged image view -->
+<dialog class="fixture-image-modal" id="fixture-image-modal">
+  <button
+    class="btn btn-light btn-sm fixture-image-modal-close"
+    aria-label="Close enlarged image"
+    onclick="document.getElementById('fixture-image-modal').close();"
+  >
+    <span aria-hidden="true">&times;</span>
+  </button>
+  <img id="fixture-image-modal-content" src="" alt="Enlarged course map">
+</dialog>
 {% else %}
 <p class="text-muted small mb-2">No course map images uploaded yet.</p>
 {% endif %}
