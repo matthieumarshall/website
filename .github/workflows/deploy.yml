@@ -62,13 +62,13 @@ jobs:
             -i ~/.ssh/deploy_key \
             -o BatchMode=yes \
             "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
-            "cd ~/login-page && git fetch --quiet origin main && git rev-parse HEAD")
+            "cd ~/website && git fetch --quiet origin main && git rev-parse HEAD")
 
           ORIGIN_HEAD=$(ssh \
             -i ~/.ssh/deploy_key \
             -o BatchMode=yes \
             "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
-            "cd ~/login-page && git rev-parse origin/main")
+            "cd ~/website && git rev-parse origin/main")
 
           echo "deployed=$REMOTE_HEAD"
           echo "latest=$ORIGIN_HEAD"
@@ -116,7 +116,7 @@ jobs:
             "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
             'set -e
              export PATH="$HOME/.local/bin:$PATH"
-             cd ~/login-page
+             cd ~/website
 
              echo "--- Pulling latest code from main ---"
              git pull origin main

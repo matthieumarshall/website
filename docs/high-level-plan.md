@@ -31,7 +31,6 @@ Planned islands:
 - Session management (`SessionMiddleware`, `https_only` in prod, `same_site="lax"`) — **DONE**
 - Session fixation protection (clear session before writing on login) — **DONE**
 - Rate limiting on login (5 attempts / 15 min in production) — **DONE**
-- Account registration (self-service signup) — *not started*
 - Password reset via email — *not started*
 
 ### 1.3 Roles & Permissions
@@ -51,8 +50,7 @@ Planned islands:
 - Rich-text editor (Quill) — **DONE**
 - Image upload (MIME allowlist, 5 MB cap, staff only) — **DONE**
 - HTML sanitisation with `nh3` before DB write — **DONE**
-- Publish / draft toggle (column exists in DB, no UI yet) — *not started*
-- Custom fonts - *not started*
+- Custom fonts - **DONE**
 ---
 
 ## Phase 3: Fixtures
@@ -68,7 +66,7 @@ Planned islands:
 - Timetable editor (JSON array, custom JS) — **DONE**
 - Fixture history from past seasons — **DONE**
 - Map of location (embedded map from address) — **DONE**
-- What3Words location support. User provides three words in separate small text boxes and we convert that ourselves to a what3words style clickable url — *not started*
+- What3Words location support. User provides three words in separate small text boxes and we convert that ourselves to a what3words style clickable url — **DONE**
 - Course map image uploads (support multiple images per fixture) — **DONE**
 
 ---
