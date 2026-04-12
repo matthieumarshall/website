@@ -39,7 +39,7 @@ jobs:
   deploy:
     name: Deploy to Fasthosts VPS
     runs-on: ubuntu-latest
-    environment: production
+    environment: prod
 
     steps:
       - name: Set up SSH key and known hosts
