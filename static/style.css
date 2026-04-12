@@ -145,7 +145,95 @@ body {
 }
 
 /* ============================================================================
-   7. QUILL EDITOR — Rich text editing
+   7. FIXTURE IMAGES — Course map display and modal
+   ========================================================================== */
+
+.fixture-image {
+  cursor: pointer;
+  transition: transform 150ms ease-in-out, box-shadow 150ms ease-in-out;
+  max-height: 300px;
+  max-width: 350px;
+  object-fit: cover;
+}
+
+.fixture-image:hover,
+.fixture-image:focus {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(var(--brand-primary-rgb), 0.2);
+}
+
+/* Mobile: reduce image size */
+@media (max-width: 576px) {
+  .fixture-image {
+    max-height: 250px;
+    max-width: 280px;
+  }
+}
+
+/* Modal overlay and dialog */
+dialog.fixture-image-modal {
+  border: none;
+  padding: 0;
+  background-color: transparent;
+}
+
+/* Only apply fullscreen styles when the dialog is actually open (via showModal()) */
+dialog.fixture-image-modal:modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  animation: fadeIn 150ms ease-in-out;
+}
+
+dialog.fixture-image-modal:modal::backdrop {
+  background-color: rgba(0, 0, 0, 0.75);
+  animation: fadeIn 150ms ease-in-out;
+}
+
+dialog.fixture-image-modal:modal img {
+  max-width: 90vw;
+  max-height: 85vh;
+  object-fit: contain;
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+.fixture-image-modal-close {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
+  z-index: 2001;
+}
+
+@media (max-width: 576px) {
+  dialog.fixture-image-modal:modal img {
+    max-width: 95vw;
+    max-height: 80vh;
+  }
+
+  .fixture-image-modal-close {
+    top: 1rem;
+    right: 1rem;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ============================================================================
+   8. QUILL EDITOR — Rich text editing
    ========================================================================== */
 
 #editor {

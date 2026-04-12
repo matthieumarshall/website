@@ -34,6 +34,8 @@ wheels/
 *.duckdb
 data/uploads/
 !data/uploads/.gitkeep
+data/fixture-maps/
+!data/fixture-maps/.gitkeep
 *.duckdb.wal
 
 # Environment variables

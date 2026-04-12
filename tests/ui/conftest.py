@@ -51,6 +51,18 @@ def server_process():
         hash_password("AdminPassword123!@#"),
         UserRole.admin,
     )
+    # Seed a season and fixture so fixture-related UI tests have data to work with
+    season = repository.create_season(con, "UI Test Season 2026")
+    repository.create_fixture(
+        con,
+        season_id=season.id,
+        title="UI Test Fixture",
+        date="2026-06-01",
+        location_name="Test Venue",
+        address="1 Test Road",
+        timetable=[],
+        travel_instructions="",
+    )
     con.close()
 
     # Start uvicorn server in test mode

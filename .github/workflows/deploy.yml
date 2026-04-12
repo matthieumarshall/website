@@ -39,7 +39,7 @@ jobs:
   deploy:
     name: Deploy to Fasthosts VPS
     runs-on: ubuntu-latest
-    environment: production
+    environment: prod
 
     steps:
       - name: Set up SSH key and known hosts
@@ -87,6 +87,19 @@ jobs:
         run: |
           echo "VPS is already on the latest commit of main (${{ steps.check.outputs.deployed }}). Nothing to deploy." | tee -a "$GITHUB_STEP_SUMMARY"
 
+      # Install uv on the VPS if it is not already present.
+      # This is a no-op on subsequent deploys (uv self-updates are skipped).
+      - name: Ensure uv is installed on VPS
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          ssh \
+            -i ~/.ssh/deploy_key \
+            -o BatchMode=yes \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            'if ! command -v uv &>/dev/null; then
+               curl -LsSf https://astral.sh/uv/install.sh | sh
+             fi'
+
       # ------------------------------------------------------------------
       # Deploy: stop service → pull → sync deps → migrate → start → check.
       # The service is stopped before migrations because DuckDB holds an
@@ -102,6 +115,7 @@ jobs:
             -o BatchMode=yes \
             "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
             'set -e
+             export PATH="$HOME/.local/bin:$PATH"
              cd ~/login-page
 
              echo "--- Pulling latest code from main ---"
