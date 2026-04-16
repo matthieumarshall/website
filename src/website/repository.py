@@ -492,6 +492,131 @@ def create_race(
     return _row_to_race(row)
 
 
+# ---------------------------------------------------------------------------
+# Standings
+# ---------------------------------------------------------------------------
+
+
+def load_individual_standings(
+    db: duckdb.DuckDBPyConnection,
+    season_id: int,
+    category: str | None = None,
+) -> list[dict]:
+    """Return individual standings rows for a season, optionally filtered by category.
+
+    Each row is a plain dict with keys matching the ``individual_standings`` columns.
+    """
+    if category is not None:
+        rows = db.execute(
+            "SELECT id, season_id, category, position, athlete_name, club,"
+            " total_score, rounds_competed, fixture_scores, is_imported, updated_at"
+            " FROM individual_standings"
+            " WHERE season_id = ? AND category = ?"
+            " ORDER BY position ASC",
+            [season_id, category],
+        ).fetchall()
+    else:
+        rows = db.execute(
+            "SELECT id, season_id, category, position, athlete_name, club,"
+            " total_score, rounds_competed, fixture_scores, is_imported, updated_at"
+            " FROM individual_standings"
+            " WHERE season_id = ?"
+            " ORDER BY category ASC, position ASC",
+            [season_id],
+        ).fetchall()
+    cols = [
+        "id",
+        "season_id",
+        "category",
+        "position",
+        "athlete_name",
+        "club",
+        "total_score",
+        "rounds_competed",
+        "fixture_scores",
+        "is_imported",
+        "updated_at",
+    ]
+    return [dict(zip(cols, row)) for row in rows]
+
+
+def load_team_standings(
+    db: duckdb.DuckDBPyConnection,
+    season_id: int,
+    category: str | None = None,
+) -> list[dict]:
+    """Return team standings rows for a season, optionally filtered by category."""
+    if category is not None:
+        rows = db.execute(
+            "SELECT id, season_id, category, position, team_name, club, team_label,"
+            " total_score, rounds_competed, fixture_scores, is_imported, updated_at"
+            " FROM team_standings"
+            " WHERE season_id = ? AND category = ?"
+            " ORDER BY position ASC",
+            [season_id, category],
+        ).fetchall()
+    else:
+        rows = db.execute(
+            "SELECT id, season_id, category, position, team_name, club, team_label,"
+            " total_score, rounds_competed, fixture_scores, is_imported, updated_at"
+            " FROM team_standings"
+            " WHERE season_id = ?"
+            " ORDER BY category ASC, position ASC",
+            [season_id],
+        ).fetchall()
+    cols = [
+        "id",
+        "season_id",
+        "category",
+        "position",
+        "team_name",
+        "club",
+        "team_label",
+        "total_score",
+        "rounds_competed",
+        "fixture_scores",
+        "is_imported",
+        "updated_at",
+    ]
+    return [dict(zip(cols, row)) for row in rows]
+
+
+def list_standing_categories(
+    db: duckdb.DuckDBPyConnection,
+    season_id: int,
+) -> list[dict]:
+    """Return distinct categories that have standings for *season_id*.
+
+    Each item has keys ``category`` (str), ``type`` ("individual" | "team"),
+    and ``count`` (int).
+    """
+    rows = db.execute(
+        "SELECT category, 'individual' AS type, COUNT(*) AS count"
+        " FROM individual_standings WHERE season_id = ? GROUP BY category"
+        " UNION ALL"
+        " SELECT category, 'team' AS type, COUNT(*) AS count"
+        " FROM team_standings WHERE season_id = ? GROUP BY category"
+        " ORDER BY type ASC, category ASC",
+        [season_id, season_id],
+    ).fetchall()
+    return [{"category": r[0], "type": r[1], "count": r[2]} for r in rows]
+
+
+def season_has_standings(db: duckdb.DuckDBPyConnection, season_id: int) -> bool:
+    """Return True if any standings rows (calculated or imported) exist for the season."""
+    row = db.execute(
+        "SELECT COUNT(*) FROM individual_standings WHERE season_id = ?",
+        [season_id],
+    ).fetchone()
+    if row and row[0] > 0:
+        return True
+    row = db.execute(
+        "SELECT COUNT(*) FROM team_standings WHERE season_id = ?",
+        [season_id],
+    ).fetchone()
+    return bool(row and row[0] > 0)
+
+
 def create_result(
     db: duckdb.DuckDBPyConnection,
     race_id: int,

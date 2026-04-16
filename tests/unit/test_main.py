@@ -54,8 +54,8 @@ class TestSidebarItems:
     def test_sidebar_items_is_list(self) -> None:
         assert isinstance(SIDEBAR_ITEMS, list)
 
-    def test_sidebar_items_has_six_entries(self) -> None:
-        assert len(SIDEBAR_ITEMS) == 6
+    def test_sidebar_items_has_seven_entries(self) -> None:
+        assert len(SIDEBAR_ITEMS) == 7
 
     def test_all_items_have_required_fields(self) -> None:
         for item in SIDEBAR_ITEMS:
@@ -76,6 +76,7 @@ class TestSidebarItems:
         assert pages == {
             "news",
             "results",
+            "standings",
             "entries",
             "rules_and_constitution",
             "administration",

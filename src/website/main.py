@@ -438,6 +438,125 @@ def entries(request: Request) -> HTMLResponse:
     )
 
 
+# ---------------------------------------------------------------------------
+# Standings
+# ---------------------------------------------------------------------------
+
+
+@app.get("/standings", response_class=HTMLResponse)
+def standings(
+    request: Request,
+    season_id: int | None = None,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+) -> HTMLResponse:
+    seasons = repository.list_seasons(db)
+    if season_id is None and seasons:
+        season_id = seasons[0].id
+    selected_season = None
+    categories: list[dict] = []
+    if season_id is not None:
+        selected_season = repository.get_season_by_id(db, season_id)
+        if selected_season:
+            categories = repository.list_standing_categories(db, season_id)
+    is_admin = "role:admin" in get_active_principals(request)
+    return templates.TemplateResponse(
+        request,
+        "standings.html",
+        page_context(
+            request,
+            "standings",
+            seasons=seasons,
+            selected_season=selected_season,
+            categories=categories,
+            is_admin=is_admin,
+        ),
+    )
+
+
+@app.get("/standings/category-panel", response_class=HTMLResponse)
+def standings_category_panel(
+    request: Request,
+    season_id: int | None = None,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+) -> HTMLResponse:
+    selected_season = None
+    categories: list[dict] = []
+    if season_id is not None:
+        selected_season = repository.get_season_by_id(db, season_id)
+        if selected_season:
+            categories = repository.list_standing_categories(db, season_id)
+    is_admin = "role:admin" in get_active_principals(request)
+    return templates.TemplateResponse(
+        request,
+        "_standings_category_panel.html",
+        page_context(
+            request,
+            "standings",
+            selected_season=selected_season,
+            categories=categories,
+            is_admin=is_admin,
+        ),
+    )
+
+
+@app.get("/standings/table", response_class=HTMLResponse)
+def standings_table(
+    request: Request,
+    season_id: int,
+    category: str,
+    standings_type: str = "individual",
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+) -> HTMLResponse:
+    """Return an HTMX partial with a standings table for one category."""
+    season = repository.get_season_by_id(db, season_id)
+    if season is None:
+        raise HTTPException(status_code=404, detail="Season not found")
+    fixtures = repository.list_fixtures_for_season(db, season_id)
+    if standings_type == "team":
+        rows = repository.load_team_standings(db, season_id, category)
+    else:
+        rows = repository.load_individual_standings(db, season_id, category)
+    return templates.TemplateResponse(
+        request,
+        "_standings_table.html",
+        page_context(
+            request,
+            "standings",
+            season=season,
+            category=category,
+            standings_type=standings_type,
+            rows=rows,
+            fixtures=fixtures,
+        ),
+    )
+
+
+@app.post("/standings/recalculate")
+def standings_recalculate(
+    request: Request,
+    season_id: int = Form(...),
+    csrf_token: str = Form(...),
+    _: list = Permission("edit", _ADMIN_ACL),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+) -> Response:
+    """Admin: recalculate standings for a season from race results."""
+    from website.standings import recalculate_standings
+
+    validate_csrf(request, csrf_token)
+    season = repository.get_season_by_id(db, season_id)
+    if season is None:
+        raise HTTPException(status_code=404, detail="Season not found")
+    try:
+        recalculate_standings(db, season_id)
+    except Exception as exc:
+        _logger.exception("Error recalculating standings for season %s", season_id)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Standings calculation failed: {exc}",
+        )
+    return RedirectResponse(url=f"/standings?season_id={season_id}", status_code=303)
+
+
 @app.get("/rules-and-constitution", response_class=HTMLResponse)
 def rules_and_constitution(
     request: Request,

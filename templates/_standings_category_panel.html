@@ -1,0 +1,93 @@
+{% if not selected_season %}
+<p class="text-muted">No season selected.</p>
+{% elif not categories %}
+<p class="text-muted">
+  No standings available for {{ selected_season.name }} yet.
+  {% if is_admin %}
+  Use the button below to calculate them from the uploaded results.
+  {% endif %}
+</p>
+{% if is_admin %}
+<form method="post" action="/standings/recalculate" class="mt-2">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="season_id" value="{{ selected_season.id }}">
+  <button type="submit" class="btn btn-primary btn-sm">
+    Calculate standings
+  </button>
+</form>
+{% endif %}
+{% else %}
+{# Separate into individual and team category lists #}
+{% set individual_cats = categories | selectattr("type", "equalto", "individual") | list %}
+{% set team_cats = categories | selectattr("type", "equalto", "team") | list %}
+
+{% if individual_cats %}
+<h2 class="h5 mt-2 mb-2">Individual</h2>
+<nav aria-label="Individual category tabs" class="mb-3">
+  <div class="btn-group flex-wrap" role="group">
+    {% for cat in individual_cats %}
+    <button
+      type="button"
+      class="btn btn-outline-secondary{% if loop.first %} active{% endif %}"
+      hx-get="/standings/table?season_id={{ selected_season.id }}&category={{ cat.category }}&standings_type=individual"
+      hx-target="#standings-table-panel"
+      hx-swap="innerHTML"
+      aria-label="Individual standings for {{ cat.category }}"
+      aria-pressed="{{ 'true' if loop.first else 'false' }}"
+    >{{ cat.category }}</button>
+    {% endfor %}
+  </div>
+</nav>
+{% endif %}
+
+{% if team_cats %}
+<h2 class="h5 mt-3 mb-2">Team</h2>
+<nav aria-label="Team category tabs" class="mb-3">
+  <div class="btn-group flex-wrap" role="group">
+    {% for cat in team_cats %}
+    <button
+      type="button"
+      class="btn btn-outline-secondary"
+      hx-get="/standings/table?season_id={{ selected_season.id }}&category={{ cat.category }}&standings_type=team"
+      hx-target="#standings-table-panel"
+      hx-swap="innerHTML"
+      aria-label="Team standings for {{ cat.category }}"
+      aria-pressed="false"
+    >{{ cat.category }}</button>
+    {% endfor %}
+  </div>
+</nav>
+{% endif %}
+
+<div id="standings-table-panel">
+  {# Load the first individual category by default if any exist #}
+  {% if individual_cats %}
+  {% set first_cat = individual_cats[0] %}
+  {% set default_rows = [] %}
+  {# The initial table is server-rendered via the standings route context which
+     doesn't include rows — the HTMX trigger on load handles the first load.
+     Show a loading placeholder until HTMX fires. #}
+  <p class="text-muted small"
+     hx-get="/standings/table?season_id={{ selected_season.id }}&category={{ individual_cats[0].category }}&standings_type=individual"
+     hx-trigger="load"
+     hx-target="#standings-table-panel"
+     hx-swap="innerHTML">Loading…</p>
+  {% elif team_cats %}
+  <p class="text-muted small"
+     hx-get="/standings/table?season_id={{ selected_season.id }}&category={{ team_cats[0].category }}&standings_type=team"
+     hx-trigger="load"
+     hx-target="#standings-table-panel"
+     hx-swap="innerHTML">Loading…</p>
+  {% endif %}
+</div>
+
+{% if is_admin %}
+<form method="post" action="/standings/recalculate" class="mt-4">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="season_id" value="{{ selected_season.id }}">
+  <button type="submit" class="btn btn-outline-secondary btn-sm">
+    Recalculate standings
+  </button>
+</form>
+{% endif %}
+{% endif %}

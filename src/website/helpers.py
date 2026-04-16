@@ -59,6 +59,7 @@ _ALLOWED_ATTRS = {
 SIDEBAR_ITEMS: list[dict[str, str]] = [
     {"name": "Home / News", "route": "/news", "page": "news"},
     {"name": "Results", "route": "/results", "page": "results"},
+    {"name": "Standings", "route": "/standings", "page": "standings"},
     {"name": "Entries", "route": "/entries", "page": "entries"},
     {
         "name": "Rules and Constitution",

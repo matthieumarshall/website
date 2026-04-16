@@ -49,6 +49,7 @@ repos:
 
       - id: djlint
         name: djlint
-        language: system
-        entry: uv run djlint --lint
+        language: python
+        additional_dependencies: ["djlint>=1.36.4"]
+        entry: djlint --lint
         files: ^templates/.*\.html$

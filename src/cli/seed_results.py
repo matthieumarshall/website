@@ -44,6 +44,79 @@ _HEADER_MAP = {
     "club": "club",
 }
 
+# Map raw CSV category display names to pyresults category codes.
+# These unambiguous mappings do not depend on gender.
+_CATEGORY_NAME_MAP: dict[str, str] = {
+    "senior men": "SM",
+    "senior women": "SW",
+    "u20 men": "U20M",
+    "u20 women": "U20W",
+    "u9 boys": "U9B",
+    "u9 girls": "U9G",
+    "u11 boys": "U11B",
+    "u11 girls": "U11G",
+    "u13 boys": "U13B",
+    "u13 girls": "U13G",
+    "u15 boys": "U15B",
+    "u15 girls": "U15G",
+    "u17 men": "U17M",
+    "u17 women": "U17W",
+}
+
+# Gender-dependent mappings: (gender_lowercase, category_lower) → code.
+# Used for veteran codes that omit the gender prefix in the timing output.
+_GENDER_CATEGORY_MAP: dict[tuple[str, str], str] = {
+    ("male", "v40"): "MV40",
+    ("female", "v40"): "WV40",
+    ("male", "v50"): "MV50",
+    ("female", "v50"): "WV50",
+    ("male", "v60"): "MV60",
+    ("female", "v60"): "WV60",
+    ("male", "v70"): "MV70",
+    ("female", "v70"): "WV70",
+}
+
+
+def _normalise_category(raw_category: str, gender: str) -> str:
+    """Normalise a raw CSV category string to a pyresults category code.
+
+    Priority:
+    1. If the raw value already matches a valid code (case-insensitive), return it.
+    2. Check the gender-dependent veteran lookup table.
+    3. Check the unambiguous display-name table.
+    4. Return the raw value unchanged and print a warning.
+    """
+    from pyresults import get_valid_category_codes
+
+    valid = get_valid_category_codes()
+    stripped = raw_category.strip()
+    upper = stripped.upper()
+
+    # Case-insensitive exact match against known codes
+    for code in valid:
+        if code.upper() == upper:
+            return code
+
+    cat_lower = stripped.lower()
+
+    # Gender-dependent mapping (e.g. "V40" + "male" → "MV40")
+    gender_lower = gender.strip().lower()
+    gender_mapped = _GENDER_CATEGORY_MAP.get((gender_lower, cat_lower))
+    if gender_mapped:
+        return gender_mapped
+
+    # Unambiguous display-name mapping
+    name_mapped = _CATEGORY_NAME_MAP.get(cat_lower)
+    if name_mapped:
+        return name_mapped
+
+    print(
+        f"Warning: unrecognised category '{stripped}' (gender={gender}); "
+        "storing as-is. Check pyresults category codes.",
+        file=sys.stderr,
+    )
+    return stripped
+
 
 def _int_or_none(value: str) -> int | None:
     stripped = value.strip()
@@ -143,7 +216,9 @@ def _import_results(
                     position=int(row["position"].strip()),
                     athlete_name=row["athlete_name"].strip(),
                     time=row["time"].strip(),
-                    category=row["category"].strip(),
+                    category=_normalise_category(
+                        row["category"].strip(), row.get("gender", "")
+                    ),
                     gender=row["gender"].strip(),
                     race_number=_int_or_none(row.get("race_number", "")),
                     category_position=_int_or_none(row.get("category_position", "")),

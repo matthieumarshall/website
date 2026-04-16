@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Standings — Oxfordshire Cross Country League{% endblock %}
+
+{% block content %}
+<div>
+  <h1 class="h3 mb-3">Standings</h1>
+
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+    {% if seasons %}
+    <label for="season-select" class="form-label mb-0 fw-semibold">Season:</label>
+    <select
+      id="season-select"
+      name="season_id"
+      class="form-select w-auto"
+      hx-get="/standings/category-panel"
+      hx-trigger="change"
+      hx-target="#category-panel"
+      hx-swap="innerHTML"
+      hx-push-url="true"
+      aria-label="Select season"
+    >
+      {% for season in seasons %}
+      <option
+        value="{{ season.id }}"
+        {% if selected_season and selected_season.id == season.id %}selected{% endif %}
+      >{{ season.name }}</option>
+      {% endfor %}
+    </select>
+    {% else %}
+    <p class="text-muted mb-0">No seasons yet.</p>
+    {% endif %}
+  </div>
+
+  <div id="category-panel">
+    {% include "_standings_category_panel.html" %}
+  </div>
+</div>
+{% endblock %}
