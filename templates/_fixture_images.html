@@ -18,13 +18,13 @@
     tabindex="0"
     aria-label="Click to enlarge course map image {{ loop.index }}"
     data-image-id="{{ img.id }}"
-    data-delete-url="{% if current_user and current_user.role in ('admin', 'content_creator') %}/fixtures/seasons/{{ _sid }}/fixtures/{{ _fid }}/images/{{ img.id }}/delete{% endif %}"
+    data-delete-url="{% if current_user and current_user.role in (UserRole.admin.value, UserRole.content_creator.value) %}/fixtures/seasons/{{ _sid }}/fixtures/{{ _fid }}/images/{{ img.id }}/delete{% endif %}"
   >
   {% endfor %}
 </div>
 
 {# Hidden delete forms (one per image) — not in the DOM flow to avoid intercepting image clicks #}
-{% if current_user and current_user.role in ('admin', 'content_creator') %}
+{% if current_user and current_user.role in (UserRole.admin.value, UserRole.content_creator.value) %}
   {% for img in images %}
   <form
     id="delete-form-{{ img.id }}"
@@ -55,7 +55,7 @@
 <p class="text-muted small mb-2">No course map images uploaded yet.</p>
 {% endif %}
 
-{% if current_user and current_user.role in ('admin', 'content_creator') %}
+{% if current_user and current_user.role in (UserRole.admin.value, UserRole.content_creator.value) %}
 <form
   action="/fixtures/seasons/{{ _sid }}/fixtures/{{ _fid }}/images"
   method="post"

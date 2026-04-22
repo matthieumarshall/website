@@ -11,7 +11,7 @@ from fastapi import HTTPException, Request
 _logger = logging.getLogger(__name__)
 
 from website.identity import get_current_user  # noqa: E402
-from website.models import TimetableEntry  # noqa: E402
+from website.models import TimetableEntry, UserRole  # noqa: E402
 
 # Allowed HTML tags / attributes for sanitised post content
 _ALLOWED_TAGS = {
@@ -98,6 +98,7 @@ def page_context(request: Request, current_page: str, **extra: Any) -> dict[str,
         "sidebar_items": SIDEBAR_ITEMS,
         "csrf_token": get_csrf_token(request),
         "show_cookie_notice": not request.cookies.get("cookie_notice_dismissed"),
+        "UserRole": UserRole,
         **extra,
     }
 

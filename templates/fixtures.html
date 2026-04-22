@@ -31,7 +31,7 @@
     <p class="text-muted mb-0">No seasons yet.</p>
     {% endif %}
 
-    {% if current_user and current_user.role in ('admin', 'content_creator') %}
+    {% if current_user and current_user.role in (UserRole.admin.value, UserRole.content_creator.value) %}
     <button
       type="button"
       class="btn btn-outline-primary btn-sm"
