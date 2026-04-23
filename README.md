@@ -18,6 +18,13 @@ A server-rendered website with FastAPI backend, DuckDB persistence, and HTMX int
    just sync
    ```
 
+   > **Note:** The `just` command runner is required. If you don't have it installed:
+   > - **Windows (with WinGet):** `winget install Casey.Just`
+   > - **Windows (with Chocolatey):** `choco install just`
+   > - **Other platforms:** See [just installation guide](https://github.com/casey/just?tab=readme-ov-file#installation)
+   >
+   > If you prefer not to install `just`, you can run commands directly with `uv run` (see Justfile for the full commands).
+
 2. **Run migrations** (brings the DuckDB schema up to date)
    ```
    uv run python -m website.seed_user <username> <password>
@@ -29,6 +36,34 @@ A server-rendered website with FastAPI backend, DuckDB persistence, and HTMX int
    ```
 
 4. **Open your browser** at [http://localhost:8000](http://localhost:8000)
+
+## Seeding Data
+
+To populate the database with sample data:
+
+```powershell
+# Create an admin user
+uv run python -m cli.seed_user admin admin123 --role admin
+
+# Create a season
+uv run python -m cli.seed_season "2026 Season"
+
+# Create a fixture
+uv run python -m cli.seed_fixture "2026 Season" "Spring Race" "2026-05-15" "Central Park"
+
+# Seed rules and constitution
+uv run python -m cli.seed_rules
+```
+
+Or with `just`:
+```powershell
+just seed-user admin admin123 admin
+just seed-season "2026 Season"
+just seed-fixture "2026 Season" "Spring Race" "2026-05-15" "Central Park"
+just seed-rules
+```
+
+Log in at [http://localhost:8000/login](http://localhost:8000/login) with username `admin` and password `admin123`.
 
 ## Project Structure
 
