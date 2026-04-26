@@ -35,7 +35,15 @@
         })
         .then(function (data) {
           const range = quill.getSelection(true);
+          const altText =
+            prompt("Enter alternative text for this image (describe what it shows):") || "";
           quill.insertEmbed(range.index, "image", data.url);
+          const allImgs = Array.from(quill.root.querySelectorAll("img"));
+          const inserted = allImgs.filter(function (el) {
+            return el.getAttribute("src") === data.url;
+          });
+          const img = inserted[inserted.length - 1];
+          if (img) img.alt = altText;
           quill.setSelection(range.index + 1);
         })
         .catch(function (err) {
