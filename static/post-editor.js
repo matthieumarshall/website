@@ -1,6 +1,24 @@
 "use strict";
 
 (function () {
+  // Custom image blot that stores alt text in the Quill Delta so it survives
+  // undo/redo and DOM re-renders. Handles both object {url, alt} (new) and
+  // plain string (legacy) values so existing post content continues to work.
+  const BaseImage = Quill.import("formats/image");
+  class ImageWithAlt extends BaseImage {
+    static create(value) {
+      const node = super.create(typeof value === "object" ? value.url : value);
+      if (typeof value === "object" && value.alt) {
+        node.setAttribute("alt", value.alt);
+      }
+      return node;
+    }
+    static value(node) {
+      return { url: node.getAttribute("src") || "", alt: node.getAttribute("alt") || "" };
+    }
+  }
+  Quill.register(ImageWithAlt, /* overwrite */ true);
+
   const toolbarOptions = [
     [{ header: [1, 2, 3, false] }],
     ["bold", "italic", "underline", "strike"],
@@ -37,13 +55,7 @@
           const range = quill.getSelection(true);
           const altText =
             prompt("Enter alternative text for this image (describe what it shows):") || "";
-          quill.insertEmbed(range.index, "image", data.url);
-          const allImgs = Array.from(quill.root.querySelectorAll("img"));
-          const inserted = allImgs.filter(function (el) {
-            return el.getAttribute("src") === data.url;
-          });
-          const img = inserted[inserted.length - 1];
-          if (img) img.alt = altText;
+          quill.insertEmbed(range.index, "image", { url: data.url, alt: altText });
           quill.setSelection(range.index + 1);
         })
         .catch(function (err) {

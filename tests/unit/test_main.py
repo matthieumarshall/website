@@ -952,6 +952,40 @@ class TestFixtureImageAltText:
         assert resp.status_code == 200
         assert "Course map for Upload Round, Upload Alt Season" in resp.text
 
+    def test_delete_response_remaining_images_have_correct_alt_text(
+        self,
+        content_creator_client: TestClient,
+        test_db: duckdb.DuckDBPyConnection,
+        tmp_path,  # noqa: ANN001
+    ) -> None:
+        import website.main as main_module
+        from website import repository
+
+        season = repository.create_season(test_db, "Delete Alt Season")
+        fixture = repository.create_fixture(
+            test_db, season.id, "Delete Round", "2025-09-01", "Venue", "Addr", [], ""
+        )
+        img1 = repository.create_fixture_image(test_db, fixture.id, "photo_a.jpg")
+        repository.create_fixture_image(test_db, fixture.id, "photo_b.jpg")
+
+        page = content_creator_client.get("/fixtures")
+        match = re.search(r'name="csrf_token"\s+value="([^"]+)"', page.text)
+        assert match
+        csrf_token = match.group(1)
+
+        old_dir = main_module._FIXTURE_MAPS_DIR
+        main_module._FIXTURE_MAPS_DIR = tmp_path
+        try:
+            resp = content_creator_client.post(
+                f"/fixtures/seasons/{season.id}/fixtures/{fixture.id}/images/{img1.id}/delete",
+                data={"csrf_token": csrf_token},
+            )
+        finally:
+            main_module._FIXTURE_MAPS_DIR = old_dir
+
+        assert resp.status_code == 200
+        assert "Course map for Delete Round, Delete Alt Season" in resp.text
+
 
 # ---------------------------------------------------------------------------
 # Fixtures: new season form and cancel

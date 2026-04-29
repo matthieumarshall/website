@@ -72,7 +72,9 @@ jobs:
           echo "Running pip-audit for Python dependency vulnerabilities..."
           # Note: CVE-2026-4539 in pygments 2.19.2 (via pytest) has no patch yet.
           # Requires local access; low risk. Awaiting upstream fix.
-          uv run pip-audit --ignore CVE-2026-4539 || exit 1
+          # Note: GHSA-58qw-9mgm-455v in pip 26.0.1 has no fix version yet.
+          # Requires local access; low risk. Awaiting upstream fix.
+          uv run pip-audit --ignore CVE-2026-4539 --ignore GHSA-58qw-9mgm-455v || exit 1
 
       - name: gitleaks - Scan for secrets
         uses: gitleaks/gitleaks-action@v2
