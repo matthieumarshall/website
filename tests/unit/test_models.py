@@ -29,25 +29,25 @@ class TestUserModel:
             u.username = "bob"  # verifying frozen model raises
 
     def test_role_coercion_from_string(self) -> None:
-        u = User(id=1, username="x", hashed_password="h", role="admin")  # type: ignore[arg-type]
+        u = User(id=1, username="x", hashed_password="h", role="admin")  # type: ignore[arg-type]  # ty:ignore[invalid-argument-type]
         assert u.role == UserRole.admin
 
     def test_invalid_role_raises(self) -> None:
         with pytest.raises(Exception):
-            User(id=1, username="x", hashed_password="h", role="superuser")  # type: ignore[arg-type]
+            User(id=1, username="x", hashed_password="h", role="superuser")  # type: ignore[arg-type]  # ty:ignore[invalid-argument-type]
 
 
 class TestPostModel:
     def _make_post(self, **kwargs: object) -> Post:
         now = datetime(2026, 1, 1)
         return Post(
-            id=int(kwargs.get("id", 1)),  # type: ignore[arg-type]
+            id=int(kwargs.get("id", 1)),  # type: ignore[arg-type]  # ty:ignore[invalid-argument-type]
             title=str(kwargs.get("title", "Hello")),
             content=str(kwargs.get("content", "<p>World</p>")),
-            author_id=int(kwargs.get("author_id", 1)),  # type: ignore[arg-type]
+            author_id=int(kwargs.get("author_id", 1)),  # type: ignore[arg-type]  # ty:ignore[invalid-argument-type]
             author_username=str(kwargs.get("author_username", "alice")),
-            created_at=kwargs.get("created_at", now),  # type: ignore[arg-type]
-            updated_at=kwargs.get("updated_at", now),  # type: ignore[arg-type]
+            created_at=kwargs.get("created_at", now),  # type: ignore[arg-type]  # ty:ignore[invalid-argument-type]
+            updated_at=kwargs.get("updated_at", now),  # type: ignore[arg-type]  # ty:ignore[invalid-argument-type]
             published=bool(kwargs.get("published", True)),
         )
 
@@ -68,7 +68,7 @@ class TestPostCreate:
 
     def test_missing_field_raises(self) -> None:
         with pytest.raises(Exception):
-            PostCreate(title="T")  # type: ignore[call-arg]
+            PostCreate(title="T")  # type: ignore[call-arg]  # ty:ignore[missing-argument]
 
 
 class TestPaginatedPosts:

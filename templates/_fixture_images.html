@@ -1,5 +1,5 @@
 {# _fixture_images.html — course map images partial.
-   Context vars: fixture (from _fixture_detail.html include), images (list[FixtureImage]),
+   Context vars: fixture (from _fixture_detail.html include), season, images (list[FixtureImage]),
    season_id, fixture_id (used in image upload/delete routes), csrf_token, current_user. #}
 {% set _fid = fixture.id if fixture else fixture_id %}
 {% set _sid = fixture.season_id if fixture else season_id %}
@@ -12,11 +12,11 @@
   <img
     id="fixture-image-{{ img.id }}"
     src="/fixture-maps/{{ img.filename }}"
-    alt="Course map image {{ loop.index }}"
+    alt="{% if fixture and season %}Course map for {{ fixture.title }}, {{ season.name }}{% else %}Course map image {{ loop.index }}{% endif %}"
     class="img-thumbnail fixture-image"
     role="button"
     tabindex="0"
-    aria-label="Click to enlarge course map image {{ loop.index }}"
+    aria-label="{% if fixture and season %}Click to enlarge: Course map for {{ fixture.title }}, {{ season.name }}{% else %}Click to enlarge course map image {{ loop.index }}{% endif %}"
     data-image-id="{{ img.id }}"
     data-delete-url="{% if current_user and current_user.role in ('admin', 'content_creator') %}/fixtures/seasons/{{ _sid }}/fixtures/{{ _fid }}/images/{{ img.id }}/delete{% endif %}"
   >

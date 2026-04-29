@@ -868,6 +868,126 @@ class TestFixtureDetailWithData:
 
 
 # ---------------------------------------------------------------------------
+# Fixtures: course map image alt text
+# ---------------------------------------------------------------------------
+
+
+class TestFixtureImageAltText:
+    """Course map images include auto-generated alt text from fixture and season names."""
+
+    def test_fixture_detail_image_has_correct_alt_text(
+        self, test_client: TestClient, test_db: duckdb.DuckDBPyConnection
+    ) -> None:
+        from website import repository
+
+        season = repository.create_season(test_db, "Alt Text Season 2025")
+        fixture = repository.create_fixture(
+            test_db, season.id, "Round 1 Alt", "2025-09-01", "Venue", "Addr", [], ""
+        )
+        repository.create_fixture_image(test_db, fixture.id, "photo.jpg")
+        resp = test_client.get(
+            f"/fixtures/fixture-detail?fixture_id={fixture.id}&season_id={season.id}"
+        )
+        assert resp.status_code == 200
+        assert "Course map for Round 1 Alt, Alt Text Season 2025" in resp.text
+
+    def test_season_panel_image_has_correct_alt_text(
+        self, test_client: TestClient, test_db: duckdb.DuckDBPyConnection
+    ) -> None:
+        from website import repository
+
+        season = repository.create_season(test_db, "Alt Panel Season 2025")
+        fixture = repository.create_fixture(
+            test_db, season.id, "Round 2 Alt", "2025-10-01", "Venue", "Addr", [], ""
+        )
+        repository.create_fixture_image(test_db, fixture.id, "photo2.jpg")
+        resp = test_client.get(f"/fixtures/season-panel?season_id={season.id}")
+        assert resp.status_code == 200
+        assert "Course map for Round 2 Alt, Alt Panel Season 2025" in resp.text
+
+    def test_fixtures_page_image_has_correct_alt_text(
+        self, test_client: TestClient, test_db: duckdb.DuckDBPyConnection
+    ) -> None:
+        from website import repository
+
+        season = repository.create_season(test_db, "Alt Fixtures Season 2025")
+        fixture = repository.create_fixture(
+            test_db, season.id, "Round 3 Alt", "2025-11-01", "Venue", "Addr", [], ""
+        )
+        repository.create_fixture_image(test_db, fixture.id, "photo3.jpg")
+        resp = test_client.get(f"/fixtures?season_id={season.id}")
+        assert resp.status_code == 200
+        assert "Course map for Round 3 Alt, Alt Fixtures Season 2025" in resp.text
+
+    def test_upload_response_has_correct_alt_text(
+        self,
+        content_creator_client: TestClient,
+        test_db: duckdb.DuckDBPyConnection,
+        tmp_path,  # noqa: ANN001
+    ) -> None:
+        import website.main as main_module
+        from website import repository
+
+        season = repository.create_season(test_db, "Upload Alt Season")
+        fixture = repository.create_fixture(
+            test_db, season.id, "Upload Round", "2025-09-01", "Venue", "Addr", [], ""
+        )
+        page = content_creator_client.get("/fixtures")
+        match = re.search(r'name="csrf_token"\s+value="([^"]+)"', page.text)
+        assert match
+        csrf_token = match.group(1)
+
+        # Redirect file writes to a temporary directory to avoid polluting data/
+        old_dir = main_module._FIXTURE_MAPS_DIR
+        main_module._FIXTURE_MAPS_DIR = tmp_path
+        try:
+            resp = content_creator_client.post(
+                f"/fixtures/seasons/{season.id}/fixtures/{fixture.id}/images",
+                files={"file": ("map.jpg", b"\xff\xd8\xff\xe0", "image/jpeg")},
+                data={"csrf_token": csrf_token},
+            )
+        finally:
+            main_module._FIXTURE_MAPS_DIR = old_dir
+
+        assert resp.status_code == 200
+        assert "Course map for Upload Round, Upload Alt Season" in resp.text
+
+    def test_delete_response_remaining_images_have_correct_alt_text(
+        self,
+        content_creator_client: TestClient,
+        test_db: duckdb.DuckDBPyConnection,
+        tmp_path,  # noqa: ANN001
+    ) -> None:
+        import website.main as main_module
+        from website import repository
+
+        season = repository.create_season(test_db, "Delete Alt Season")
+        fixture = repository.create_fixture(
+            test_db, season.id, "Delete Round", "2025-09-01", "Venue", "Addr", [], ""
+        )
+        img1 = repository.create_fixture_image(test_db, fixture.id, "photo_a.jpg")
+        repository.create_fixture_image(test_db, fixture.id, "photo_b.jpg")
+
+        page = content_creator_client.get("/fixtures")
+        match = re.search(r'name="csrf_token"\s+value="([^"]+)"', page.text)
+        assert match
+        csrf_token = match.group(1)
+
+        old_dir = main_module._FIXTURE_MAPS_DIR
+        main_module._FIXTURE_MAPS_DIR = tmp_path
+        try:
+            resp = content_creator_client.post(
+                f"/fixtures/seasons/{season.id}/fixtures/{fixture.id}/images/{img1.id}/delete",
+                data={"csrf_token": csrf_token},
+            )
+        finally:
+            main_module._FIXTURE_MAPS_DIR = old_dir
+
+        assert resp.status_code == 200
+        assert "Course map for Delete Round, Delete Alt Season" in resp.text
+
+
+# ---------------------------------------------------------------------------
 # Fixtures: new season form and cancel
 # ---------------------------------------------------------------------------
 

@@ -6,7 +6,7 @@ from cli.seed_season import _create_season
 
 
 @pytest.fixture()
-def db() -> duckdb.DuckDBPyConnection:  # type: ignore[misc]
+def db() -> duckdb.DuckDBPyConnection:  # type: ignore[misc]  # ty:ignore[invalid-return-type]
     con = duckdb.connect(":memory:")
     run_migrations(con)
     yield con

@@ -16,6 +16,10 @@ sync-python:
 lint:
     uv run python -m pre_commit run --all-files
 
+# Audit Python dependencies for known CVEs.
+audit:
+    uv run pip-audit
+
 # Start the development server with auto-reload.
 serve:
     uv run uvicorn website.main:app --reload --env-file .env

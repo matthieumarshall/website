@@ -28,24 +28,24 @@ class TestValidateCsrf:
     def test_passes_when_tokens_match(self) -> None:
         request = _make_request({"csrf_token": "abc123"})
         # Should not raise
-        validate_csrf(request, "abc123")  # type: ignore[arg-type]
+        validate_csrf(request, "abc123")  # type: ignore[arg-type]  # ty:ignore[invalid-argument-type]
 
     def test_raises_403_when_token_mismatches(self) -> None:
         request = _make_request({"csrf_token": "correct"})
         with pytest.raises(HTTPException) as exc_info:
-            validate_csrf(request, "wrong")  # type: ignore[arg-type]
+            validate_csrf(request, "wrong")  # type: ignore[arg-type]  # ty:ignore[invalid-argument-type]
         assert exc_info.value.status_code == 403
 
     def test_raises_403_when_no_session_token(self) -> None:
         request = _make_request({})
         with pytest.raises(HTTPException) as exc_info:
-            validate_csrf(request, "anything")  # type: ignore[arg-type]
+            validate_csrf(request, "anything")  # type: ignore[arg-type]  # ty:ignore[invalid-argument-type]
         assert exc_info.value.status_code == 403
 
     def test_raises_403_when_session_token_is_none(self) -> None:
         request = _make_request({"csrf_token": None})
         with pytest.raises(HTTPException) as exc_info:
-            validate_csrf(request, "anything")  # type: ignore[arg-type]
+            validate_csrf(request, "anything")  # type: ignore[arg-type]  # ty:ignore[invalid-argument-type]
         assert exc_info.value.status_code == 403
 
 
@@ -174,5 +174,5 @@ class TestParseTimetableFromJson:
         assert len(result) == 1
 
     def test_returns_empty_list_for_null_input(self) -> None:
-        result = parse_timetable_from_json(None)  # type: ignore[arg-type]
+        result = parse_timetable_from_json(None)  # type: ignore[arg-type]  # ty:ignore[invalid-argument-type]
         assert result == []

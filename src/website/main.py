@@ -542,6 +542,7 @@ def fixtures(
             "fixtures",
             seasons=seasons,
             selected_season=selected_season,
+            season=selected_season,
             fixtures=fixtures_list,
             active_fixture=first_fixture,
             images=images,
@@ -576,6 +577,7 @@ def fixtures_season_panel(
             "fixtures",
             seasons=seasons,
             selected_season=selected_season,
+            season=selected_season,
             fixtures=fixtures_list,
             active_fixture=first_fixture,
             images=images,
@@ -593,6 +595,7 @@ def fixtures_fixture_detail(
     fixture = repository.get_fixture_by_id(db, fixture_id)
     if fixture is None:
         raise HTTPException(status_code=404, detail="Fixture not found")
+    season = repository.get_season_by_id(db, fixture.season_id)
     images = repository.list_fixture_images(db, fixture_id)
     has_results = repository.fixture_has_results(db, fixture_id)
     return templates.TemplateResponse(
@@ -602,6 +605,7 @@ def fixtures_fixture_detail(
             request,
             "fixtures",
             fixture=fixture,
+            season=season,
             season_id=season_id,
             images=images,
             has_results=has_results,
@@ -718,7 +722,7 @@ def fixtures_create_fixture(
     timetable = parse_timetable_from_json(timetable_json)
     validated = FixtureCreate(
         title=title.strip(),
-        date=date,  # type: ignore[invalid-argument-type]  # Pydantic coerces str to date
+        date=date,  # type: ignore[invalid-argument-type]  # Pydantic coerces str to date  # ty:ignore[invalid-argument-type]
         location_name=location_name.strip(),
         address=address.strip(),
         timetable=timetable,
@@ -808,7 +812,7 @@ def fixtures_update_fixture(
     timetable = parse_timetable_from_json(timetable_json)
     validated = FixtureUpdate(
         title=title.strip(),
-        date=date,  # type: ignore[invalid-argument-type]  # Pydantic coerces str to date
+        date=date,  # type: ignore[invalid-argument-type]  # Pydantic coerces str to date  # ty:ignore[invalid-argument-type]
         location_name=location_name.strip(),
         address=address.strip(),
         timetable=timetable,
@@ -918,7 +922,7 @@ def fixtures_copy_submit(
     timetable = parse_timetable_from_json(timetable_json)
     validated = FixtureCreate(
         title=title.strip(),
-        date=date,  # type: ignore[invalid-argument-type]  # Pydantic coerces str to date
+        date=date,  # type: ignore[invalid-argument-type]  # Pydantic coerces str to date  # ty:ignore[invalid-argument-type]
         location_name=location_name.strip(),
         address=address.strip(),
         timetable=timetable,
@@ -977,8 +981,10 @@ async def fixture_upload_image(
     _: list = Permission("create", _FIXTURES_STAFF_ACL),
 ) -> HTMLResponse:
     validate_csrf(request, csrf_token)
-    if repository.get_fixture_by_id(db, fixture_id) is None:
+    fixture = repository.get_fixture_by_id(db, fixture_id)
+    if fixture is None:
         raise HTTPException(status_code=404, detail="Fixture not found")
+    season = repository.get_season_by_id(db, fixture.season_id)
     if file.content_type not in _ALLOWED_IMAGE_TYPES:
         raise HTTPException(status_code=400, detail="Unsupported image type")
     data = await file.read(_MAX_IMAGE_BYTES + 1)
@@ -996,6 +1002,8 @@ async def fixture_upload_image(
         page_context(
             request,
             "fixtures",
+            fixture=fixture,
+            season=season,
             fixture_id=fixture_id,
             season_id=season_id,
             images=images,
@@ -1016,6 +1024,8 @@ async def fixture_delete_image(
     _: list = Permission("create", _FIXTURES_STAFF_ACL),
 ) -> HTMLResponse:
     validate_csrf(request, csrf_token)
+    fixture = repository.get_fixture_by_id(db, fixture_id)
+    season = repository.get_season_by_id(db, fixture.season_id) if fixture else None
     filename = repository.delete_fixture_image(db, image_id)
     if filename is not None:
         filepath = Path(_FIXTURE_MAPS_DIR) / filename
@@ -1028,6 +1038,8 @@ async def fixture_delete_image(
         page_context(
             request,
             "fixtures",
+            fixture=fixture,
+            season=season,
             fixture_id=fixture_id,
             season_id=season_id,
             images=images,

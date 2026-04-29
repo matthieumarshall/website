@@ -14,7 +14,7 @@ _VALID_CSV = (
 
 
 @pytest.fixture()
-def db() -> duckdb.DuckDBPyConnection:  # type: ignore[misc]
+def db() -> duckdb.DuckDBPyConnection:  # type: ignore[misc]  # ty:ignore[invalid-return-type]
     con = duckdb.connect(":memory:")
     run_migrations(con)
     yield con
@@ -47,7 +47,7 @@ class TestImportResults:
         fixture: Fixture,
         tmp_path: pytest.TempPathFactory,
     ) -> None:
-        csv_file = tmp_path / "results.csv"  # type: ignore[operator]
+        csv_file = tmp_path / "results.csv"  # type: ignore[operator]  # ty:ignore[unsupported-operator]
         csv_file.write_text(_VALID_CSV, encoding="utf-8")
         inserted, fixture_id = _import_results(
             db, "2025-2026", "Round 1", "Senior", csv_file
@@ -67,7 +67,7 @@ class TestImportResults:
                 "2025-2026",
                 "Round 1",
                 "Senior",
-                tmp_path / "missing.csv",  # type: ignore[operator]
+                tmp_path / "missing.csv",  # type: ignore[operator]  # ty:ignore[unsupported-operator]
             )
 
     def test_raises_when_season_not_found(
@@ -76,7 +76,7 @@ class TestImportResults:
         fixture: Fixture,
         tmp_path: pytest.TempPathFactory,
     ) -> None:
-        csv_file = tmp_path / "results.csv"  # type: ignore[operator]
+        csv_file = tmp_path / "results.csv"  # type: ignore[operator]  # ty:ignore[unsupported-operator]
         csv_file.write_text(_VALID_CSV, encoding="utf-8")
         with pytest.raises(ValueError, match="No season found"):
             _import_results(db, "nonexistent", "Round 1", "Senior", csv_file)
@@ -87,7 +87,7 @@ class TestImportResults:
         season: Season,
         tmp_path: pytest.TempPathFactory,
     ) -> None:
-        csv_file = tmp_path / "results.csv"  # type: ignore[operator]
+        csv_file = tmp_path / "results.csv"  # type: ignore[operator]  # ty:ignore[unsupported-operator]
         csv_file.write_text(_VALID_CSV, encoding="utf-8")
         with pytest.raises(ValueError, match="No fixture found"):
             _import_results(db, "2025-2026", "nonexistent", "Senior", csv_file)
@@ -98,7 +98,7 @@ class TestImportResults:
         fixture: Fixture,
         tmp_path: pytest.TempPathFactory,
     ) -> None:
-        csv_file = tmp_path / "results.csv"  # type: ignore[operator]
+        csv_file = tmp_path / "results.csv"  # type: ignore[operator]  # ty:ignore[unsupported-operator]
         csv_file.write_text(_VALID_CSV, encoding="utf-8")
         _import_results(db, "2025-2026", "Round 1", "Senior", csv_file)
         with pytest.raises(ValueError, match="already exists"):
@@ -110,7 +110,7 @@ class TestImportResults:
         fixture: Fixture,
         tmp_path: pytest.TempPathFactory,
     ) -> None:
-        csv_file = tmp_path / "results.csv"  # type: ignore[operator]
+        csv_file = tmp_path / "results.csv"  # type: ignore[operator]  # ty:ignore[unsupported-operator]
         # Missing time, category, gender
         csv_file.write_text("position,athlete_name\n1,Alice\n", encoding="utf-8")
         with pytest.raises(ValueError, match="missing required columns"):
@@ -122,7 +122,7 @@ class TestImportResults:
         fixture: Fixture,
         tmp_path: pytest.TempPathFactory,
     ) -> None:
-        csv_file = tmp_path / "results.csv"  # type: ignore[operator]
+        csv_file = tmp_path / "results.csv"  # type: ignore[operator]  # ty:ignore[unsupported-operator]
         csv_file.write_text(
             "position,athlete_name,time,category,gender\n", encoding="utf-8"
         )
@@ -140,7 +140,7 @@ class TestImportResults:
             "position,athlete_name,time,category,gender,cat pos\n"
             "1,Alice,25:30,Senior,F,notanumber\n"
         )
-        csv_file = tmp_path / "results.csv"  # type: ignore[operator]
+        csv_file = tmp_path / "results.csv"  # type: ignore[operator]  # ty:ignore[unsupported-operator]
         csv_file.write_text(csv_content, encoding="utf-8")
         with pytest.raises(ValueError, match="CSV row"):
             _import_results(db, "2025-2026", "Round 1", "Senior", csv_file)
@@ -156,7 +156,7 @@ class TestImportResults:
             "1,Alice,25:30,Senior,F,\n"
             "2,Bob,26:00,Senior,M,notanumber\n"
         )
-        csv_file = tmp_path / "results.csv"  # type: ignore[operator]
+        csv_file = tmp_path / "results.csv"  # type: ignore[operator]  # ty:ignore[unsupported-operator]
         csv_file.write_text(csv_content, encoding="utf-8")
         with pytest.raises(ValueError, match="CSV row"):
             _import_results(db, "2025-2026", "Round 1", "Senior", csv_file)
