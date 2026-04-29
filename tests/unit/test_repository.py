@@ -13,7 +13,7 @@ from website.models import PaginatedPosts, Post, User, UserRole
 
 
 @pytest.fixture()
-def db() -> duckdb.DuckDBPyConnection:  # type: ignore[misc]
+def db() -> duckdb.DuckDBPyConnection:  # type: ignore[misc]  # ty:ignore[invalid-return-type]
     con = duckdb.connect(":memory:")
     run_migrations(con)
     yield con

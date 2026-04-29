@@ -19,7 +19,7 @@ from website.models import UserRole
 
 
 @pytest.fixture
-def test_db() -> duckdb.DuckDBPyConnection:  # type: ignore[misc]
+def test_db() -> duckdb.DuckDBPyConnection:  # type: ignore[misc]  # ty:ignore[invalid-return-type]
     """Isolated in-memory DuckDB connection with migrations applied."""
     con = duckdb.connect(":memory:")
     run_migrations(con)
@@ -28,7 +28,7 @@ def test_db() -> duckdb.DuckDBPyConnection:  # type: ignore[misc]
 
 
 @pytest.fixture
-def test_client(test_db: duckdb.DuckDBPyConnection) -> TestClient:  # type: ignore[misc]
+def test_client(test_db: duckdb.DuckDBPyConnection) -> TestClient:  # type: ignore[misc]  # ty:ignore[invalid-return-type]
     def override_get_db():
         yield test_db
 
@@ -112,7 +112,7 @@ def authenticated_client(
 
 
 @pytest.fixture
-def admin_client(test_db: duckdb.DuckDBPyConnection) -> TestClient:  # type: ignore[misc]
+def admin_client(test_db: duckdb.DuckDBPyConnection) -> TestClient:  # type: ignore[misc]  # ty:ignore[invalid-return-type]
     """TestClient authenticated as an admin user."""
     _, client = _create_user_and_client(test_db, UserRole.admin)
     yield client
@@ -120,7 +120,7 @@ def admin_client(test_db: duckdb.DuckDBPyConnection) -> TestClient:  # type: ign
 
 
 @pytest.fixture
-def content_creator_client(test_db: duckdb.DuckDBPyConnection) -> TestClient:  # type: ignore[misc]
+def content_creator_client(test_db: duckdb.DuckDBPyConnection) -> TestClient:  # type: ignore[misc]  # ty:ignore[invalid-return-type]
     """TestClient authenticated as a content_creator user."""
     _, client = _create_user_and_client(test_db, UserRole.content_creator)
     yield client

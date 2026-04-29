@@ -84,7 +84,7 @@ def list_posts(
     where = "WHERE p.published = true" if published_only else ""
     total: int = db.execute(
         f"SELECT COUNT(*) FROM posts p {where}"  # noqa: S608  # nosec B608 — no user data interpolated; `where` is built from a boolean, not user input
-    ).fetchone()[0]  # type: ignore[index]
+    ).fetchone()[0]  # type: ignore[index]  # ty:ignore[not-subscriptable]
     offset = (page - 1) * per_page
     rows = db.execute(
         f"{_POST_SELECT} {where} ORDER BY p.created_at DESC LIMIT ? OFFSET ?",  # noqa: S608
@@ -178,7 +178,7 @@ def create_season(db: duckdb.DuckDBPyConnection, name: str) -> Season:
 def delete_season(db: duckdb.DuckDBPyConnection, season_id: int) -> bool:
     count: int = db.execute(
         "SELECT COUNT(*) FROM fixtures WHERE season_id = ?", [season_id]
-    ).fetchone()[0]  # type: ignore[index]
+    ).fetchone()[0]  # type: ignore[index]  # ty:ignore[not-subscriptable]
     if count > 0:
         raise ValueError(
             f"Cannot delete season {season_id}: it still has {count} fixture(s). "

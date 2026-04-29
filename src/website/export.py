@@ -143,10 +143,10 @@ def build_rules_pdf(html_content: str) -> bytes:
 
     if _FONT_PATH.exists():
         # fpdf2.add_font() accepts 'uni' parameter for Unicode support, but type stubs don't recognize it
-        pdf.add_font("DM Sans", style="", fname=str(_FONT_PATH), uni=True)  # type: ignore[unknown-argument]
-        pdf.add_font("DM Sans", style="B", fname=str(_FONT_PATH), uni=True)  # type: ignore[unknown-argument]
-        pdf.add_font("DM Sans", style="I", fname=str(_FONT_PATH), uni=True)  # type: ignore[unknown-argument]
-        pdf.add_font("DM Sans", style="BI", fname=str(_FONT_PATH), uni=True)  # type: ignore[unknown-argument]
+        pdf.add_font("DM Sans", style="", fname=str(_FONT_PATH), uni=True)  # type: ignore[unknown-argument]  # ty:ignore[unknown-argument]
+        pdf.add_font("DM Sans", style="B", fname=str(_FONT_PATH), uni=True)  # type: ignore[unknown-argument]  # ty:ignore[unknown-argument]
+        pdf.add_font("DM Sans", style="I", fname=str(_FONT_PATH), uni=True)  # type: ignore[unknown-argument]  # ty:ignore[unknown-argument]
+        pdf.add_font("DM Sans", style="BI", fname=str(_FONT_PATH), uni=True)  # type: ignore[unknown-argument]  # ty:ignore[unknown-argument]
         pdf.set_font("DM Sans", size=11)
     else:
         pdf.set_font("Helvetica", size=11)

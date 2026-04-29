@@ -722,7 +722,7 @@ def fixtures_create_fixture(
     timetable = parse_timetable_from_json(timetable_json)
     validated = FixtureCreate(
         title=title.strip(),
-        date=date,  # type: ignore[invalid-argument-type]  # Pydantic coerces str to date
+        date=date,  # type: ignore[invalid-argument-type]  # Pydantic coerces str to date  # ty:ignore[invalid-argument-type]
         location_name=location_name.strip(),
         address=address.strip(),
         timetable=timetable,
@@ -812,7 +812,7 @@ def fixtures_update_fixture(
     timetable = parse_timetable_from_json(timetable_json)
     validated = FixtureUpdate(
         title=title.strip(),
-        date=date,  # type: ignore[invalid-argument-type]  # Pydantic coerces str to date
+        date=date,  # type: ignore[invalid-argument-type]  # Pydantic coerces str to date  # ty:ignore[invalid-argument-type]
         location_name=location_name.strip(),
         address=address.strip(),
         timetable=timetable,
@@ -922,7 +922,7 @@ def fixtures_copy_submit(
     timetable = parse_timetable_from_json(timetable_json)
     validated = FixtureCreate(
         title=title.strip(),
-        date=date,  # type: ignore[invalid-argument-type]  # Pydantic coerces str to date
+        date=date,  # type: ignore[invalid-argument-type]  # Pydantic coerces str to date  # ty:ignore[invalid-argument-type]
         location_name=location_name.strip(),
         address=address.strip(),
         timetable=timetable,

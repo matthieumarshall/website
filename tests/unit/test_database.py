@@ -21,7 +21,7 @@ class TestGetDb:
         run_migrations(con)
         request = _make_request_with_db(con)
         try:
-            gen = get_db(request)  # type: ignore[arg-type]
+            gen = get_db(request)  # type: ignore[arg-type]  # ty:ignore[invalid-argument-type]
             cursor = next(gen)
             assert isinstance(cursor, duckdb.DuckDBPyConnection)
             try:
@@ -36,7 +36,7 @@ class TestGetDb:
         run_migrations(con)
         request = _make_request_with_db(con)
         try:
-            gen = get_db(request)  # type: ignore[arg-type]
+            gen = get_db(request)  # type: ignore[arg-type]  # ty:ignore[invalid-argument-type]
             cursor = next(gen)
             try:
                 next(gen)
