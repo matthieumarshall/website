@@ -1,0 +1,59 @@
+{% if not rows %}
+<p class="text-muted py-2">No standings data available for {{ category }}.</p>
+{% else %}
+<div class="table-responsive mt-2">
+  <table class="table table-sm table-hover align-middle mb-0">
+    <thead class="table-light">
+      <tr>
+        <th scope="col">Pos</th>
+        {% if standings_type == "team" %}
+        <th scope="col">Team</th>
+        {% else %}
+        <th scope="col">Name</th>
+        {% endif %}
+        <th scope="col">Club</th>
+        {# One column per fixture #}
+        {% for fixture in fixtures %}
+        <th scope="col" class="text-center">R{{ loop.index }}</th>
+        {% endfor %}
+        <th scope="col" class="text-end">Total</th>
+        <th scope="col" class="text-center">Rds</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      {% set scores = row.fixture_scores | tojson | fromjson if row.fixture_scores else {} %}
+      <tr>
+        <td>{{ row.position }}</td>
+        {% if standings_type == "team" %}
+        <td>{{ row.team_name }}</td>
+        {% else %}
+        <td>{{ row.athlete_name }}</td>
+        {% endif %}
+        <td>{{ row.club if row.club else '—' }}</td>
+        {% for fixture in fixtures %}
+        {% set fid_str = fixture.id | string %}
+        {% if scores and fid_str in scores %}
+        <td class="text-center">{{ scores[fid_str] }}</td>
+        {% else %}
+        <td class="text-center text-muted">—</td>
+        {% endif %}
+        {% endfor %}
+        <td class="text-end fw-semibold">{{ row.total_score }}</td>
+        <td class="text-center">{{ row.rounds_competed }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% if standings_type == "individual" %}
+<p class="text-muted small mt-1">
+  Individual total = sum of best {{ fixtures | length - 1 if fixtures | length > 1 else 1 }} round score(s) (lowest positions wins).
+  Scores shown are finishing positions; lower is better.
+</p>
+{% else %}
+<p class="text-muted small mt-1">
+  Team total = sum of positions of scoring runners across all rounds (lowest wins).
+</p>
+{% endif %}
+{% endif %}
