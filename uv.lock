@@ -2122,6 +2122,27 @@ wheels = [
 ]
 
 [[package]]
+name = "pyresults"
+version = "0.1.0"
+source = { url = "https://github.com/matthieumarshall/pyresults/releases/download/v0.1.1/pyresults-0.1.0-py3-none-any.whl" }
+dependencies = [
+    { name = "python-dateutil" },
+]
+wheels = [
+    { url = "https://github.com/matthieumarshall/pyresults/releases/download/v0.1.1/pyresults-0.1.0-py3-none-any.whl", hash = "sha256:49ac3eb33b66448a60d7870a8c5845ddb9c5ef3e28abe687ff6bf7f5a7e95b19" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fpdf", marker = "extra == 'output'", specifier = "==1.7.2" },
+    { name = "numpy", marker = "extra == 'output'", specifier = ">=1.26.0,<2.0" },
+    { name = "openpyxl", marker = "extra == 'output'", specifier = "==3.1.2" },
+    { name = "pandas", marker = "extra == 'output'", specifier = "==2.2.3" },
+    { name = "python-dateutil", specifier = "==2.8.2" },
+]
+provides-extras = ["output"]
+
+[[package]]
 name = "pytest"
 version = "9.0.3"
 source = { registry = "https://pypi.org/simple" }
@@ -2193,6 +2214,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/e8/6b/913e36aa421b35689ec95ed953ff7e8df3f2ee1c7b8ab2a3f1fd39d95faf/pytest_playwright-0.7.2.tar.gz", hash = "sha256:247b61123b28c7e8febb993a187a07e54f14a9aa04edc166f7a976d88f04c770", size = 16928, upload-time = "2025-11-24T03:43:22.53Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/76/61/4d333d8354ea2bea2c2f01bad0a4aa3c1262de20e1241f78e73360e9b620/pytest_playwright-0.7.2-py3-none-any.whl", hash = "sha256:8084e015b2b3ecff483c2160f1c8219b38b66c0d4578b23c0f700d1b0240ea38", size = 16881, upload-time = "2025-11-24T03:43:24.423Z" },
+]
+
+[[package]]
+name = "python-dateutil"
+version = "2.8.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "six" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/4c/c4/13b4776ea2d76c115c1d1b84579f3764ee6d57204f6be27119f13a61d0a9/python-dateutil-2.8.2.tar.gz", hash = "sha256:0123cacc1627ae19ddf3c27a5de5bd67ee4586fbdd6440d9748f8abb483d3e86", size = 357324, upload-time = "2021-07-14T08:19:19.783Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/36/7a/87837f39d0296e723bb9b62bbb257d0355c7f6128853c78955f57342a56d/python_dateutil-2.8.2-py2.py3-none-any.whl", hash = "sha256:961d03dc3453ebbc59dbdea9e4e11c5651520a876d0f4db161e8674aae935da9", size = 247702, upload-time = "2021-07-14T08:19:18.161Z" },
 ]
 
 [[package]]
@@ -3132,6 +3165,7 @@ dependencies = [
     { name = "itsdangerous" },
     { name = "jinja2" },
     { name = "nh3" },
+    { name = "pyresults" },
     { name = "python-multipart" },
     { name = "slowapi" },
     { name = "uvicorn", extra = ["standard"] },
@@ -3182,6 +3216,7 @@ requires-dist = [
     { name = "pip-licenses", marker = "extra == 'dev'", specifier = ">=4.3" },
     { name = "playwright", marker = "extra == 'test'", specifier = ">=1.58.0" },
     { name = "pre-commit", marker = "extra == 'dev'" },
+    { name = "pyresults", url = "https://github.com/matthieumarshall/pyresults/releases/download/v0.1.1/pyresults-0.1.0-py3-none-any.whl" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=7.0" },
     { name = "pytest-asyncio", marker = "extra == 'test'", specifier = ">=0.21.0" },
     { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=4.0" },

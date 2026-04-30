@@ -10,6 +10,9 @@ name = "website"
 version = "0.1.0"
 requires-python = ">=3.10"
 dependencies = [
+    # pyresults: standings calculation library.
+    # For local development: pip install -e ../pyresults
+    "pyresults @ https://github.com/matthieumarshall/pyresults/releases/download/v0.1.1/pyresults-0.1.0-py3-none-any.whl",
     "fastapi",
     "uvicorn[standard]",
     "jinja2",
