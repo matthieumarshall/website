@@ -5,13 +5,16 @@
 This is a monorepo containing a **FastAPI** backend and a server-rendered frontend using **HTMX** for interactivity.
 
 ```
-src/website/     # FastAPI application (Python package)
-static/          # CSS and any minimal JS
-templates/       # Jinja2 HTML templates
-tests/unit/      # pytest unit tests
-tests/ui/        # Playwright end-to-end tests
-data/            # DuckDB database and uploads (gitignored)
+src/website/          # FastAPI application (Python package)
+static/               # CSS and any minimal JS
+templates/            # Jinja2 HTML templates
+tests/unit/           # pytest unit tests
+tests/ui/             # Playwright end-to-end tests
+data/                 # DuckDB database and uploads (gitignored)
+data/original_website/# Read-only archive of the old PHP website (do not modify)
 ```
+
+`data/original_website/` contains the old PHP + MySQL website that this project replaces. It is read-only reference material. Use the **migrate-old-website** skill for guidance on what to migrate and what to discard from that directory.
 
 The backend owns all routing, auth, and data access. The frontend is thin: Jinja2 templates + HTMX attributes for dynamic behaviour. Reach for plain JavaScript only when HTMX cannot express the interaction.
 
