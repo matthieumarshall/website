@@ -22,7 +22,7 @@
     </thead>
     <tbody>
       {% for row in rows %}
-      {% set scores = row.fixture_scores | tojson | fromjson if row.fixture_scores else {} %}
+      {% set scores = row.fixture_scores | fromjson if row.fixture_scores else {} %}
       <tr>
         <td>{{ row.position }}</td>
         {% if standings_type == "team" %}

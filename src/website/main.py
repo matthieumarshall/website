@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import uuid
@@ -181,6 +182,7 @@ app.mount(
 )
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
+templates.env.filters["fromjson"] = json.loads
 
 # ---------------------------------------------------------------------------
 # Permissions
