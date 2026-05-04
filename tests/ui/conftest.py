@@ -53,7 +53,7 @@ def server_process():
     )
     # Seed a season and fixture so fixture-related UI tests have data to work with
     season = repository.create_season(con, "UI Test Season 2026")
-    repository.create_fixture(
+    fixture = repository.create_fixture(
         con,
         season_id=season.id,
         title="UI Test Fixture",
@@ -62,6 +62,57 @@ def server_process():
         address="1 Test Road",
         timetable=[],
         travel_instructions="",
+    )
+    # Seed individual standings so standings UI tests have data to render
+    fid = str(fixture.id)
+    con.executemany(
+        "INSERT INTO individual_standings"
+        " (season_id, category, position, athlete_name, club,"
+        "  total_score, rounds_competed, fixture_scores, is_imported)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+            (
+                season.id,
+                "Senior Women",
+                1,
+                "Alice Smith",
+                "Oxford City AC",
+                15,
+                1,
+                f'{{"{fid}": 1}}',
+                False,
+            ),
+            (
+                season.id,
+                "Senior Women",
+                2,
+                "Bob Jones",
+                "Abingdon AC",
+                28,
+                1,
+                f'{{"{fid}": 2}}',
+                False,
+            ),
+        ],
+    )
+    # Seed team standings
+    con.execute(
+        "INSERT INTO team_standings"
+        " (season_id, category, position, team_name, club, team_label,"
+        "  total_score, rounds_competed, fixture_scores, is_imported)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            season.id,
+            "Senior Women",
+            1,
+            "Oxford City AC A",
+            "Oxford City AC",
+            "A",
+            10,
+            1,
+            f'{{"{fid}": 1}}',
+            False,
+        ),
     )
     con.close()
 
