@@ -1,0 +1,315 @@
+# Quickstart: Import & Browse Historical Results
+
+**Date**: 2026-05-09 | **Data Model**: [data-model.md](data-model.md)
+
+## For Admins: Running the Import
+
+### Prerequisites
+
+- Python 3.11+ environment activated (`.venv` virtual environment)
+- `uv` package manager installed
+- Access to `data/original_website/files/results/` directory (must be in repo root)
+
+### Basic Import (Results + Standings)
+
+```bash
+# Dry-run first: see what would be imported (no DB changes)
+uv run python scripts/migrate_results.py --dry-run
+uv run python scripts/migrate_standings.py --dry-run
+
+# Run the actual import
+uv run python scripts/migrate_results.py
+uv run python scripts/migrate_standings.py
+```
+
+**Expected output**:
+```
+═══════════════════════════════════════════════════════════
+Import Summary — 2026-05-09 14:35:00
+═══════════════════════════════════════════════════════════
+Results:     12,450 imported | 23 warnings
+Standings:    1,230 imported |  5 warnings
+─────────────────────────────────────────────────────────
+Seasons created:  12
+Fixtures created: 187
+Races created:    412
+─────────────────────────────────────────────────────────
+Duration: 3 minutes 45 seconds
+Log file: data/import_20260509_143500.log
+═══════════════════════════════════════════════════════════
+```
+
+### Import Options
+
+#### Dry-Run (Preview)
+```bash
+# See what would be imported without touching the database
+uv run python scripts/migrate_results.py --dry-run
+uv run python scripts/migrate_standings.py --dry-run
+```
+- No database changes
+- Parses all PDFs and prints summary
+- Useful for verifying no errors before actual import
+
+#### Force (Replace)
+```bash
+# Replace existing data (delete old, insert new)
+uv run python scripts/migrate_results.py --force
+uv run python scripts/migrate_standings.py --force
+```
+- Deletes all existing results/standings
+- Re-imports everything fresh
+- Use if import partially failed or data was corrupted
+
+#### Specific Season
+```bash
+# Import only one season (e.g., 2021-2022)
+uv run python scripts/migrate_results.py --season 2021-2022
+```
+- Useful for testing or incremental imports
+- Only PDFs in `data/original_website/files/results/.../2021-2022/` are processed
+
+### Interpreting the Import Log
+
+After import completes, check the log file:
+
+```bash
+# View the log
+tail -100 data/import_20260509_143500.log  # last 100 lines
+
+# Grep for warnings only
+grep '"level": "warning"' data/import_20260509_143500.log
+
+# Count issues by type
+grep '"level": "warning"' data/import_20260509_143500.log | \
+  grep -o '"issue": "[^"]*"' | sort | uniq -c
+```
+
+**Common warnings**:
+- `missing_time`: Athlete entry lacks a finish time (imported with NULL)
+- `missing_athlete_name`: Row has no name (row skipped)
+- `duplicate`: Result already in DB (row skipped unless `--force`)
+- `pdf_extract_failed`: Couldn't parse a PDF (logged but import continues)
+
+### Validation
+
+After import completes successfully:
+
+```bash
+# Check database has data
+uv run python -c "
+import duckdb
+con = duckdb.connect('data/app.duckdb')
+
+# Count records
+print('Seasons:', con.execute('SELECT COUNT(*) FROM seasons').fetchone()[0])
+print('Fixtures:', con.execute('SELECT COUNT(*) FROM fixtures').fetchone()[0])
+print('Races:', con.execute('SELECT COUNT(*) FROM races').fetchone()[0])
+print('Results:', con.execute('SELECT COUNT(*) FROM results').fetchone()[0])
+print('Standings (individual):', con.execute('SELECT COUNT(*) FROM individual_standings').fetchone()[0])
+print('Standings (team):', con.execute('SELECT COUNT(*) FROM team_standings').fetchone()[0])
+"
+```
+
+---
+
+## For Users: Browsing Historical Data
+
+### Accessing Results
+
+1. **Navigate to Results page**: `/results`
+2. **Select a historical season**: Choose from dropdown (e.g., "1988-1989")
+3. **Browse fixtures**: List of all races for that season appears
+4. **Select a fixture**: Click to expand and see all races for that date
+5. **Select a race**: View results table with filtering options
+
+### Filtering Results
+
+Once a race is displayed, you can filter by:
+- **Category**: e.g., "Senior Men", "U13 Boys" (dropdown, auto-populated)
+- **Club**: e.g., "Oxford AC", "Harriers" (dropdown)
+- **Gender**: M, F, etc. (dropdown)
+- **Name**: Free-text search for athlete name
+
+Filters are **persistent** in the URL, so you can share filtered results:
+```
+/results?season_id=1&fixture_id=10&race_id=42&category=SM40&club=Harriers
+```
+
+### Exporting Results
+
+For any race, export results to:
+- **CSV**: Click "↓ CSV" button — includes all columns (with current filters applied)
+- **PDF**: Click "↓ PDF" button — formatted table for printing/sharing
+
+Both respect the current filter selections (category, club, gender, name).
+
+### Viewing Standings
+
+1. **Navigate to Standings page**: `/standings`
+2. **Select a historical season**: Choose from dropdown (seasons with standings data available)
+3. **Browse standings**:
+   - **Individual standings**: Ranked athletes by total score
+   - **Team standings**: Ranked teams (A, B, C divisions) by total score
+   - All standings shown in reverse chronological order of season
+
+Standings are **read-only** (historical snapshots, not recalculated).
+
+---
+
+## Technical Notes for Admins
+
+### Data Preservation
+
+- All imported values are **exactly as they appear in legacy PDFs**
+  - Times, positions, scores are NOT recomputed
+  - Missing data is imported as NULL (not transformed)
+- Historical standings are marked `is_imported = true` to prevent recalculation pipeline from overwriting them
+
+### Duplicate Handling
+
+**Without `--force`**:
+- If a result already exists (same race, athlete name, time), it's skipped
+- Useful for incremental imports (add new files, re-run, only new results added)
+
+**With `--force`**:
+- All existing results are deleted before re-import
+- Ensures clean slate; useful if import was corrupted or partially failed
+
+### Seasons & Fixtures Auto-Creation
+
+- **Seasons**: Automatically created from folder names (e.g., `2021-2022` → season id auto-assigned)
+- **Fixtures**: Automatically created from PDF filename date + venue (e.g., `20210101-Rnd1-Bicester-min.pdf` → fixture for 2021-01-01)
+- Both are idempotent: re-running import doesn't duplicate seasons or fixtures
+
+### Performance
+
+Typical import times:
+- **Results only**: ~3–5 minutes for all seasons (40+ years, ~400k records)
+- **Standings only**: ~30 seconds (recent seasons, ~2k records)
+- **Both**: ~5–6 minutes total
+
+Import is I/O-bound (PDF parsing); parallelization is possible but not implemented in v1.
+
+---
+
+## Troubleshooting
+
+### Problem: Import Takes Too Long
+
+**Symptoms**: Still running after 10 minutes
+
+**Causes**:
+1. Slow disk I/O on old/network drive
+2. Large legacy PDF files taking time to extract
+
+**Solutions**:
+- Verify disk performance: `time ls -la data/original_website/files/results/` should complete in <1 sec
+- Try importing one season at a time: `--season 2021-2022`
+- Check system load: `top` or `wsl -e top`
+
+### Problem: Missing Data in Results
+
+**Symptoms**: Some rows have NULL values for time, athlete_name, etc.
+
+**Expected**: This is normal for legacy data. Check the import log:
+```bash
+grep '"level": "warning"' data/import_YYYYMMDD_HHMMSS.log
+```
+
+**Workaround**:
+1. Review the specific PDF file mentioned in the warning
+2. Manually correct the PDF if possible
+3. Re-run import with `--force` to reload corrected data
+
+### Problem: Import Fails with DB Error
+
+**Symptoms**: Error like "constraint violation" or "database locked"
+
+**Causes**:
+1. Database is locked (another process accessing it)
+2. Data doesn't match schema (should never happen if code is correct)
+
+**Solutions**:
+1. Stop any other running FastAPI server: `pkill -f uvicorn`
+2. Wait 5 seconds for DB lock to release
+3. Retry import: `uv run python scripts/migrate_results.py`
+
+### Problem: UI Doesn't Show Imported Data
+
+**Symptoms**: `/results` page is empty or old seasons missing
+
+**Checks**:
+1. Verify import succeeded: `tail data/import_YYYYMMDD_HHMMSS.log` (should show summary)
+2. Verify database has data: `uv run python -c "import duckdb; print(duckdb.connect('data/app.duckdb').execute('SELECT COUNT(*) FROM results').fetchone())"`
+3. Restart FastAPI server: `uv run uvicorn src.website.main:app --reload`
+
+If data exists in DB but not showing in UI, restart the FastAPI server (it may have cached empty results).
+
+---
+
+## Advanced: Manual SQL Queries
+
+### View All Imported Seasons
+
+```sql
+SELECT id, name FROM seasons ORDER BY name DESC;
+```
+
+### View All Fixtures in a Season
+
+```sql
+SELECT f.id, f.date, f.title
+FROM fixtures f
+WHERE f.season_id = ?
+ORDER BY f.date ASC;
+```
+
+### Count Results by Season
+
+```sql
+SELECT s.name, COUNT(*) as result_count
+FROM results r
+JOIN races rc ON r.race_id = rc.id
+JOIN fixtures f ON rc.fixture_id = f.id
+JOIN seasons s ON f.season_id = s.id
+GROUP BY s.name
+ORDER BY s.name DESC;
+```
+
+### Find Results with Missing Data
+
+```sql
+SELECT rc.name, COUNT(*)
+FROM results r
+JOIN races rc ON r.race_id = rc.id
+WHERE r.time IS NULL OR r.time = ''
+GROUP BY rc.name;
+```
+
+### View Import Logs (Structured)
+
+```bash
+# Count warnings by type
+python -c "
+import json
+with open('data/import_20260509_143500.log') as f:
+    warnings = [json.loads(line) for line in f if 'warning' in line]
+    from collections import Counter
+    issues = Counter(w.get('issue', 'unknown') for w in warnings)
+    for issue, count in issues.most_common():
+        print(f'{issue}: {count}')
+"
+```
+
+---
+
+## Support
+
+For issues or questions:
+1. Check the import log: `data/import_YYYYMMDD_HHMMSS.log`
+2. Review this guide's "Troubleshooting" section
+3. Contact the development team with:
+   - Import log file (sanitized if needed)
+   - Steps to reproduce the issue
+   - Expected vs. actual behavior
