@@ -16,12 +16,12 @@ This feature imports ~40 years of historical results and standings from legacy P
 
 **Purpose**: Establish logging and testing foundations
 
-- [ ] T001 Create ImportLogger class in `scripts/_import_logger.py` with info/warning/error methods, JSON output, and summary reporting
-- [ ] T002 [P] Create conftest.py fixtures in `tests/unit/` for DuckDB test database (`:memory:`), sample seasons, fixtures, races
-- [ ] T003 [P] Create pytest markers in `tests/unit/conftest.py` for unit vs. integration tests
-- [ ] T004 Create sample test data generator in `tests/unit/test_data.py` (helper functions for creating test seasons/fixtures/races)
+- [X] T001 Create ImportLogger class in `scripts/_import_logger.py` with info/warning/error methods, JSON output, and summary reporting
+- [X] T002 [P] Create conftest.py fixtures in `tests/unit/` for DuckDB test database (`:memory:`), sample seasons, fixtures, races
+- [X] T003 [P] Create pytest markers in `tests/unit/conftest.py` for unit vs. integration tests
+- [X] T004 Create sample test data generator in `tests/unit/test_data.py` (helper functions for creating test seasons/fixtures/races)
 
-**Checkpoint**: Logging infrastructure ready; test harness operational
+**Checkpoint**: Logging infrastructure ready; test harness operational ✅
 
 ---
 
@@ -29,16 +29,16 @@ This feature imports ~40 years of historical results and standings from legacy P
 
 **Purpose**: Extend existing helpers; prepare for user story implementation
 
-- [ ] T005 Review and document existing `scripts/migrate_results.py` PDF parsing logic (20 min analysis, update code comments)
-- [ ] T006 Review and document existing `scripts/_migration_helpers.py` utilities; identify reusable patterns
-- [ ] T007 Add `create_season_if_missing(con, season_name: str) -> int` to `scripts/_migration_helpers.py` with idempotency + logging
-- [ ] T008 Add `create_fixture_if_missing(con, season_id: int, fixture_date: date, venue_name: str) -> int` to `scripts/_migration_helpers.py` with deduplication check
-- [ ] T009 [P] Add `fixture_exists(con, season_id: int, fixture_date: date) -> bool` helper to `scripts/_migration_helpers.py`
-- [ ] T010 [P] Add `result_exists(con, race_id: int, athlete_name: str, time: str) -> bool` helper to `scripts/_migration_helpers.py`
-- [ ] T011 Add type hints and docstrings to all new helpers in `scripts/_migration_helpers.py` (constitution: 100% coverage for new code)
-- [ ] T012 Write unit tests for migration helpers in `tests/unit/test_migration_helpers.py` (100% coverage: idempotency, deduplication, error cases)
+- [X] T005 Review and document existing `scripts/migrate_results.py` PDF parsing logic (20 min analysis, update code comments)
+- [X] T006 Review and document existing `scripts/_migration_helpers.py` utilities; identify reusable patterns
+- [X] T007 Add `create_season_if_missing(con, season_name: str) -> int` to `scripts/_migration_helpers.py` with idempotency + logging
+- [X] T008 Add `create_fixture_if_missing(con, season_id: int, fixture_date: date, venue_name: str) -> int` to `scripts/_migration_helpers.py` with deduplication check
+- [X] T009 [P] Add `fixture_exists(con, season_id: int, fixture_date: date) -> bool` helper to `scripts/_migration_helpers.py`
+- [X] T010 [P] Add `result_exists(con, race_id: int, athlete_name: str, time: str) -> bool` helper to `scripts/_migration_helpers.py`
+- [X] T011 Add type hints and docstrings to all new helpers in `scripts/_migration_helpers.py` (constitution: 100% coverage for new code)
+- [X] T012 Write unit tests for migration helpers in `tests/unit/test_migration_helpers.py` (100% coverage: idempotency, deduplication, error cases)
 
-**Checkpoint**: Migration helpers complete; all tests passing; foundation ready for user story work
+**Checkpoint**: Migration helpers complete; all tests passing; foundation ready for user story work ✅
 
 ---
 
@@ -50,36 +50,36 @@ This feature imports ~40 years of historical results and standings from legacy P
 
 ### Tests for User Story 1
 
-- [ ] T013 [P] [US1] Unit test: PDF parsing with valid result table in `tests/unit/test_migrate_results.py`
-- [ ] T014 [P] [US1] Unit test: PDF parsing with missing column headers (should warn + skip) in `tests/unit/test_migrate_results.py`
-- [ ] T015 [P] [US1] Unit test: PDF parsing with malformed position values (should log + skip row) in `tests/unit/test_migrate_results.py`
-- [ ] T016 [P] [US1] Unit test: Result insertion with NULL values for missing fields in `tests/unit/test_migrate_results.py`
-- [ ] T017 [P] [US1] Unit test: Season auto-creation during results import in `tests/unit/test_migrate_results.py`
-- [ ] T018 [P] [US1] Unit test: Fixture auto-creation from filename (date + venue) in `tests/unit/test_migrate_results.py`
-- [ ] T019 [P] [US1] Unit test: Deduplication check (skip existing result unless `--force`) in `tests/unit/test_migrate_results.py`
-- [ ] T020 [P] [US1] Unit test: `--force` flag replaces existing results in `tests/unit/test_migrate_results.py`
-- [ ] T021 [P] [US1] Unit test: `--dry-run` mode parses without DB writes in `tests/unit/test_migrate_results.py`
-- [ ] T022 [P] [US1] Unit test: Import log creation (JSON format, summary report) in `tests/unit/test_migrate_results.py`
-- [ ] T023 [US1] Integration test: Full import workflow (parse directory, create seasons/fixtures, insert results, verify counts) in `tests/unit/test_migrate_results.py`
-- [ ] T024 [US1] UI test: After import, `/results` page displays historical season in season dropdown in `tests/ui/test_historical_results_browsing.py`
-- [ ] T025 [US1] UI test: `/results?season_id=X` displays fixtures for historical season in `tests/ui/test_historical_results_browsing.py`
-- [ ] T026 [US1] UI test: Historical results are filterable by category/club/gender/name in `tests/ui/test_historical_results_browsing.py`
+- [X] T013 [P] [US1] Unit test: PDF parsing with valid result table in `tests/unit/test_migrate_results.py`
+- [X] T014 [P] [US1] Unit test: PDF parsing with missing column headers (should warn + skip) in `tests/unit/test_migrate_results.py`
+- [X] T015 [P] [US1] Unit test: PDF parsing with malformed position values (should log + skip row) in `tests/unit/test_migrate_results.py`
+- [X] T016 [P] [US1] Unit test: Result insertion with NULL values for missing fields in `tests/unit/test_migrate_results.py`
+- [X] T017 [P] [US1] Unit test: Season auto-creation during results import in `tests/unit/test_migrate_results.py`
+- [X] T018 [P] [US1] Unit test: Fixture auto-creation from filename (date + venue) in `tests/unit/test_migrate_results.py`
+- [X] T019 [P] [US1] Unit test: Deduplication check (skip existing result unless `--force`) in `tests/unit/test_migrate_results.py`
+- [X] T020 [P] [US1] Unit test: `--force` flag replaces existing results in `tests/unit/test_migrate_results.py`
+- [X] T021 [P] [US1] Unit test: `--dry-run` mode parses without DB writes in `tests/unit/test_migrate_results.py`
+- [X] T022 [P] [US1] Unit test: Import log creation (JSON format, summary report) in `tests/unit/test_migrate_results.py`
+- [X] T023 [US1] Integration test: Full import workflow (parse directory, create seasons/fixtures, insert results, verify counts) in `tests/unit/test_migrate_results.py`
+- [X] T024 [US1] UI test: After import, `/results` page displays historical season in season dropdown in `tests/ui/test_historical_results_browsing.py`
+- [X] T025 [US1] UI test: `/results?season_id=X` displays fixtures for historical season in `tests/ui/test_historical_results_browsing.py`
+- [X] T026 [US1] UI test: Historical results are filterable by category/club/gender/name in `tests/ui/test_historical_results_browsing.py`
 
 ### Implementation for User Story 1
 
-- [ ] T027 [P] [US1] Enhance `scripts/migrate_results.py`: Add `--force` flag argument parsing
-- [ ] T028 [P] [US1] Enhance `scripts/migrate_results.py`: Add `--dry-run` flag argument parsing
-- [ ] T029 [P] [US1] Enhance `scripts/migrate_results.py`: Add `--season` filter argument parsing
-- [ ] T030 [US1] Enhance `scripts/migrate_results.py`: Integrate ImportLogger for structured logging (replace print statements)
-- [ ] T031 [US1] Enhance `scripts/migrate_results.py`: Call `create_season_if_missing()` for each season folder encountered
-- [ ] T032 [US1] Enhance `scripts/migrate_results.py`: Call `create_fixture_if_missing()` for each PDF filename (parse date + venue)
-- [ ] T033 [US1] Enhance `scripts/migrate_results.py`: Check `result_exists()` before insert; skip if exists + not `--force`
-- [ ] T034 [US1] Enhance `scripts/migrate_results.py`: On `--force`, delete existing results for this race before re-inserting
-- [ ] T035 [US1] Enhance `scripts/migrate_results.py`: Handle missing/malformed result fields (NULL values, log warnings)
-- [ ] T036 [US1] Enhance `scripts/migrate_results.py`: Implement `--dry-run` mode (parse PDFs, log, skip DB writes)
-- [ ] T037 [US1] Enhance `scripts/migrate_results.py`: Add type hints to all functions in migrate_results.py (constitution requirement)
-- [ ] T038 [US1] Enhance `scripts/migrate_results.py`: Add docstrings to public functions in migrate_results.py
-- [ ] T039 [P] [US1] Update usage docstring in `scripts/migrate_results.py` with new CLI options
+- [X] T027 [P] [US1] Enhance `scripts/migrate_results.py`: Add `--force` flag argument parsing
+- [X] T028 [P] [US1] Enhance `scripts/migrate_results.py`: Add `--dry-run` flag argument parsing
+- [X] T029 [P] [US1] Enhance `scripts/migrate_results.py`: Add `--season` filter argument parsing
+- [X] T030 [US1] Enhance `scripts/migrate_results.py`: Integrate ImportLogger for structured logging (replace print statements)
+- [X] T031 [US1] Enhance `scripts/migrate_results.py`: Call `create_season_if_missing()` for each season folder encountered
+- [X] T032 [US1] Enhance `scripts/migrate_results.py`: Call `create_fixture_if_missing()` for each PDF filename (parse date + venue)
+- [X] T033 [US1] Enhance `scripts/migrate_results.py`: Check `result_exists()` before insert; skip if exists + not `--force`
+- [X] T034 [US1] Enhance `scripts/migrate_results.py`: On `--force`, delete existing results for this race before re-inserting
+- [X] T035 [US1] Enhance `scripts/migrate_results.py`: Handle missing/malformed result fields (NULL values, log warnings)
+- [X] T036 [US1] Enhance `scripts/migrate_results.py`: Implement `--dry-run` mode (parse PDFs, log, skip DB writes)
+- [X] T037 [US1] Enhance `scripts/migrate_results.py`: Add type hints to all functions in migrate_results.py (constitution requirement)
+- [X] T038 [US1] Enhance `scripts/migrate_results.py`: Add docstrings to public functions in migrate_results.py
+- [X] T039 [P] [US1] Update usage docstring in `scripts/migrate_results.py` with new CLI options
 
 **Checkpoint**: User Story 1 fully functional; admin can run import; all tests passing
 

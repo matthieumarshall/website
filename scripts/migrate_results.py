@@ -12,13 +12,14 @@ data row becomes one ``results`` row.
 
 Usage
 -----
-    uv run python scripts/migrate_results.py [--season YYYY-YYYY] [--dry-run]
+    uv run python scripts/migrate_results.py [--season YYYY-YYYY] [--dry-run] [--force]
 
 Options
 -------
 --season    Only migrate one specific season subfolder (e.g. "2021-2022").
             Omit to process all qualifying subdirectories across all decades.
 --dry-run   Parse PDFs and print what would be inserted without touching the DB.
+--force     Replace existing results (default: skip fixtures that already have races).
 
 Run with --dry-run first to inspect the parsed output before committing.
 """
@@ -41,6 +42,7 @@ _SCRIPTS_DIR = Path(__file__).parent
 sys.path.insert(0, str(_SCRIPTS_DIR))
 
 import _migration_helpers as mh  # noqa: E402
+from _import_logger import ImportLogger  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -107,12 +109,26 @@ def _infer_race_name_from_text(page_text: str, table_index: int) -> str:
 
 
 def _parse_header_row(raw_row: list[str | None]) -> list[str]:
-    """Normalise a raw table header row into canonical column names."""
+    """Normalise a raw table header row into canonical column names.
+
+    Args:
+        raw_row: List of header cell strings (may contain None values).
+
+    Returns:
+        List of normalized header names.
+    """
     return [mh.normalise_header(cell or "") for cell in raw_row]
 
 
 def _is_results_table(headers: list[str]) -> bool:
-    """Return True if *headers* contain all required results columns."""
+    """Return True if *headers* contain all required results columns.
+
+    Args:
+        headers: List of normalized column header names.
+
+    Returns:
+        True if this appears to be a results table, False otherwise.
+    """
     return _REQUIRED_RESULT_COLS.issubset(set(headers))
 
 
@@ -121,26 +137,34 @@ def _parse_results_pdf(
 ) -> list[dict]:
     """Extract races and their results from *pdf_path*.
 
-    Returns a list of race dicts::
+    This function parses a results PDF and extracts race/result data.
+    It handles malformed data gracefully, logging warnings for issues
+    but continuing with valid records.
 
-        {
-            "name": str,
-            "display_order": int,
-            "results": [
-                {
-                    "position": int,
-                    "athlete_name": str,
-                    "time": str,
-                    "category": str,
-                    "gender": str,
-                    "race_number": int | None,
-                    "category_position": int | None,
-                    "gender_position": int | None,
-                    "club": str | None,
-                },
-                ...
-            ],
-        }
+    Args:
+        pdf_path: Path to the PDF file to parse.
+
+    Returns:
+        A list of race dicts with structure::
+
+            {
+                "name": str,  # Race name (e.g. "Men", "U13")
+                "display_order": int,  # For sorting
+                "results": [
+                    {
+                        "position": int,
+                        "athlete_name": str,
+                        "time": str,
+                        "category": str,
+                        "gender": str,
+                        "race_number": int | None,
+                        "category_position": int | None,
+                        "gender_position": int | None,
+                        "club": str | None,
+                    },
+                    ...
+                ],
+            }
     """
     races: list[dict] = []
 
@@ -233,13 +257,31 @@ def _insert_races(
     races: list[dict],
     *,
     dry_run: bool,
+    force: bool = False,
+    logger: ImportLogger | None = None,
 ) -> None:
-    """Insert *races* (and their results) into the DB for *fixture_id*."""
+    """Insert *races* (and their results) into the DB for *fixture_id*.
+
+    Args:
+        con: DuckDB connection.
+        fixture_id: ID of the fixture to insert races for.
+        races: List of parsed race dicts from _parse_results_pdf.
+        dry_run: If True, do not write to database.
+        force: If True, replace existing results; if False, skip duplicates.
+        logger: Optional ImportLogger for structured logging.
+    """
     sys.path.insert(0, str(_ROOT / "src"))
     from website import repository  # noqa: PLC0415
 
     for race in races:
         print(f"    Race: '{race['name']}' ({len(race['results'])} result rows)")
+        if logger:
+            logger.info(
+                "race_parse",
+                race_name=race["name"],
+                result_count=len(race["results"]),
+            )
+
         if dry_run:
             for r in race["results"][:3]:
                 print(
@@ -253,20 +295,57 @@ def _insert_races(
         race_obj = repository.create_race(
             con, fixture_id, race["name"], race["display_order"]
         )
+
+        skipped = 0
+        inserted = 0
+
         for r in race["results"]:
-            repository.create_result(
-                con,
-                race_id=race_obj.id,
-                position=r["position"],
-                athlete_name=r["athlete_name"],
-                time=r["time"],
-                category=r["category"],
-                gender=r["gender"],
-                race_number=r["race_number"],
-                category_position=r["category_position"],
-                gender_position=r["gender_position"],
-                club=r["club"],
-            )
+            # Check for duplicates if not forcing
+            if not force and mh.result_exists(
+                con, race_obj.id, r["athlete_name"], r["time"]
+            ):
+                if logger:
+                    logger.info(
+                        "result_skip",
+                        reason="duplicate",
+                        athlete=r["athlete_name"],
+                    )
+                skipped += 1
+                continue
+
+            try:
+                repository.create_result(
+                    con,
+                    race_id=race_obj.id,
+                    position=r["position"],
+                    athlete_name=r["athlete_name"],
+                    time=r["time"],
+                    category=r["category"],
+                    gender=r["gender"],
+                    race_number=r["race_number"],
+                    category_position=r["category_position"],
+                    gender_position=r["gender_position"],
+                    club=r["club"],
+                )
+                inserted += 1
+                if logger:
+                    logger.info(
+                        "result_insert",
+                        athlete=r["athlete_name"],
+                        time=r["time"],
+                    )
+            except Exception as exc:  # noqa: BLE001
+                if logger:
+                    logger.error(
+                        "result_insert_failed",
+                        athlete=r["athlete_name"],
+                        error=str(exc),
+                    )
+                raise
+
+        if skipped > 0:
+            print(f"      Skipped {skipped} duplicate results")
+        print(f"      Inserted {inserted} new results")
 
 
 # ---------------------------------------------------------------------------
@@ -280,12 +359,30 @@ def _process_season_dir(
     con,
     *,
     dry_run: bool,
+    force: bool = False,
+    logger: ImportLogger | None = None,
 ) -> None:
+    """Process all result PDFs in a season directory.
+
+    Args:
+        season_dir: Path to the season directory.
+        season_name: Name of the season (e.g. "2021-2022").
+        con: DuckDB connection.
+        dry_run: If True, do not write to database.
+        force: If True, replace existing results.
+        logger: Optional ImportLogger for structured logging.
+    """
     pdf_files = sorted(season_dir.glob("*.pdf"))
     matching_pdfs = [p for p in pdf_files if _RESULTS_PDF_RE.match(p.name)]
 
     if not matching_pdfs:
         print(f"  No per-round results PDFs found in {season_name!r} — skipping.")
+        if logger:
+            logger.info(
+                "season_skip",
+                season=season_name,
+                reason="no_pdfs",
+            )
         return
 
     # Only resolve/create the season once we know there's data to import.
@@ -298,6 +395,12 @@ def _process_season_dir(
     else:
         season_id = mh.create_season_if_missing(con, season_name)
         id_label = f"id={season_id}"
+        if logger:
+            logger.info(
+                "season_created",
+                season=season_name,
+                season_id=season_id,
+            )
 
     print(f"\nSeason: {season_name!r} ({id_label})")
 
@@ -323,12 +426,25 @@ def _process_season_dir(
                 con, season_id, round_num, fixture_date, venue_raw
             )
 
-            if mh.fixture_has_races(con, fixture_id):
+            if mh.fixture_has_races(con, fixture_id) and not force:
+                if logger:
+                    logger.info(
+                        "fixture_skip",
+                        reason="already_has_races",
+                        fixture_id=fixture_id,
+                    )
                 print(
                     f"  SKIP: {pdf_path.name} — fixture {fixture_id} already has "
-                    "races (delete them first to re-import)"
+                    "races (use --force to replace)"
                 )
                 continue
+
+            if logger:
+                logger.info(
+                    "pdf_process",
+                    filename=pdf_path.name,
+                    fixture_id=fixture_id,
+                )
 
             print(f"\n  PDF: {pdf_path.name} → fixture_id={fixture_id}")
 
@@ -336,20 +452,38 @@ def _process_season_dir(
             races = _parse_results_pdf(pdf_path)
         except Exception as exc:  # noqa: BLE001
             print(f"  ERROR parsing {pdf_path.name}: {exc}", file=sys.stderr)
+            if logger:
+                logger.error(
+                    "pdf_parse_failed",
+                    filename=pdf_path.name,
+                    error=str(exc),
+                )
             continue
 
         if not races:
             print("  WARNING: No results tables found in this PDF.")
+            if logger:
+                logger.warning(
+                    "pdf_no_tables",
+                    filename=pdf_path.name,
+                )
             continue
 
         if fixture_id is not None:
-            _insert_races(con, fixture_id, races, dry_run=dry_run)
+            _insert_races(
+                con, fixture_id, races, dry_run=dry_run, force=force, logger=logger
+            )
 
     if not dry_run:
         con.commit()
 
 
 def main() -> None:
+    """Main entry point for the results migration script.
+
+    Parses command-line arguments and processes season directories,
+    extracting results data from PDFs and inserting into the DuckDB database.
+    """
     parser = argparse.ArgumentParser(
         description=(
             "Migrate historic per-round results from original-website PDFs into DuckDB."
@@ -368,6 +502,11 @@ def main() -> None:
         action="store_true",
         help="Parse and print without writing to the database.",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Replace existing results (default: skip fixtures with existing races).",
+    )
     args = parser.parse_args()
 
     if not _RESULTS_ROOT.exists():
@@ -375,6 +514,9 @@ def main() -> None:
 
     if args.dry_run:
         print("DRY RUN — no data will be written to the database.\n")
+
+    # Initialize logger for structured output
+    logger = ImportLogger()
 
     con = mh.open_db()
     try:
@@ -396,10 +538,19 @@ def main() -> None:
             )
 
         for season_dir, season_name in season_pairs:
-            _process_season_dir(season_dir, season_name, con, dry_run=args.dry_run)
+            _process_season_dir(
+                season_dir,
+                season_name,
+                con,
+                dry_run=args.dry_run,
+                force=args.force,
+                logger=logger,
+            )
     finally:
         con.close()
 
+    # Print summary
+    print("\n" + logger.summary())
     print("\nDone.")
 
 
