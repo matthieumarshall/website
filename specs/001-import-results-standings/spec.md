@@ -72,6 +72,16 @@ An admin user wants to verify that imported data is valid and complete before th
 - How does the system behave if the import is interrupted mid-process?
 - What happens if some result records have missing or malformed data?
 
+## Clarifications
+
+### Session 2026-05-09
+
+- Q: When results already exist and import is re-run, should we update/replace or skip? → A: Update existing records (replace on re-run)
+- Q: How should import handle missing/malformed fields? → A: Import with NULL values where possible and log warnings/issues
+- Q: Should seasons be auto-created if they don't exist in the database? → A: Yes, auto-create seasons from folder names
+- Q: Should fixtures be auto-created if missing? → A: Yes, auto-create fixtures from result filename (date + venue)
+- Q: How should we discover existing browsing routes/UI for historical data? → A: Discover in codebase during planning phase
+
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
@@ -88,33 +98,41 @@ An admin user wants to verify that imported data is valid and complete before th
 - **FR-010**: Users MUST be able to view results for a selected historical season
 - **FR-011**: Users MUST be able to view standings for a selected historical season
 - **FR-012**: System MUST validate imported data and report any integrity issues to the admin
-- **FR-013**: Import script MUST support `--force` flag to re-import and replace existing data
+- **FR-013**: Import script MUST support `--force` flag to re-import and replace existing data (overwrite on re-run)
+- **FR-014**: System MUST auto-create seasons if they don't exist (identified by folder name, e.g., "1988-1989")
+- **FR-015**: System MUST auto-create fixtures if missing (identified by result filename: date and venue)
+- **FR-016**: System MUST import records with NULL/empty values for missing or malformed fields rather than skipping the record
+- **FR-017**: System MUST log warnings for all missing/malformed fields encountered during import
+- **FR-018**: System MUST discover and reuse existing browsing routes/UI components for displaying historical seasonal data
 
 ### Key Entities *(include if feature involves data)*
 
 - **Result**: A single race result record containing participant, position, time, and other race-specific metrics as they appeared in the legacy system
 - **Standing**: A league position record for a season, containing team/participant rank, points, and statistics as they appeared in the legacy system
-- **Season**: A time period (e.g., calendar year or league year) grouping results and standings
+- **Season**: A time period (e.g., calendar year or league year) grouping results and standings, auto-created from legacy folder structure
+- **Fixture**: A race event (date, location) auto-created from result file metadata (filename date and venue)
 - **Import Log**: Metadata about an import operation including timestamp, records processed, warnings, and errors
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
-- **SC-001**: 100% of result records from legacy data are successfully imported into the database
-- **SC-002**: 100% of standings records from legacy data are successfully imported into the database
-- **SC-003**: All imported data matches source data exactly (no values modified, computation, or transformation)
+- **SC-001**: 100% of result records from legacy data are successfully imported into the database (or skipped with reason if malformed)
+- **SC-002**: 100% of standings records from legacy data are successfully imported into the database (or skipped with reason if malformed)
+- **SC-003**: All imported data values match source data exactly (no values modified, computed, or transformed)
 - **SC-004**: Admin can run import script and complete it in under 5 minutes for typical legacy dataset
-- **SC-005**: Import provides clear feedback with count of records processed and any issues encountered
+- **SC-005**: Import provides clear feedback with count of records processed, warnings logged, and issues encountered
 - **SC-006**: Users can browse and view results/standings for all historical seasons with available data
 - **SC-007**: 100% of imported results are browseable through the web interface without errors
+- **SC-008**: Seasons are auto-created if missing; fixtures are auto-created if missing; process completes without manual intervention
 
 ## Assumptions
 
-- Legacy data files are in a consistent format that can be parsed (CSV, JSON, or similar structured format)
-- The legacy results and standings data structure is understood and documented
+- Legacy data files are in PDF format following consistent naming convention (`YYYYMMDD-RndN-VenueName-min.pdf`)
+- Results PDFs contain extractable tables with columns: position, athlete_name, time, category, gender (optional: race_number, category_position, gender_position, club)
+- Standings PDFs contain extractable tables for individual and/or team standings with position, name, club, and score columns
+- Season identifiers can be extracted from folder names (e.g., "1988-1989" → season_id auto-generated or matched to existing)
+- Fixture information (date, venue) can be reliably extracted from result filename: `YYYYMMDD-RndN-VenueName-min.pdf`
 - Existing database schema supports storing historical results and standings alongside current data
-- No data cleanup or transformation is needed—import preserves data as-is from the legacy system
 - Admin user has access to the scripts folder and can run command-line tools
-- Historical season identifiers can be inferred from or extracted from the legacy data
-- The web interface already has infrastructure for displaying seasonal data (routes, templates); migration just populates the data
+- The web interface already has infrastructure for displaying seasonal data (routes, templates); import just populates the data
