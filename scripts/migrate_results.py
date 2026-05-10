@@ -76,6 +76,47 @@ _RACE_DISPLAY_ORDER: list[str] = [
 
 
 # ---------------------------------------------------------------------------
+# Constants for text-based PDF parsers (2010-2020 and 2021+ formats)
+# ---------------------------------------------------------------------------
+
+# Matches both colon-separated (2021+: MM:SS) and dot-separated (2010-2020: M.SS) times.
+_TIME_RE = re.compile(r"^\d{1,2}[:.]\d{2}$")
+
+# Category codes found in OXL results (case-insensitive).
+# Includes legacy codes: MM = Mini Minors (≈U11 in pre-2013 results).
+_CAT_RE = re.compile(r"^(U9[BbGg]?|U1[1357]|U20|S|V\d+|MM)$", re.IGNORECASE)
+
+# Identifies pages using the 2010-2020 "league header + text block" table format.
+_TEXT_BLOCK_LEAGUE_HEADER = re.compile(
+    r"Oxford Mail Cross Country League|Oxfordshire Cross Country League",
+    re.IGNORECASE,
+)
+
+# Splits text blocks into race sections (captures the race title).
+_TEXT_BLOCK_RACE_RE = re.compile(r"Race\s+\d+:\s+(.+?)$", re.MULTILINE | re.IGNORECASE)
+
+# Finds the race title on a 2021+ per-page race page.
+# Handles en-dash (–) and ASCII hyphen (-).
+_PER_PAGE_RACE_TITLE_RE = re.compile(r"Round\s+\d+\s*[–\-]\s+(.+?)$", re.MULTILINE)
+
+# Detects whether a Round title text is an actual race name (U9, U11, Men, Women,
+# etc.) rather than a venue name (e.g. "Bicester Heritage, Bicester").
+# 2019-2020 Rounds 1-4 put the venue in the title line; the race name follows on
+# the very next line.
+_IS_RACE_NAME_RE = re.compile(
+    r"^(U9|U1[1357]|U20|Senior|Veteran|Men\b|Women\b|Junior|Mixed)\b",
+    re.IGNORECASE,
+)
+
+# Detects the start of a new result in a potentially two-column 2021+ line.
+# A result starts where digits are followed directly by an uppercase letter
+# that begins the athlete's surname (which must be followed by a comma later).
+# Requires the digits are NOT preceded by a letter or colon (avoids matching
+# inside times like "6:07" or club codes like "AC").
+_RESULT_SEGMENT_START = re.compile(r"(?<![A-Za-z:])(\d{1,3})(?=[A-Z][a-z\'\-])")
+
+
+# ---------------------------------------------------------------------------
 # PDF parsing
 # ---------------------------------------------------------------------------
 
@@ -132,39 +173,423 @@ def _is_results_table(headers: list[str]) -> bool:
     return _REQUIRED_RESULT_COLS.issubset(set(headers))
 
 
+# ---------------------------------------------------------------------------
+# Text-based parsing helpers (2010-2020 and 2021+ formats)
+# ---------------------------------------------------------------------------
+
+
+def _infer_gender(title: str) -> str:
+    """Return 'Male', 'Female', or '' from a race title string.
+
+    Returns '' for mixed-gender races (e.g. 'U9 Boys & Girls') so that
+    individual category suffixes (U9b / U9g) can determine each athlete's gender.
+    """
+    t = title.lower()
+    has_female = bool(re.search(r"\b(girl|girls|woman|women|ladies|female)\b", t))
+    has_male = bool(re.search(r"\b(boy|boys|man|men|male)\b", t))
+    if has_female and has_male:
+        return ""  # mixed-gender race
+    if has_female:
+        return "Female"
+    if has_male:
+        return "Male"
+    return ""
+
+
+def _display_order_for_race(race_name: str) -> int:
+    """Return a display-order index for *race_name* by keyword match."""
+    return next(
+        (
+            i
+            for i, kw in enumerate(_RACE_DISPLAY_ORDER)
+            if kw.lower() in race_name.lower()
+        ),
+        len(_RACE_DISPLAY_ORDER),
+    )
+
+
+def _parse_2010_result_line(
+    line: str, default_cat: str, default_gender: str
+) -> dict | None:
+    """Parse one result line from a 2010-2020 text-block PDF.
+
+    Expected format (space-separated)::
+
+        {pos} {FirstName ...} {ClubCode} [{Category}] [{Time as M.SS}]
+
+    Category and time are both optional; they fall back to the defaults
+    derived from the race-section heading.
+
+    Returns a result dict or None when the line is not a valid result.
+    """
+    words = line.split()
+    if len(words) < 3 or not words[0].isdigit():
+        return None
+
+    position = int(words[0])
+    words = words[1:]
+
+    # Peel off time from right end (dot-separated: M.SS or MM.SS).
+    time_val = ""
+    if words and re.match(r"^\d{1,2}\.\d{2}$", words[-1]):
+        time_val = words[-1]
+        words = words[:-1]
+
+    # Peel off category from right end.
+    category = default_cat
+    if words and _CAT_RE.match(words[-1]):
+        category = words[-1].upper()
+        words = words[:-1]
+
+    # Remaining last word is the club code; everything before it is the name.
+    if not words:
+        return None
+    club = words[-1]
+    name = " ".join(words[:-1])
+    if not name:
+        return None
+
+    # Determine gender; U9G/U9g suffix overrides the race-level default.
+    # Plain U9 (no suffix) is treated as male in mixed-gender races where the
+    # default_gender is '' (2010-2016 era used 'U9' for boys, 'U9g' for girls).
+    gender = default_gender
+    cat_up = category.upper()
+    if cat_up == "U9G":
+        gender = "Female"
+    elif cat_up in ("U9B", "U9") and not default_gender:
+        gender = "Male"
+
+    normalized_cat = re.sub(r"^U9[BGg]$", "U9", cat_up, flags=re.IGNORECASE)
+
+    return {
+        "position": position,
+        "athlete_name": name,
+        "time": time_val,
+        "category": normalized_cat or default_cat,
+        "gender": gender or "Unknown",
+        "club": club,
+        "race_number": None,
+        "category_position": None,
+        "gender_position": None,
+    }
+
+
+def _split_2021_line(line: str) -> list[str]:
+    """Split a potentially two-column 2021+ result line into segments.
+
+    In the two-column PDF layout pdfplumber merges both columns into a single
+    text line, e.g.::
+
+        "1Eyre, Annie Banbury Harriers AC U11 6:07 31Smith, John Rad U11 7:15"
+
+    Each result segment starts where position digits are followed directly by
+    an uppercase letter (the start of the athlete's surname).
+    """
+    starts = [m.start() for m in _RESULT_SEGMENT_START.finditer(line)]
+    if not starts:
+        return []
+    segments = []
+    for i, start in enumerate(starts):
+        end = starts[i + 1] if i + 1 < len(starts) else len(line)
+        seg = line[start:end].strip()
+        if seg:
+            segments.append(seg)
+    return segments
+
+
+def _parse_2021_result_segment(segment: str, default_gender: str) -> dict | None:
+    """Parse a single result segment from a 2021+ per-page PDF.
+
+    Segment format (position digits run directly into the surname)::
+
+        {pos}{LastName, FirstName} {Club words...} {Category} [{Time as MM:SS}]
+
+    Returns a result dict or None if the segment cannot be parsed.
+    """
+    segment = segment.strip()
+
+    # Extract position (leading digits before the surname).
+    pos_m = re.match(r"^(\d{1,3})", segment)
+    if not pos_m:
+        return None
+    position = int(pos_m.group(1))
+    remainder = segment[pos_m.end() :]
+
+    # Name has "LastName, FirstName" format; split on first comma.
+    if "," not in remainder:
+        return None
+    last_part, after_comma = remainder.split(",", 1)
+    last_name = last_part.strip()
+    words = after_comma.strip().split()
+    if not words:
+        return None
+
+    first_name = words[0]
+    words = words[1:]  # Club... Category [Time]
+
+    # Strip time from right (colon-separated: M:SS or MM:SS).
+    time_val = ""
+    if words and re.match(r"^\d{1,2}:\d{2}$", words[-1]):
+        time_val = words[-1]
+        words = words[:-1]
+
+    # Category is now the last token.
+    if not words or not _CAT_RE.match(words[-1]):
+        return None
+    category = words[-1].upper()
+    club = " ".join(words[:-1]) if len(words) > 1 else None
+
+    # Determine gender from category suffix; fall back to race-level default.
+    gender = default_gender
+    if category == "U9G":
+        gender = "Female"
+    elif category == "U9B" and not default_gender:
+        gender = "Male"
+
+    normalized_cat = re.sub(r"^U9[BGg]$", "U9", category, flags=re.IGNORECASE)
+
+    return {
+        "position": position,
+        "athlete_name": f"{last_name}, {first_name}",
+        "time": time_val,
+        "category": normalized_cat,
+        "gender": gender or "Unknown",
+        "club": club,
+        "race_number": None,
+        "category_position": None,
+        "gender_position": None,
+    }
+
+
+def _parse_text_block_pdf(pdf_path: Path) -> list[dict]:
+    """Parse a 2010-2020 format PDF.
+
+    These PDFs have one large table per page where:
+    - Row 0: league/fixture title header
+    - Row 1: multi-race text block (may span two cells for two-column layout)
+    - Row 2: page footer URL
+
+    The text block contains all race results as plain text separated by
+    ``===`` dividers, with sub-sections ``Race N: {title}`` and
+    ``Individual Results``.
+    """
+    races: list[dict] = []
+
+    # Collect text blocks across all pages (races can span page boundaries).
+    text_chunks: list[str] = []
+    with pdfplumber.open(pdf_path) as pdf:
+        for page in pdf.pages:
+            tables = page.extract_tables()
+            if not tables:
+                continue
+            t = tables[0]
+            if not t or not t[0] or not _TEXT_BLOCK_LEAGUE_HEADER.search(t[0][0] or ""):
+                continue
+            if len(t) < 2:
+                continue
+            row = t[1]
+            cell0 = row[0] or ""
+            cell1 = row[1] if len(row) > 1 and row[1] else ""
+            if cell0:
+                text_chunks.append(cell0)
+            if cell1:
+                text_chunks.append(cell1)
+
+    if not text_chunks:
+        return races
+
+    combined = "\n".join(text_chunks)
+
+    # Split into race sections using "Race N: title" markers.
+    markers = list(_TEXT_BLOCK_RACE_RE.finditer(combined))
+    for i, marker in enumerate(markers):
+        race_name = marker.group(1).strip()
+        body_start = marker.end()
+        body_end = markers[i + 1].start() if i + 1 < len(markers) else len(combined)
+        body = combined[body_start:body_end]
+
+        # Only process Individual Results sub-sections.
+        ind_m = re.search(r"Individual\s+Results\s*\n[- ]+\n?", body, re.IGNORECASE)
+        if not ind_m:
+            continue
+
+        results_text = body[ind_m.end() :]
+        # Stop before Team Results or a section separator.
+        stop_m = re.search(r"(?:Team\s+Results|={3,})", results_text, re.IGNORECASE)
+        if stop_m:
+            results_text = results_text[: stop_m.start()]
+
+        gender = _infer_gender(race_name)
+        cat_m = re.search(r"\b(U9|U11|U13|U15|U17|U20)\b", race_name, re.IGNORECASE)
+        default_cat = cat_m.group(1).upper() if cat_m else "S"
+
+        results: list[dict] = []
+        for line in results_text.splitlines():
+            line = line.strip()
+            if not line or re.match(r"^[=\-]+$", line):
+                break
+            r = _parse_2010_result_line(line, default_cat, gender)
+            if r:
+                results.append(r)
+
+        if results:
+            races.append(
+                {
+                    "name": race_name,
+                    "display_order": _display_order_for_race(race_name),
+                    "results": results,
+                }
+            )
+
+    return races
+
+
+# Lines to skip in 2021+ per-page PDFs (headers, footers, metadata).
+_PER_PAGE_SKIP_RE = re.compile(
+    r"^\d{4}[-/]\d{4}\s"  # "2021-2022 Oxfordshire..." season header
+    r"|^(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)\b"
+    r"|^Round\s+\d+\s*[–\-]"  # race title line (already extracted)
+    r"|^Pos\s+Name\b"  # column header row
+    r"|^Race\s+Distance\b"  # distance info
+    r"|^http"  # URL footer
+    r"|^Page\s+\d+\b",  # "Page N" standalone footer
+    re.IGNORECASE,
+)
+
+
+def _parse_per_page_pdf(pdf_path: Path) -> list[dict]:
+    """Parse a 2021+ format PDF where each page (after the cover) is one race.
+
+    Pages that are summary/position tables are skipped.  Each race page has:
+    - A "Round N – Race Name" title line
+    - A "Pos Name Club Cat Time" column-header line (text only, not a table)
+    - One or two columns of result lines in the format
+      ``{pos}{LastName, FirstName} {Club...} {Cat} [{Time}]``
+
+    When two result columns are present pdfplumber merges them into a single
+    text line; ``_split_2021_line`` separates them.
+    """
+    races: list[dict] = []
+
+    with pdfplumber.open(pdf_path) as pdf:
+        for page in pdf.pages:
+            # 2021+ race pages have no detectable tables.
+            if page.extract_tables():
+                continue
+
+            text = page.extract_text() or ""
+            if not text.strip():
+                continue
+
+            title_m = _PER_PAGE_RACE_TITLE_RE.search(text)
+            if not title_m:
+                continue
+
+            race_title = title_m.group(1).strip()
+            # Skip summary/leading-positions pages.
+            if re.search(
+                r"summary|positions?\s+summary|leading\s+fixture",
+                race_title,
+                re.IGNORECASE,
+            ):
+                continue
+
+            # 2019-2020 early rounds put the venue in the "Round N – X" header
+            # (e.g. "Round 1 – Bicester Heritage, Bicester") with the actual
+            # race name on the very next non-blank line.  Detect this by
+            # checking whether the extracted title looks like a race category.
+            if not _IS_RACE_NAME_RE.match(race_title):
+                for candidate in text[title_m.end() :].splitlines():
+                    candidate = candidate.strip()
+                    if not candidate:
+                        continue
+                    if _PER_PAGE_SKIP_RE.match(candidate):
+                        continue
+                    if re.match(r"^Race\s+Distance\b", candidate, re.IGNORECASE):
+                        continue
+                    if _IS_RACE_NAME_RE.match(candidate):
+                        race_title = candidate
+                    break
+
+            gender = _infer_gender(race_title)
+            results: list[dict] = []
+
+            for line in text.splitlines():
+                line = line.strip()
+                if not line or _PER_PAGE_SKIP_RE.match(line):
+                    continue
+                for segment in _split_2021_line(line):
+                    r = _parse_2021_result_segment(segment, gender)
+                    if r:
+                        results.append(r)
+
+            if results:
+                races.append(
+                    {
+                        "name": race_title,
+                        "display_order": _display_order_for_race(race_title),
+                        "results": results,
+                    }
+                )
+
+    return races
+
+
+# ---------------------------------------------------------------------------
+# Main PDF entry point
+# ---------------------------------------------------------------------------
+
+
 def _parse_results_pdf(
     pdf_path: Path,
 ) -> list[dict]:
     """Extract races and their results from *pdf_path*.
 
-    This function parses a results PDF and extracts race/result data.
-    It handles malformed data gracefully, logging warnings for issues
-    but continuing with valid records.
+    Uses the decade directory name for fast format detection before calling
+    any expensive PDF parsing operations:
+    - ``2020-2030/``: 2021+ per-page format (one race per page, text-only)
+    - ``2010-2020/``: 2010-2020 text-block format (race sections in tables)
+    - Older directories: scanned/garbled PDFs - skip without parsing.
 
-    Args:
-        pdf_path: Path to the PDF file to parse.
+    Falls back to the columnar table format (future-proofing) if neither
+    text-based format returns results.
 
-    Returns:
-        A list of race dicts with structure::
+    Returns an empty list when no results are found.
+    """
+    path_str = str(pdf_path)
 
-            {
-                "name": str,  # Race name (e.g. "Men", "U13")
-                "display_order": int,  # For sorting
-                "results": [
-                    {
-                        "position": int,
-                        "athlete_name": str,
-                        "time": str,
-                        "category": str,
-                        "gender": str,
-                        "race_number": int | None,
-                        "category_position": int | None,
-                        "gender_position": int | None,
-                        "club": str | None,
-                    },
-                    ...
-                ],
-            }
+    # Fast path: skip pre-2010 PDFs entirely (scanned paper / garbled OCR).
+    if "2020-2030" in path_str:
+        races = _parse_per_page_pdf(pdf_path)
+        if races:
+            return races
+        # Columnar fallback in case format changes in a future season.
+        return _parse_columnar_pdf(pdf_path)
+
+    if "2010-2020" in path_str:
+        races = _parse_text_block_pdf(pdf_path)
+        if races:
+            return races
+        # 2019-2020 switched to the per-page format (same as 2021+) while
+        # still living in the 2010-2020 directory tree.
+        races = _parse_per_page_pdf(pdf_path)
+        if races:
+            return races
+        return _parse_columnar_pdf(pdf_path)
+
+    # Pre-2010 directories (1987-1990, 1990-2000, 2000-2010) contain scanned
+    # or garbled OCR PDFs that cannot be parsed reliably.  Skip them.
+    return []
+
+
+def _parse_columnar_pdf(pdf_path: Path) -> list[dict]:
+    """Try to parse *pdf_path* as a columnar results table.
+
+    Looks for tables whose first row contains the required column headers
+    (Pos / Name / Time / Category / Gender).  This format is used by some
+    older computer-generated PDFs.
+
+    Returns an empty list when no matching tables are found.
     """
     races: list[dict] = []
 
@@ -227,18 +652,10 @@ def _parse_results_pdf(
                     )
 
                 if results:
-                    display_order = next(
-                        (
-                            i
-                            for i, kw in enumerate(_RACE_DISPLAY_ORDER)
-                            if kw.lower() in race_name.lower()
-                        ),
-                        len(races),
-                    )
                     races.append(
                         {
                             "name": race_name,
-                            "display_order": display_order,
+                            "display_order": _display_order_for_race(race_name),
                             "results": results,
                         }
                     )
@@ -289,7 +706,7 @@ def _insert_races(
                     f"{r['time']}  {r['category']}  {r['gender']}  club={r['club']!r}"
                 )
             if len(race["results"]) > 3:
-                print(f"      … and {len(race['results']) - 3} more")
+                print(f"      ... and {len(race['results']) - 3} more")
             continue
 
         race_obj = repository.create_race(
@@ -348,6 +765,22 @@ def _insert_races(
         print(f"      Inserted {inserted} new results")
 
 
+def _copy_pdf_to_uploads(pdf_path: Path, fixture_id: int) -> str:
+    """Copy a results PDF from data/original_website to data/uploads/results/{fixture_id}/.
+
+    Returns the relative path (relative to data/uploads) where the PDF was stored.
+    E.g. "results/123/20240101-Rnd1-Venue-min.pdf"
+    """
+    uploads_results_dir = _ROOT / "data" / "uploads" / "results" / str(fixture_id)
+    uploads_results_dir.mkdir(parents=True, exist_ok=True)
+
+    dest_path = uploads_results_dir / pdf_path.name
+    dest_path.write_bytes(pdf_path.read_bytes())
+
+    # Return relative path from data/uploads
+    return str(dest_path.relative_to(_ROOT / "data" / "uploads")).replace("\\", "/")
+
+
 # ---------------------------------------------------------------------------
 # Main processing
 # ---------------------------------------------------------------------------
@@ -376,7 +809,7 @@ def _process_season_dir(
     matching_pdfs = [p for p in pdf_files if _RESULTS_PDF_RE.match(p.name)]
 
     if not matching_pdfs:
-        print(f"  No per-round results PDFs found in {season_name!r} — skipping.")
+        print(f"  No per-round results PDFs found in {season_name!r} - skipping.")
         if logger:
             logger.info(
                 "season_skip",
@@ -417,7 +850,7 @@ def _process_season_dir(
             venue_display = mh.venue_name_from_filename(venue_raw)
             print(
                 f"\n  PDF: {pdf_path.name}"
-                f" → Round {round_num}, {venue_display}, {fixture_date}"
+                f" -> Round {round_num}, {venue_display}, {fixture_date}"
             )
             fixture_id = None
         else:
@@ -446,7 +879,15 @@ def _process_season_dir(
                     fixture_id=fixture_id,
                 )
 
-            print(f"\n  PDF: {pdf_path.name} → fixture_id={fixture_id}")
+            # Copy the PDF to data/uploads/results/{fixture_id}/ and store the relative path.
+            # This allows the website to serve the PDF and offer download links.
+            source_rel = _copy_pdf_to_uploads(pdf_path, fixture_id)
+            sys.path.insert(0, str(_ROOT / "src"))
+            from website import repository as _repo  # noqa: PLC0415
+
+            _repo.set_fixture_source_pdf(con, fixture_id, source_rel)
+
+            print(f"\n  PDF: {pdf_path.name} -> fixture_id={fixture_id}")
 
         try:
             races = _parse_results_pdf(pdf_path)
@@ -513,7 +954,7 @@ def main() -> None:
         sys.exit(f"Results directory not found: {_RESULTS_ROOT}")
 
     if args.dry_run:
-        print("DRY RUN — no data will be written to the database.\n")
+        print("DRY RUN - no data will be written to the database.\n")
 
     # Initialize logger for structured output
     logger = ImportLogger()

@@ -140,6 +140,7 @@ def create_test_season_with_fixtures(
     season_result = con.execute(
         "SELECT id FROM seasons WHERE name = ?", [season_name]
     ).fetchone()
+    assert season_result is not None, "Season should have been created"
     season_id = int(season_result[0])
 
     # Create fixtures
@@ -156,6 +157,7 @@ def create_test_season_with_fixtures(
             "SELECT id FROM fixtures WHERE season_id = ? AND date = ?",
             [season_id, fixture_date],
         ).fetchone()
+        assert result is not None, "Fixture should have been created"
         fixture_ids.append(int(result[0]))
 
     return season_id, fixture_ids
