@@ -63,7 +63,7 @@
       {% include "_fixture_images.html" %}
     </div>
 
-    {% if current_user and current_user.role in ('admin', 'content_creator') %}
+    {% if current_user and current_user.role in (UserRole.admin.value, UserRole.content_creator.value) %}
     <div class="d-flex gap-2 mt-3 pt-3 border-top">
       <a
         href="/fixtures/seasons/{{ fixture.season_id }}/fixtures/{{ fixture.id }}/edit"

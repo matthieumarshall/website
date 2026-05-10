@@ -11,10 +11,10 @@
 
   <dt class="col-sm-3">Account type</dt>
   <dd class="col-sm-9">
-    <span class="badge rounded-pill {% if current_user.role == 'admin' %}text-bg-primary{% else %}text-bg-secondary{% endif %}">
+    <span class="badge rounded-pill {% if current_user.role == UserRole.admin.value %}text-bg-primary{% else %}text-bg-secondary{% endif %}">
       {{ current_user.role | replace("_", " ") | title }}
     </span>
-    {% if current_user.role == 'admin' %}
+    {% if current_user.role == UserRole.admin.value %}
       <span class="ms-2 text-muted small">Full access — can create, edit, and delete any post.</span>
     {% else %}
       <span class="ms-2 text-muted small">Can create and edit your own posts.</span>
