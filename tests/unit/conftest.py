@@ -131,8 +131,6 @@ def content_creator_client(test_db: duckdb.DuckDBPyConnection) -> TestClient:  #
 # Import Testing Fixtures (for migrate_results and migrate_standings)
 # ============================================================================
 
-import pytest
-
 # Pytest markers for import tests
 
 
@@ -152,6 +150,7 @@ def sample_season(test_db: duckdb.DuckDBPyConnection) -> int:
     con = test_db
     con.execute("INSERT INTO seasons (name) VALUES (?)", ["2021-2022"])
     result = con.execute("SELECT id FROM seasons WHERE name = '2021-2022'").fetchone()
+    assert result is not None, "Season should have been created"
     return int(result[0])
 
 
@@ -173,6 +172,7 @@ def sample_fixture(test_db: duckdb.DuckDBPyConnection, sample_season: int) -> in
         "SELECT id FROM fixtures WHERE season_id = ? AND date = ?",
         [sample_season, date(2021, 1, 1)],
     ).fetchone()
+    assert result is not None, "Fixture should have been created"
     return int(result[0])
 
 
@@ -192,6 +192,7 @@ def sample_race(test_db: duckdb.DuckDBPyConnection, sample_fixture: int) -> int:
         "SELECT id FROM races WHERE fixture_id = ? AND name = ?",
         [sample_fixture, "Men"],
     ).fetchone()
+    assert result is not None, "Race should have been created"
     return int(result[0])
 
 
@@ -281,7 +282,7 @@ class TestDataGenerator:
         time: str,
         category: str,
         gender: str,
-        club: str = None,
+        club: str | None = None,
     ) -> int:
         """Create a result record and return its ID.
 

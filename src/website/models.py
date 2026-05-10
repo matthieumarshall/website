@@ -118,6 +118,9 @@ class Fixture(BaseModel):
     latitude: float | None = None
     longitude: float | None = None
     what3words: str | None = None
+    # Relative path from data/original_website/files/results/ to the source PDF,
+    # populated by the migration script.  None when no source document is available.
+    source_pdf: str | None = None
 
 
 class FixtureImage(BaseModel):

@@ -13,83 +13,186 @@
 ### Basic Import (Results + Standings)
 
 ```bash
-# Dry-run first: see what would be imported (no DB changes)
+# Step 1: Dry-run first to preview what will be imported (no database changes)
 uv run python scripts/migrate_results.py --dry-run
 uv run python scripts/migrate_standings.py --dry-run
 
-# Run the actual import
+# Step 2: Run the actual import
 uv run python scripts/migrate_results.py
 uv run python scripts/migrate_standings.py
+
+# Step 3: Verify import success
+uv run python scripts/verify_import.py  # (optional: check counts match expectations)
 ```
 
-**Expected output**:
+**Expected behavior**:
+- Each script parses PDFs and inserts into DuckDB
+- Progress logged to stdout with JSON-formatted log file
+- Log file created in `data/` directory with timestamp: `import_YYYYMMDD_HHMMSS.jsonl`
+- Example log file: `data/import_20260509_143500.jsonl`
+- Final summary printed to console:
+
 ```
-═══════════════════════════════════════════════════════════
+════════════════════════════════════════════════════════════
 Import Summary — 2026-05-09 14:35:00
-═══════════════════════════════════════════════════════════
-Results:     12,450 imported | 23 warnings
-Standings:    1,230 imported |  5 warnings
+════════════════════════════════════════════════════════════
+Stages completed: 2 (import_start, import_complete)
+By level:
+  info:     98
+  warning:  23
+  error:     0
 ─────────────────────────────────────────────────────────
-Seasons created:  12
-Fixtures created: 187
-Races created:    412
-─────────────────────────────────────────────────────────
-Duration: 3 minutes 45 seconds
-Log file: data/import_20260509_143500.log
-═══════════════════════════════════════════════════════════
+Duration: 3m 45s
+Log file: data/import_20260509_143500.jsonl
+════════════════════════════════════════════════════════════
 ```
 
 ### Import Options
 
-#### Dry-Run (Preview)
+#### Option 1: Dry-Run Mode (`--dry-run`)
+
+Preview the import without making any database changes:
+
 ```bash
-# See what would be imported without touching the database
+# Results import dry-run
 uv run python scripts/migrate_results.py --dry-run
+
+# Standings import dry-run
 uv run python scripts/migrate_standings.py --dry-run
 ```
-- No database changes
-- Parses all PDFs and prints summary
-- Useful for verifying no errors before actual import
 
-#### Force (Replace)
+**What it does**:
+- Parses all PDF files
+- Logs each record and validation issue
+- Skips all database writes (INSERT/DELETE)
+- Useful for checking for PDF parsing errors before committing to import
+
+**Example output**:
+```
+Parsing: data/original_website/files/results/1988-1989/19880115-Rnd1-Venue-min.pdf
+  Found race: "Men"
+  Found 42 results in table
+  Inserted race into database: race_id=1 (DRY-RUN: skipped DB write)
+```
+
+#### Option 2: Force Mode (`--force`)
+
+Delete all existing results/standings for a season and re-import fresh:
+
 ```bash
-# Replace existing data (delete old, insert new)
+# Force replace all existing results
 uv run python scripts/migrate_results.py --force
+
+# Force replace all existing standings
 uv run python scripts/migrate_standings.py --force
 ```
-- Deletes all existing results/standings
-- Re-imports everything fresh
-- Use if import partially failed or data was corrupted
 
-#### Specific Season
+**What it does**:
+- Deletes ALL existing results/standings for affected seasons
+- Re-imports everything fresh from PDFs
+- Useful if import partially failed or data was corrupted
+
+**⚠️ WARNING**: `--force` is destructive. Ensure you have backups or plan to re-import.
+
+#### Option 3: Season Filter (`--season YYYY-YYYY`)
+
+Import only results from a specific season:
+
 ```bash
-# Import only one season (e.g., 2021-2022)
+# Import only 2021-2022 season
 uv run python scripts/migrate_results.py --season 2021-2022
+
+# Import only 2024-2025 standings
+uv run python scripts/migrate_standings.py --season 2024-2025
 ```
-- Useful for testing or incremental imports
-- Only PDFs in `data/original_website/files/results/.../2021-2022/` are processed
+
+**What it does**:
+- Only processes PDFs in `data/original_website/files/results/YYYY-YYYY/` folder
+- Skips all other seasons
+- Useful for incremental imports or testing
+
+#### Option 4: Combine Options
+
+You can combine flags:
+
+```bash
+# Force re-import 2021-2022 season (dry-run first!)
+uv run python scripts/migrate_results.py --dry-run --force --season 2021-2022
+uv run python scripts/migrate_results.py --force --season 2021-2022
+
+# Dry-run standing for specific season
+uv run python scripts/migrate_standings.py --dry-run --season 2024-2025
+```
 
 ### Interpreting the Import Log
 
-After import completes, check the log file:
+The import script creates a **JSON-lines log file** (one JSON object per line) with detailed records.
 
+**Log file location**: `data/import_YYYYMMDD_HHMMSS.jsonl` (example: `data/import_20260509_143500.jsonl`)
+
+#### Reading the Log
+
+View the full log:
 ```bash
-# View the log
-tail -100 data/import_20260509_143500.log  # last 100 lines
-
-# Grep for warnings only
-grep '"level": "warning"' data/import_20260509_143500.log
-
-# Count issues by type
-grep '"level": "warning"' data/import_20260509_143500.log | \
-  grep -o '"issue": "[^"]*"' | sort | uniq -c
+cat data/import_20260509_143500.jsonl | python -m json.tool
 ```
 
-**Common warnings**:
-- `missing_time`: Athlete entry lacks a finish time (imported with NULL)
-- `missing_athlete_name`: Row has no name (row skipped)
-- `duplicate`: Result already in DB (row skipped unless `--force`)
-- `pdf_extract_failed`: Couldn't parse a PDF (logged but import continues)
+Find warnings only:
+```bash
+grep '"level": "warning"' data/import_20260509_143500.jsonl
+```
+
+Count issues by type:
+```bash
+# Count warnings by stage
+grep '"level": "warning"' data/import_20260509_143500.jsonl | \
+  grep -o '"stage": "[^"]*"' | sort | uniq -c
+```
+
+#### Log Entry Structure
+
+Each line is JSON with fields:
+
+```json
+{
+  "timestamp": "2026-05-09T14:35:00.123456",
+  "level": "info|warning|error",
+  "stage": "import_start|pdf_parse|result_insert|standings_validation|import_complete",
+  "message": "Human-readable message",
+  "pdf_file": "path/to/file.pdf (optional)",
+  "athlete_name": "Name (optional)",
+  "race_id": 123 (optional),
+  "position": 1 (optional),
+  "...": "...other context fields"
+}
+```
+
+**Example log entries**:
+
+```json
+{"timestamp": "2026-05-09T14:35:00.123456", "level": "info", "stage": "import_start", "message": "Starting results import", "directory": "data/original_website/files/results"}
+{"timestamp": "2026-05-09T14:35:01.123456", "level": "warning", "stage": "result_missing_field", "message": "Missing athlete_name", "pdf_file": "1988-1989/19880115-min.pdf", "race_id": 1, "position": 5}
+{"timestamp": "2026-05-09T14:35:02.123456", "level": "error", "stage": "pdf_parse_error", "message": "Could not extract table", "pdf_file": "1999-2000/invalid.pdf", "error": "No tables found"}
+{"timestamp": "2026-05-09T14:37:45.123456", "level": "info", "stage": "import_complete", "message": "Import finished", "total_records": 12450, "warnings": 23, "errors": 1, "duration_seconds": 165}
+```
+
+#### Common Warnings
+
+| Warning Type | Meaning | Action |
+|---|---|---|
+| `result_missing_field` | Missing athlete name, time, or position | Check PDF for OCR errors; recheck manually if needed |
+| `result_malformed_position` | Position is non-numeric (e.g., "DNF", "DNS") | These rows are skipped; usually acceptable |
+| `result_duplicate_skipped` | Result already in database | Re-run with `--force` if re-import needed |
+| `standings_missing_field` | Position or score missing from standings table | Check source PDF; import continues |
+| `pdf_parse_error` | Couldn't extract table from PDF | Review PDF in viewer; may be corrupt or mis-formatted |
+
+#### Common Errors
+
+| Error Type | Meaning | Action |
+|---|---|---|
+| `pdf_open_failed` | PDF file couldn't be opened | Check file exists and isn't corrupted |
+| `database_insert_failed` | DuckDB rejected the insert | Check schema matches; review constraints |
+| `season_creation_failed` | Couldn't create season record | Check if season name is valid; check DB permissions |
 
 ### Validation
 

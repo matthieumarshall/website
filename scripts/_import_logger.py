@@ -7,7 +7,7 @@ JSON-lines formatted logs, and human-readable summary reports.
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 
 class ImportLogger:
@@ -30,7 +30,7 @@ class ImportLogger:
         """
         self.log_file = log_file
         self.records: list[dict] = []
-        self.stats = {
+        self.stats: dict[str, Any] = {
             "info": 0,
             "warning": 0,
             "error": 0,

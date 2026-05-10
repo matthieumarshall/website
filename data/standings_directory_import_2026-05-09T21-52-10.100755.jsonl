@@ -1,0 +1,6 @@
+{"timestamp": "2026-05-09T21:52:10.626189", "level": "info", "stage": "standings_season_skip", "season_name": "1987-1990", "reason": "no_pdfs"}
+{"timestamp": "2026-05-09T21:52:10.626189", "level": "info", "stage": "standings_season_skip", "season_name": "1990-2000", "reason": "no_pdfs"}
+{"timestamp": "2026-05-09T21:52:10.626189", "level": "info", "stage": "standings_season_skip", "season_name": "2000-2010", "reason": "no_pdfs"}
+{"timestamp": "2026-05-09T21:52:10.626189", "level": "info", "stage": "standings_season_skip", "season_name": "2010-2020", "reason": "no_pdfs"}
+{"timestamp": "2026-05-09T21:52:10.626189", "level": "info", "stage": "standings_season_skip", "season_name": "2020-2030", "reason": "no_pdfs"}
+{"timestamp": "2026-05-09T21:52:10.626189", "level": "info", "stage": "standings_directory_complete", "total_processed": 0}

@@ -22,8 +22,8 @@ _SCRIPTS = _ROOT / "scripts"
 sys.path.insert(0, str(_SCRIPTS))
 
 # Import migration helpers and logger
-from _import_logger import ImportLogger  # noqa: E402
-from _migration_helpers import (  # noqa: E402
+from _import_logger import ImportLogger  # noqa: E402, type: ignore
+from _migration_helpers import (  # noqa: E402, type: ignore
     create_fixture_if_missing,
     create_season_if_missing,
     result_exists,
@@ -93,6 +93,7 @@ def create_test_season_with_fixtures(
     season_result = con.execute(
         "SELECT id FROM seasons WHERE name = ?", [season_name]
     ).fetchone()
+    assert season_result is not None
     season_id = int(season_result[0])
 
     # Create fixtures
@@ -461,7 +462,7 @@ def test_dry_run_mode_no_database_writes(
     race_result = test_db.execute(
         "SELECT id FROM races WHERE fixture_id = ?", [fixture_id]
     ).fetchone()
-    race_id = int(race_result[0])
+    assert race_result is not None
 
     # Get count BEFORE
     before_count = count_records(test_db, "results")

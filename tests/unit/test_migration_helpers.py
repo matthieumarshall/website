@@ -15,7 +15,7 @@ from pathlib import Path
 
 _ROOT = Path(__file__).parent.parent.parent / "scripts"
 sys.path.insert(0, str(_ROOT))
-from _migration_helpers import (  # noqa: E402
+from _migration_helpers import (  # noqa: E402, type: ignore
     create_fixture_if_missing,
     create_season_if_missing,
     fixture_exists,
