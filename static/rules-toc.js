@@ -12,20 +12,20 @@
 
   headings.forEach(function (heading) {
     const text = heading.textContent.trim();
-    let base = text
+    const slug = text
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "");
-    if (!base) base = "section";
+    let uniqueSlug = slug || "section";
 
-    if (slugCount[base] === undefined) {
-      slugCount[base] = 0;
+    if (slugCount[uniqueSlug] === undefined) {
+      slugCount[uniqueSlug] = 0;
     } else {
-      slugCount[base] += 1;
-      base = base + "-" + slugCount[base];
+      slugCount[uniqueSlug] += 1;
+      uniqueSlug = uniqueSlug + "-" + slugCount[uniqueSlug];
     }
 
-    if (!heading.id) heading.id = base;
+    if (!heading.id) heading.id = uniqueSlug;
 
     tocLists.forEach(function (tocList) {
       const li = document.createElement("li");

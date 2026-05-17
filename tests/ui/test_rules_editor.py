@@ -160,7 +160,7 @@ class TestRulesEditor:
         assert toggle_button.is_visible(), "Mobile contents toggle is not visible"
 
         toggle_button.click()
-        admin_browser.wait_for_timeout(400)
 
         toc_link = admin_browser.locator("#toc-list-mobile a", has_text="League Rules")
+        toc_link.wait_for(state="visible")
         assert toc_link.is_visible(), "Mobile contents list did not render headings"
