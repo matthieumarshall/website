@@ -215,6 +215,25 @@
     }
   });
 
+  // Fixture-tab active state: the fixture button bar lives outside #race-panel
+  // and is not replaced when HTMX swaps that element.  Update the active class
+  // manually after each fixture tab click so the dark-grey indicator follows
+  // the selected round.
+  document.addEventListener("htmx:afterSwap", function (evt) {
+    if (!evt.detail || !evt.detail.target) return;
+    if (evt.detail.target.id !== "race-panel") return;
+    var btn = evt.detail.elt;
+    if (!btn || btn.dataset.fixtureTab !== "true") return;
+    var group = btn.closest('[role="group"]');
+    if (!group) return;
+    group.querySelectorAll(".btn").forEach(function (b) {
+      b.classList.remove("active");
+      b.setAttribute("aria-pressed", "false");
+    });
+    btn.classList.add("active");
+    btn.setAttribute("aria-pressed", "true");
+  });
+
   // Initial page load
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);

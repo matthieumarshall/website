@@ -142,6 +142,33 @@ def server_process():
         gender_position=1,
         club="Abingdon AC",
     )
+    # Seed a second fixture so fixture-tab active-state tests can switch rounds
+    fixture2 = repository.create_fixture(
+        con,
+        season_id=season.id,
+        title="UI Test Fixture 2",
+        date="2026-07-01",
+        location_name="Test Venue 2",
+        address="2 Test Road",
+        timetable=[],
+        travel_instructions="",
+    )
+    race2 = repository.create_race(
+        con, fixture2.id, "Senior Men Race 2", display_order=1
+    )
+    repository.create_result(
+        con,
+        race_id=race2.id,
+        position=1,
+        athlete_name="Charlie Brown",
+        time="33:00",
+        category="Senior Men",
+        gender="M",
+        race_number=301,
+        category_position=1,
+        gender_position=1,
+        club="Oxford City AC",
+    )
     con.close()
 
     # Start uvicorn server in test mode
