@@ -52,34 +52,33 @@ jobs:
 
       # ------------------------------------------------------------------
       # Check whether the VPS is already on the latest commit of main.
+      # github.sha is the SHA that triggered this workflow run — the commit
+      # we want to deploy.  We compare it against the VPS's current HEAD
+      # without requiring the VPS to reach GitHub itself.
       # If nothing has changed since the last deploy, skip the rest and
       # write a clear message to the step summary.
       # ------------------------------------------------------------------
       - name: Check for new commits to deploy
         id: check
         run: |
-          REMOTE_HEAD=$(ssh \
+          LATEST_SHA="${{ github.sha }}"
+
+          DEPLOYED_SHA=$(ssh \
             -i ~/.ssh/deploy_key \
             -o BatchMode=yes \
             "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
-            "cd ~/website && git fetch --quiet origin main && git rev-parse HEAD")
+            "cd ~/website && git rev-parse HEAD")
 
-          ORIGIN_HEAD=$(ssh \
-            -i ~/.ssh/deploy_key \
-            -o BatchMode=yes \
-            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
-            "cd ~/website && git rev-parse origin/main")
+          echo "deployed=$DEPLOYED_SHA"
+          echo "latest=$LATEST_SHA"
 
-          echo "deployed=$REMOTE_HEAD"
-          echo "latest=$ORIGIN_HEAD"
-
-          if [ "$REMOTE_HEAD" = "$ORIGIN_HEAD" ]; then
+          if [ "$DEPLOYED_SHA" = "$LATEST_SHA" ]; then
             echo "skip=true"  >> "$GITHUB_OUTPUT"
-            echo "deployed=$REMOTE_HEAD" >> "$GITHUB_OUTPUT"
+            echo "deployed=$DEPLOYED_SHA" >> "$GITHUB_OUTPUT"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
-            echo "deployed=$REMOTE_HEAD" >> "$GITHUB_OUTPUT"
-            echo "latest=$ORIGIN_HEAD"   >> "$GITHUB_OUTPUT"
+            echo "deployed=$DEPLOYED_SHA" >> "$GITHUB_OUTPUT"
+            echo "latest=$LATEST_SHA"     >> "$GITHUB_OUTPUT"
           fi
 
       - name: Skip — nothing to deploy
