@@ -12,11 +12,11 @@
 
   headings.forEach(function (heading) {
     const text = heading.textContent.trim();
-    const slug = text
+    const baseSlug = text
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "");
-    let uniqueSlug = slug || "section";
+    let uniqueSlug = baseSlug || "section";
 
     if (slugCount[uniqueSlug] === undefined) {
       slugCount[uniqueSlug] = 0;
