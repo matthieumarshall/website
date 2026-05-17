@@ -16,16 +16,16 @@
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "");
-    let uniqueSlug = baseSlug || "section";
+    let currentSlug = baseSlug || "section";
 
-    if (slugCount[uniqueSlug] === undefined) {
-      slugCount[uniqueSlug] = 0;
+    if (slugCount[currentSlug] === undefined) {
+      slugCount[currentSlug] = 0;
     } else {
-      slugCount[uniqueSlug] += 1;
-      uniqueSlug = uniqueSlug + "-" + slugCount[uniqueSlug];
+      slugCount[currentSlug] += 1;
+      currentSlug = currentSlug + "-" + slugCount[currentSlug];
     }
 
-    if (!heading.id) heading.id = uniqueSlug;
+    if (!heading.id) heading.id = currentSlug;
 
     tocLists.forEach(function (tocList) {
       const li = document.createElement("li");
