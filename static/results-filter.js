@@ -217,13 +217,12 @@
 
   // Fixture-tab active state: the fixture button bar lives outside #race-panel
   // and is not replaced when HTMX swaps that element.  Update the active class
-  // manually after each fixture tab click so the dark-grey indicator follows
-  // the selected round.
-  document.addEventListener("htmx:afterSwap", function (evt) {
-    if (!evt.detail || !evt.detail.target) return;
-    if (evt.detail.target.id !== "race-panel") return;
-    var btn = evt.detail.elt;
-    if (!btn || btn.dataset.fixtureTab !== "true") return;
+  // via a click listener rather than htmx:afterSwap so we are not dependent on
+  // HTMX version-specific event detail shapes (HTMX 2.x fires afterSwap on the
+  // swapped children, not on the trigger, so evt.detail.elt is unreliable).
+  document.addEventListener("click", function (evt) {
+    var btn = evt.target.closest("[data-fixture-tab]");
+    if (!btn) return;
     var group = btn.closest('[role="group"]');
     if (!group) return;
     group.querySelectorAll(".btn").forEach(function (b) {
