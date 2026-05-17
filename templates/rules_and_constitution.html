@@ -12,12 +12,12 @@
     overflow-y: auto;
     font-size: 0.875rem;
   }
-  #toc-list {
+  .toc-list {
     list-style: none;
     padding-left: 0;
     margin: 0;
   }
-  #toc-list li a {
+  .toc-list li a {
     display: block;
     padding: 0.2rem 0.4rem;
     color: var(--bs-body-color);
@@ -25,14 +25,14 @@
     border-left: 2px solid transparent;
     line-height: 1.3;
   }
-  #toc-list li a:hover,
-  #toc-list li a.active {
+  .toc-list li a:hover,
+  .toc-list li a.active {
     color: var(--bs-primary);
     border-left-color: var(--bs-primary);
     background: rgba(0, 0, 0, 0.04);
   }
-  #toc-list li.toc-h2 { padding-left: 0.75rem; }
-  #toc-list li.toc-h3 { padding-left: 1.5rem; }
+  .toc-list li.toc-h2 { padding-left: 0.75rem; }
+  .toc-list li.toc-h3 { padding-left: 1.5rem; }
 
   /* Rules content typography */
   #rules-content h1 { font-size: 1.5rem; margin-top: 2rem; }
@@ -78,6 +78,26 @@
   </div>
 </div>
 
+{% if content %}
+<div class="d-lg-none mb-3">
+  <button
+    class="btn btn-outline-secondary w-100 text-start"
+    type="button"
+    data-bs-toggle="collapse"
+    data-bs-target="#toc-collapse-mobile"
+    aria-expanded="false"
+    aria-controls="toc-collapse-mobile"
+  >
+    📋 Contents
+  </button>
+  <div class="collapse mt-2" id="toc-collapse-mobile">
+    <nav class="border rounded p-3 bg-body-tertiary" aria-label="Page contents">
+      <ul id="toc-list-mobile" class="toc-list mb-0"></ul>
+    </nav>
+  </div>
+</div>
+{% endif %}
+
 <div class="row g-4">
   {# Main content column #}
   <div class="col-lg-9">
@@ -93,13 +113,15 @@
     {% endif %}
   </div>
 
-  {# Sticky TOC sidebar — hidden on mobile #}
+  {% if content %}
+  {# Sticky TOC sidebar — shown on desktop #}
   <div class="col-lg-3 d-none d-lg-block">
     <nav id="toc" aria-label="Page contents">
       <h6 class="text-muted text-uppercase fw-semibold mb-2" style="font-size:0.75rem;letter-spacing:.05em;">Contents</h6>
-      <ul id="toc-list"></ul>
+      <ul id="toc-list-desktop" class="toc-list"></ul>
     </nav>
   </div>
+  {% endif %}
 </div>
 
 {% endblock %}

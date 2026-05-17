@@ -1,18 +1,18 @@
 "use strict";
 
 (function () {
-  var content = document.getElementById("rules-content");
-  var tocList = document.getElementById("toc-list");
-  if (!content || !tocList) return;
+  const content = document.getElementById("rules-content");
+  const tocLists = document.querySelectorAll(".toc-list");
+  if (!content || tocLists.length === 0) return;
 
-  var headings = content.querySelectorAll("h1, h2, h3");
+  const headings = content.querySelectorAll("h1, h2, h3");
   if (headings.length === 0) return;
 
-  var slugCount = {};
+  const slugCount = {};
 
   headings.forEach(function (heading) {
-    var text = heading.textContent.trim();
-    var base = text
+    const text = heading.textContent.trim();
+    let base = text
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "");
@@ -27,31 +27,39 @@
 
     if (!heading.id) heading.id = base;
 
-    var li = document.createElement("li");
-    li.className = "toc-" + heading.tagName.toLowerCase();
+    tocLists.forEach(function (tocList) {
+      const li = document.createElement("li");
+      li.className = "toc-" + heading.tagName.toLowerCase();
 
-    var a = document.createElement("a");
-    a.href = "#" + heading.id;
-    a.textContent = text;
-    li.appendChild(a);
-    tocList.appendChild(li);
+      const a = document.createElement("a");
+      a.href = "#" + heading.id;
+      a.textContent = text;
+      li.appendChild(a);
+      tocList.appendChild(li);
+    });
   });
 
   if (!("IntersectionObserver" in window)) return;
 
-  var links = tocList.querySelectorAll("a");
-  var observer = new IntersectionObserver(
+  const observer = new IntersectionObserver(
     function (entries) {
       entries.forEach(function (entry) {
         if (entry.isIntersecting) {
-          links.forEach(function (l) { l.classList.remove("active"); });
-          var active = tocList.querySelector("a[href='#" + entry.target.id + "']");
-          if (active) active.classList.add("active");
+          document.querySelectorAll(".toc-list a").forEach(function (link) {
+            link.classList.remove("active");
+          });
+          document
+            .querySelectorAll(".toc-list a[href='#" + entry.target.id + "']")
+            .forEach(function (activeLink) {
+              activeLink.classList.add("active");
+            });
         }
       });
     },
     { rootMargin: "0px 0px -60% 0px" }
   );
 
-  headings.forEach(function (h) { observer.observe(h); });
+  headings.forEach(function (heading) {
+    observer.observe(heading);
+  });
 })();
