@@ -131,11 +131,21 @@ class TestPublicPageRoutes:
 
         response = test_client.get("/rules-and-constitution")
 
-        assert 'class="d-lg-none mb-3"' in response.text
-        assert 'data-bs-target="#toc-collapse-mobile"' in response.text
-        assert 'id="toc-list-mobile"' in response.text
-        assert 'class="col-lg-3 d-none d-lg-block"' in response.text
-        assert 'id="toc-list-desktop"' in response.text
+        assert re.search(
+            r'<button[^>]+data-bs-target="#toc-collapse-mobile"', response.text
+        )
+        assert re.search(
+            r'<ul[^>]+id="toc-list-mobile"[^>]+class="[^"]*\btoc-list\b',
+            response.text,
+        )
+        assert re.search(
+            r'<div[^>]+class="[^"]*\bcol-lg-3\b[^"]*\bd-none\b[^"]*\bd-lg-block\b',
+            response.text,
+        )
+        assert re.search(
+            r'<ul[^>]+id="toc-list-desktop"[^>]+class="[^"]*\btoc-list\b',
+            response.text,
+        )
 
     def test_all_public_pages_return_html(self, test_client: TestClient) -> None:
         for _, route in self._pages:
