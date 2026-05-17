@@ -22,8 +22,8 @@ _SCRIPTS = _ROOT / "scripts"
 sys.path.insert(0, str(_SCRIPTS))
 
 # Import migration helpers and logger
-from _import_logger import ImportLogger  # noqa: E402, type: ignore
-from _migration_helpers import (  # noqa: E402, type: ignore
+from _import_logger import ImportLogger  # type: ignore  # noqa: E402
+from _migration_helpers import (  # type: ignore  # noqa: E402
     create_fixture_if_missing,
     create_season_if_missing,
     result_exists,
@@ -110,6 +110,7 @@ def create_test_season_with_fixtures(
             "SELECT id FROM fixtures WHERE season_id = ? AND date = ?",
             [season_id, fixture_date],
         ).fetchone()
+        assert result is not None
         fixture_ids.append(int(result[0]))
 
     return season_id, fixture_ids
@@ -135,6 +136,7 @@ def test_parse_valid_result_table(test_db: duckdb.DuckDBPyConnection) -> None:
         "SELECT id FROM races WHERE fixture_id = ? AND name = ?",
         [fixture_id, "Men"],
     ).fetchone()
+    assert race_result is not None
     race_id = int(race_result[0])
 
     # Simulate parsed PDF data
@@ -187,6 +189,7 @@ def test_parse_result_with_missing_columns(test_db: duckdb.DuckDBPyConnection) -
         "SELECT id FROM races WHERE fixture_id = ? AND name = ?",
         [fixture_id, "Men"],
     ).fetchone()
+    assert race_result is not None
     race_id = int(race_result[0])
 
     # Insert result with minimal fields (no club, race_number, etc.)
@@ -317,6 +320,7 @@ def test_result_insertion_with_null_values(test_db: duckdb.DuckDBPyConnection) -
     race_result = test_db.execute(
         "SELECT id FROM races WHERE fixture_id = ?", [fixture_id]
     ).fetchone()
+    assert race_result is not None
     race_id = int(race_result[0])
 
     # Insert result with NULLs for optional fields
@@ -359,6 +363,7 @@ def test_deduplication_skip_existing_result(
     race_result = test_db.execute(
         "SELECT id FROM races WHERE fixture_id = ?", [fixture_id]
     ).fetchone()
+    assert race_result is not None
     race_id = int(race_result[0])
 
     # Insert first result
@@ -408,6 +413,7 @@ def test_force_flag_replaces_existing_results(
     race_result = test_db.execute(
         "SELECT id FROM races WHERE fixture_id = ?", [fixture_id]
     ).fetchone()
+    assert race_result is not None
     race_id = int(race_result[0])
 
     # Insert initial result
@@ -585,6 +591,7 @@ def test_full_import_workflow_results(test_db: duckdb.DuckDBPyConnection) -> Non
             "SELECT id FROM races WHERE fixture_id = ? AND name = ?",
             [fixture_id, "Men"],
         ).fetchone()
+        assert race_result is not None
         race_id = int(race_result[0])
 
         for result_row in sample_data:
