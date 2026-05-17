@@ -8,6 +8,7 @@ applyTo: "**/*.py"
 ## Style & Formatting
 
 - **Formatter / linter**: `ruff` — enforced by pre-commit. Never disable a rule without a comment explaining why.
+- **E402 (import order)**: any non-import statement at module level (including side-effectful calls like `mimetypes.add_type()`) causes all subsequent `import` statements to trigger E402. Place all module-level side-effects **after** the last import.
 - All functions and methods must have **type hints** on every parameter and the return type.
 - Use `snake_case` for functions and variables, `PascalCase` for classes.
 - Maximum line length: 88 characters (ruff default).

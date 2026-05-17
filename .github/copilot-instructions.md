@@ -92,6 +92,21 @@ Start the dev server:
 uv run uvicorn website.main:app --reload
 ```
 
+## Hosting & Deployment
+
+The production site runs on a Fasthosts VPS (Ubuntu). Key facts:
+
+| Property | Value |
+|---|---|
+| **SSH alias** | `vps` (configured in `~/.ssh/config`) |
+| **App directory** | `/home/manager/website` |
+| **Process manager** | systemd service named `oxcross` |
+| **Reverse proxy** | nginx → uvicorn on `127.0.0.1:8000` |
+| **TLS** | certbot (Let's Encrypt) |
+| **Domain** | `oxfordshirexcleague.uk` via Cloudflare |
+
+Use the **vps** skill for step-by-step guidance on deploying, checking logs, restarting the service, applying migrations, and transferring files.
+
 ## Conventions
 
 - Keep routes thin: validate input → call a service/helper → return a response.
