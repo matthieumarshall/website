@@ -5,6 +5,7 @@ import re
 import duckdb
 from fastapi.testclient import TestClient
 
+from website import repository
 from website.helpers import SIDEBAR_ITEMS
 
 
@@ -116,6 +117,25 @@ class TestPublicPageRoutes:
 
     def test_rules_and_constitution_page_loads(self, test_client: TestClient) -> None:
         assert test_client.get("/rules-and-constitution").status_code == 200
+
+    def test_rules_and_constitution_renders_mobile_and_desktop_toc_targets(
+        self,
+        test_client: TestClient,
+        test_db: duckdb.DuckDBPyConnection,
+    ) -> None:
+        repository.upsert_static_page(
+            test_db,
+            "rules-and-constitution",
+            "<h1>League Rules</h1><h2>Eligibility</h2><p>Details</p>",
+        )
+
+        response = test_client.get("/rules-and-constitution")
+
+        assert 'class="d-lg-none mb-3"' in response.text
+        assert 'data-bs-target="#toc-collapse-mobile"' in response.text
+        assert 'id="toc-list-mobile"' in response.text
+        assert 'class="col-lg-3 d-none d-lg-block"' in response.text
+        assert 'id="toc-list-desktop"' in response.text
 
     def test_all_public_pages_return_html(self, test_client: TestClient) -> None:
         for _, route in self._pages:
