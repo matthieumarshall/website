@@ -1,5 +1,6 @@
 import json
 import logging
+import mimetypes
 import os
 import uuid
 from contextlib import asynccontextmanager
@@ -58,6 +59,12 @@ from website.export import (
     build_rules_pdf,
     filter_results as filter_race_results,
 )
+
+# Ensure .js/.css files are served with correct MIME types regardless of the OS
+# registry. Python's mimetypes module reads from the Windows registry and can
+# return text/plain for .js, causing browsers to refuse script execution.
+mimetypes.add_type("application/javascript", ".js")
+mimetypes.add_type("text/css", ".css")
 
 _logger = logging.getLogger(__name__)
 
