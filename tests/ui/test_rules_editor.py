@@ -132,3 +132,35 @@ class TestRulesEditor:
         assert "Test rules content from Playwright." in page_text, (
             "Saved content not visible on view page"
         )
+
+    def test_mobile_contents_toggle_shows_generated_toc(self, admin_browser: Page):
+        """Mobile users can expand the contents list on the rules page."""
+        admin_browser.goto("http://localhost:8000/rules-and-constitution/edit")
+        admin_browser.wait_for_load_state("networkidle")
+
+        admin_browser.evaluate(
+            """
+            () => {
+              const html = "<h1>League Rules</h1><h2>Eligibility</h2><p>Details</p>";
+              document.querySelector(".ql-editor").innerHTML = html;
+              document.getElementById("rules-content-input").value = html;
+            }
+            """
+        )
+
+        admin_browser.locator("#rules-form button[type='submit']").click()
+        admin_browser.wait_for_load_state("networkidle")
+        admin_browser.set_viewport_size({"width": 375, "height": 667})
+        admin_browser.reload()
+        admin_browser.wait_for_load_state("networkidle")
+
+        toggle_button = admin_browser.locator(
+            "button[data-bs-target='#toc-collapse-mobile']"
+        )
+        assert toggle_button.is_visible(), "Mobile contents toggle is not visible"
+
+        toggle_button.click()
+        admin_browser.wait_for_timeout(400)
+
+        toc_link = admin_browser.locator("#toc-list-mobile a", has_text="League Rules")
+        assert toc_link.is_visible(), "Mobile contents list did not render headings"
