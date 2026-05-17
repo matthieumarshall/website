@@ -17,8 +17,8 @@ _ROOT = Path(__file__).parent.parent.parent
 _SCRIPTS = _ROOT / "scripts"
 sys.path.insert(0, str(_SCRIPTS))
 
-from _import_logger import ImportLogger  # noqa: E402, type: ignore
-from _migration_helpers import (  # noqa: E402, type: ignore
+from _import_logger import ImportLogger  # type: ignore  # noqa: E402
+from _migration_helpers import (  # type: ignore  # noqa: E402
     create_fixture_if_missing,
     create_season_if_missing,
     result_exists,
@@ -54,6 +54,7 @@ def test_warning_logged_for_missing_athlete_name(
     race_result = test_db.execute(
         "SELECT id FROM races WHERE fixture_id = ?", [fixture_id]
     ).fetchone()
+    assert race_result is not None
     race_id = int(race_result[0])
 
     # Log warning for missing athlete name
@@ -92,6 +93,7 @@ def test_warning_logged_for_missing_time_value(
     race_result = test_db.execute(
         "SELECT id FROM races WHERE fixture_id = ?", [fixture_id]
     ).fetchone()
+    assert race_result is not None
     race_id = int(race_result[0])
 
     logger.warning(
@@ -199,6 +201,7 @@ def test_duplicate_result_detection_with_warning(
     race_result = test_db.execute(
         "SELECT id FROM races WHERE fixture_id = ?", [fixture_id]
     ).fetchone()
+    assert race_result is not None
     race_id = int(race_result[0])
 
     # Insert a result
@@ -307,6 +310,7 @@ def test_full_import_with_quality_issues_logs_all_warnings(
     race_result = test_db.execute(
         "SELECT id FROM races WHERE fixture_id = ?", [fixture_id]
     ).fetchone()
+    assert race_result is not None
     race_id = int(race_result[0])
 
     # Simulate various quality issues during import

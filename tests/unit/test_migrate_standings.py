@@ -24,8 +24,8 @@ _SCRIPTS = _ROOT / "scripts"
 sys.path.insert(0, str(_SCRIPTS))
 
 # Import migration helpers and logger
-from _import_logger import ImportLogger  # noqa: E402, type: ignore
-from _migration_helpers import (  # noqa: E402, type: ignore
+from _import_logger import ImportLogger  # type: ignore  # noqa: E402
+from _migration_helpers import (  # type: ignore  # noqa: E402
     create_season_if_missing,
 )
 
@@ -105,6 +105,7 @@ def create_test_season_with_fixtures(
     season_result = con.execute(
         "SELECT id FROM seasons WHERE name = ?", [season_name]
     ).fetchone()
+    assert season_result is not None
     season_id = int(season_result[0])
 
     # Create fixtures
@@ -121,6 +122,7 @@ def create_test_season_with_fixtures(
             "SELECT id FROM fixtures WHERE season_id = ? AND date = ?",
             [season_id, fixture_date],
         ).fetchone()
+        assert result is not None
         fixture_ids.append(int(result[0]))
 
     return season_id, fixture_ids
@@ -290,12 +292,14 @@ def test_standings_insertion_with_null_fields(
         "SELECT club FROM individual_standings WHERE athlete_name = ?",
         ["Bob Wilson"],
     ).fetchone()
+    assert ind_row is not None
     assert ind_row[0] is None, "Club should be NULL"
 
     team_row = test_db.execute(
         "SELECT team_label FROM team_standings WHERE team_name = ?",
         ["Team C"],
     ).fetchone()
+    assert team_row is not None
     assert team_row[0] is None, "Team label should be NULL"
 
 
@@ -391,6 +395,7 @@ def test_force_flag_replaces_standings(test_db: duckdb.DuckDBPyConnection) -> No
         "SELECT athlete_name FROM individual_standings WHERE season_id = ?",
         [season_id],
     ).fetchone()
+    assert row is not None
     assert row[0] == "New Athlete", "Should have new athlete after force"
 
 
@@ -452,12 +457,14 @@ def test_is_imported_flag_on_standings_insert(
         "SELECT is_imported FROM individual_standings WHERE season_id = ?",
         [season_id],
     ).fetchone()
+    assert ind_row is not None
     assert ind_row[0] is True
 
     team_row = test_db.execute(
         "SELECT is_imported FROM team_standings WHERE season_id = ?",
         [season_id],
     ).fetchone()
+    assert team_row is not None
     assert team_row[0] is True
 
 
@@ -540,18 +547,22 @@ def test_full_standings_import_workflow(test_db: duckdb.DuckDBPyConnection) -> N
     assert team_count == 2, f"Should have 2 team standings, got {team_count}"
 
     # Verify all have is_imported=true
-    imported_ind = test_db.execute(
+    _ind_result = test_db.execute(
         "SELECT COUNT(*) FROM individual_standings "
         "WHERE season_id = ? AND is_imported = true",
         [season_id],
-    ).fetchone()[0]
+    ).fetchone()
+    assert _ind_result is not None
+    imported_ind = _ind_result[0]
     assert imported_ind == 3
 
-    imported_team = test_db.execute(
+    _team_result = test_db.execute(
         "SELECT COUNT(*) FROM team_standings "
         "WHERE season_id = ? AND is_imported = true",
         [season_id],
-    ).fetchone()[0]
+    ).fetchone()
+    assert _team_result is not None
+    imported_team = _team_result[0]
     assert imported_team == 2
 
     # Log summary

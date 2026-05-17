@@ -15,7 +15,7 @@ from pathlib import Path
 
 _ROOT = Path(__file__).parent.parent.parent / "scripts"
 sys.path.insert(0, str(_ROOT))
-from _migration_helpers import (  # noqa: E402, type: ignore
+from _migration_helpers import (  # type: ignore  # noqa: E402
     create_fixture_if_missing,
     create_season_if_missing,
     fixture_exists,
@@ -178,6 +178,7 @@ def test_result_exists_returns_true_for_existing_result(
         "SELECT id FROM races WHERE fixture_id = ? AND name = ?",
         [fixture_id, "Men"],
     ).fetchone()
+    assert result is not None
     race_id = int(result[0])
 
     # Insert a result
@@ -210,6 +211,7 @@ def test_result_exists_returns_false_for_missing_result(
         "SELECT id FROM races WHERE fixture_id = ? AND name = ?",
         [fixture_id, "Men"],
     ).fetchone()
+    assert result is not None
     race_id = int(result[0])
 
     # Result should not exist
@@ -235,6 +237,7 @@ def test_result_exists_deduplicates_by_athlete_and_time(
         "SELECT id FROM races WHERE fixture_id = ? AND name = ?",
         [fixture_id, "Men"],
     ).fetchone()
+    assert result is not None
     race_id = int(result[0])
 
     # Insert multiple results with same athlete but different times
@@ -279,6 +282,7 @@ def test_full_workflow_create_season_fixture_results(
     race = test_db.execute(
         "SELECT id FROM races WHERE fixture_id = ?", [fixture_id]
     ).fetchone()
+    assert race is not None
     race_id = int(race[0])
 
     # Insert results
