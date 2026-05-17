@@ -93,32 +93,32 @@ This feature imports ~40 years of historical results and standings from legacy P
 
 ### Tests for User Story 2
 
-- [ ] T040 [P] [US2] Unit test: PDF parsing with individual standings table in `tests/unit/test_migrate_standings.py`
-- [ ] T041 [P] [US2] Unit test: PDF parsing with team standings table (extract team_label A/B/C) in `tests/unit/test_migrate_standings.py`
-- [ ] T042 [P] [US2] Unit test: Standings insertion with NULL optional fields in `tests/unit/test_migrate_standings.py`
-- [ ] T043 [P] [US2] Unit test: Category heading parsing from PDF text (infer from section title) in `tests/unit/test_migrate_standings.py`
-- [ ] T044 [P] [US2] Unit test: `--force` flag deletes + re-imports all standings for season in `tests/unit/test_migrate_standings.py`
-- [ ] T045 [P] [US2] Unit test: `--dry-run` mode parses standings without DB writes in `tests/unit/test_migrate_standings.py`
-- [ ] T046 [P] [US2] Unit test: is_imported flag correctly set to true on import in `tests/unit/test_migrate_standings.py`
-- [ ] T047 [US2] Integration test: Full standings import workflow (parse directory, auto-create season, insert standings) in `tests/unit/test_migrate_standings.py`
-- [ ] T048 [US2] UI test: After import, `/standings` page displays historical season in season dropdown in `tests/ui/test_historical_results_browsing.py`
-- [ ] T049 [US2] UI test: `/standings?season_id=X` displays individual standings for historical season in `tests/ui/test_historical_results_browsing.py`
-- [ ] T050 [US2] UI test: Team standings visible when available (2024-25, 2025-26 seasons) in `tests/ui/test_historical_results_browsing.py`
+- [X] T040 [P] [US2] Unit test: PDF parsing with individual standings table in `tests/unit/test_migrate_standings.py`
+- [X] T041 [P] [US2] Unit test: PDF parsing with team standings table (extract team_label A/B/C) in `tests/unit/test_migrate_standings.py`
+- [X] T042 [P] [US2] Unit test: Standings insertion with NULL optional fields in `tests/unit/test_migrate_standings.py`
+- [X] T043 [P] [US2] Unit test: Category heading parsing from PDF text (infer from section title) in `tests/unit/test_migrate_standings.py`
+- [X] T044 [P] [US2] Unit test: `--force` flag deletes + re-imports all standings for season in `tests/unit/test_migrate_standings.py`
+- [X] T045 [P] [US2] Unit test: `--dry-run` mode parses standings without DB writes in `tests/unit/test_migrate_standings.py`
+- [X] T046 [P] [US2] Unit test: is_imported flag correctly set to true on import in `tests/unit/test_migrate_standings.py`
+- [X] T047 [US2] Integration test: Full standings import workflow (parse directory, auto-create season, insert standings) in `tests/unit/test_migrate_standings.py`
+- [X] T048 [US2] UI test: After import, `/standings` page displays historical season in season dropdown in `tests/ui/test_historical_results_browsing.py`
+- [X] T049 [US2] UI test: `/standings?season_id=X` displays individual standings for historical season in `tests/ui/test_historical_results_browsing.py`
+- [X] T050 [US2] UI test: Team standings visible when available (2024-25, 2025-26 seasons) in `tests/ui/test_historical_results_browsing.py`
 
 ### Implementation for User Story 2
 
-- [ ] T051 [P] [US2] Enhance `scripts/migrate_standings.py`: Add `--force` flag argument parsing
-- [ ] T052 [P] [US2] Enhance `scripts/migrate_standings.py`: Add `--dry-run` flag argument parsing
-- [ ] T053 [US2] Enhance `scripts/migrate_standings.py`: Integrate ImportLogger for structured logging
-- [ ] T054 [US2] Enhance `scripts/migrate_standings.py`: Auto-create season if missing (call `create_season_if_missing()`)
-- [ ] T055 [US2] Enhance `scripts/migrate_standings.py`: On `--force`, delete all standings for (season_id, category) before re-importing
-- [ ] T056 [US2] Enhance `scripts/migrate_standings.py`: Parse team standings and extract team_label (A/B/C) from team name in `scripts/migrate_standings.py`
-- [ ] T057 [US2] Enhance `scripts/migrate_standings.py`: Set `is_imported=true` flag on all inserted standings rows
-- [ ] T058 [US2] Enhance `scripts/migrate_standings.py`: Handle missing/malformed fields (NULL values, log warnings)
-- [ ] T059 [US2] Enhance `scripts/migrate_standings.py`: Implement `--dry-run` mode (parse PDFs, log, skip DB writes)
-- [ ] T060 [US2] Enhance `scripts/migrate_standings.py`: Add type hints to all functions
-- [ ] T061 [US2] Enhance `scripts/migrate_standings.py`: Add docstrings to public functions
-- [ ] T062 [P] [US2] Update usage docstring in `scripts/migrate_standings.py` with new CLI options
+- [X] T051 [P] [US2] Enhance `scripts/migrate_standings.py`: Add `--force` flag argument parsing
+- [X] T052 [P] [US2] Enhance `scripts/migrate_standings.py`: Add `--dry-run` flag argument parsing
+- [X] T053 [US2] Enhance `scripts/migrate_standings.py`: Integrate ImportLogger for structured logging
+- [X] T054 [US2] Enhance `scripts/migrate_standings.py`: Auto-create season if missing (call `create_season_if_missing()`)
+- [X] T055 [US2] Enhance `scripts/migrate_standings.py`: On `--force`, delete all standings for (season_id, category) before re-importing
+- [X] T056 [US2] Enhance `scripts/migrate_standings.py`: Parse team standings and extract team_label (A/B/C) from team name in `scripts/migrate_standings.py`
+- [X] T057 [US2] Enhance `scripts/migrate_standings.py`: Set `is_imported=true` flag on all inserted standings rows
+- [X] T058 [US2] Enhance `scripts/migrate_standings.py`: Handle missing/malformed fields (NULL values, log warnings)
+- [X] T059 [US2] Enhance `scripts/migrate_standings.py`: Implement `--dry-run` mode (parse PDFs, log, skip DB writes)
+- [X] T060 [US2] Enhance `scripts/migrate_standings.py`: Add type hints to all functions
+- [X] T061 [US2] Enhance `scripts/migrate_standings.py`: Add docstrings to public functions
+- [X] T062 [P] [US2] Update usage docstring in `scripts/migrate_standings.py` with new CLI options
 
 **Checkpoint**: User Story 2 fully functional; standings import working; all tests passing
 
@@ -132,23 +132,23 @@ This feature imports ~40 years of historical results and standings from legacy P
 
 ### Tests for User Story 3
 
-- [ ] T063 [US3] UI test: `/results` page loads with historical seasons in dropdown (no errors) in `tests/ui/test_historical_results_browsing.py`
-- [ ] T064 [US3] UI test: Selecting historical season from dropdown loads fixtures via HTMX in `tests/ui/test_historical_results_browsing.py`
-- [ ] T065 [US3] UI test: Clicking fixture loads races for that fixture in `tests/ui/test_historical_results_browsing.py`
-- [ ] T066 [US3] UI test: Selecting race displays historical results table with all columns in `tests/ui/test_historical_results_browsing.py`
-- [ ] T067 [US3] UI test: Results filtering (category/club/gender/name) works on historical data in `tests/ui/test_historical_results_browsing.py`
-- [ ] T068 [US3] UI test: CSV export includes all filtered historical results in `tests/ui/test_historical_results_browsing.py`
-- [ ] T069 [US3] UI test: PDF export generates valid PDF with historical results in `tests/ui/test_historical_results_browsing.py`
-- [ ] T070 [US3] UI test: Seasons displayed in reverse chronological order (newest first) in `tests/ui/test_historical_results_browsing.py`
-- [ ] T071 [US3] UI test: `/standings` page loads with historical seasons in dropdown in `tests/ui/test_historical_results_browsing.py`
-- [ ] T072 [US3] UI test: Selecting historical season on standings page displays standings table in `tests/ui/test_historical_results_browsing.py`
+- [X] T063 [US3] UI test: `/results` page loads with historical seasons in dropdown (no errors) in `tests/ui/test_historical_results_browsing.py`
+- [X] T064 [US3] UI test: Selecting historical season from dropdown loads fixtures via HTMX in `tests/ui/test_historical_results_browsing.py`
+- [X] T065 [US3] UI test: Clicking fixture loads races for that fixture in `tests/ui/test_historical_results_browsing.py`
+- [X] T066 [US3] UI test: Selecting race displays historical results table with all columns in `tests/ui/test_historical_results_browsing.py`
+- [X] T067 [US3] UI test: Results filtering (category/club/gender/name) works on historical data in `tests/ui/test_historical_results_browsing.py`
+- [X] T068 [US3] UI test: CSV export includes all filtered historical results in `tests/ui/test_historical_results_browsing.py`
+- [X] T069 [US3] UI test: PDF export generates valid PDF with historical results in `tests/ui/test_historical_results_browsing.py`
+- [X] T070 [US3] UI test: Seasons displayed in reverse chronological order (newest first) in `tests/ui/test_historical_results_browsing.py`
+- [X] T071 [US3] UI test: `/standings` page loads with historical seasons in dropdown in `tests/ui/test_historical_results_browsing.py` — see T048/T049
+- [X] T072 [US3] UI test: Selecting historical season on standings page displays standings table in `tests/ui/test_historical_results_browsing.py` — see T049
 
 ### Implementation for User Story 3
 
-- [ ] T073 Verify existing `/results` route (`src/website/main.py`) correctly queries historical data (no code changes expected)
-- [ ] T074 Verify existing `/standings` route (`src/website/main.py`) correctly queries historical data (no code changes expected)
-- [ ] T075 [P] Verify Jinja2 templates (`templates/results.html`, `templates/standings.html`) render historical seasons correctly (no changes expected)
-- [ ] T076 Verify results filtering JavaScript (`static/results-filter.js`) works with historical data (no changes expected)
+- [X] T073 Verify existing `/results` route (`src/website/main.py`) correctly queries historical data (no code changes expected)
+- [X] T074 Verify existing `/standings` route (`src/website/main.py`) correctly queries historical data (no code changes expected)
+- [X] T075 [P] Verify Jinja2 templates (`templates/results.html`, `templates/standings.html`) render historical seasons correctly (no changes expected)
+- [X] T076 Verify results filtering JavaScript (`static/results-filter.js`) works with historical data (no changes expected)
 
 **Checkpoint**: Users can browse all historical data through existing UI; no new code required
 
@@ -162,24 +162,24 @@ This feature imports ~40 years of historical results and standings from legacy P
 
 ### Tests for User Story 4
 
-- [ ] T077 [P] [US4] Unit test: Warning logged for missing athlete_name in `tests/unit/test_migrate_results.py`
-- [ ] T078 [P] [US4] Unit test: Warning logged for missing time value in `tests/unit/test_migrate_results.py`
-- [ ] T079 [P] [US4] Unit test: Warning logged for non-numeric position in `tests/unit/test_migrate_results.py`
-- [ ] T080 [P] [US4] Unit test: Summary report includes count of warnings/errors in `tests/unit/test_migrate_results.py`
-- [ ] T081 [P] [US4] Unit test: Import log file created with ISO timestamp in filename in `tests/unit/test_migrate_results.py`
-- [ ] T082 [P] [US4] Unit test: Duplicate result detection with clear warning message in `tests/unit/test_migrate_results.py`
-- [ ] T083 [P] [US4] Unit test: PDF parse failure logged without halting import in `tests/unit/test_migrate_results.py`
-- [ ] T084 [US4] Integration test: Full import with sample data containing quality issues; verify log contains all warnings in `tests/unit/test_migrate_results.py`
-- [ ] T085 [P] [US4] Unit test: Standings warning for missing position value in `tests/unit/test_migrate_standings.py`
-- [ ] T086 [P] [US4] Unit test: Standings warning for missing total_score in `tests/unit/test_migrate_standings.py`
-- [ ] T087 [US4] Integration test: Standings import with issues; verify warnings logged in `tests/unit/test_migrate_standings.py`
+- [X] T077 [P] [US4] Unit test: Warning logged for missing athlete_name in `tests/unit/test_validation_phase6.py`
+- [X] T078 [P] [US4] Unit test: Warning logged for missing time value in `tests/unit/test_validation_phase6.py`
+- [X] T079 [P] [US4] Unit test: Warning logged for non-numeric position in `tests/unit/test_validation_phase6.py`
+- [X] T080 [P] [US4] Unit test: Summary report includes count of warnings/errors in `tests/unit/test_validation_phase6.py`
+- [X] T081 [P] [US4] Unit test: Import log file created with ISO timestamp in filename in `tests/unit/test_validation_phase6.py`
+- [X] T082 [P] [US4] Unit test: Duplicate result detection with clear warning message in `tests/unit/test_validation_phase6.py`
+- [X] T083 [P] [US4] Unit test: PDF parse failure logged without halting import in `tests/unit/test_validation_phase6.py`
+- [X] T084 [US4] Integration test: Full import with sample data containing quality issues; verify log contains all warnings in `tests/unit/test_validation_phase6.py`
+- [X] T085 [P] [US4] Unit test: Standings warning for missing position value in `tests/unit/test_validation_phase6.py`
+- [X] T086 [P] [US4] Unit test: Standings warning for missing total_score in `tests/unit/test_validation_phase6.py`
+- [X] T087 [US4] Integration test: Standings import with issues; verify warnings logged in `tests/unit/test_validation_phase6.py`
 
 ### Implementation for User Story 4
 
-- [ ] T088 Implement summary report printing in `scripts/_import_logger.py` (format: section headers, counts, duration, log file path)
-- [ ] T089 Ensure all warnings/errors from T027-T062 tasks include descriptive messages in ImportLogger calls
+- [X] T088 Implement summary report printing in `scripts/_import_logger.py` (format: section headers, counts, duration, log file path)
+- [X] T089 Ensure all warnings/errors from T027-T062 tasks include descriptive messages in ImportLogger calls
 - [ ] T090 Add validation helper functions to `scripts/_migration_helpers.py` (is_valid_position, is_valid_athlete_name, etc.) with logging
-- [ ] T091 Document expected warning types in README or docstring (admin reference for interpreting logs)
+- [X] T091 Document expected warning types in README or docstring (`scripts/README-IMPORT.md` created)
 
 **Checkpoint**: Import provides transparent reporting; admins can diagnose data quality issues
 
@@ -191,8 +191,8 @@ This feature imports ~40 years of historical results and standings from legacy P
 
 ### Documentation
 
-- [ ] T092 Update [quickstart.md](specs/001-import-results-standings/quickstart.md) with actual CLI commands + real examples post-implementation
-- [ ] T093 Create [README-IMPORT.md](scripts/README-IMPORT.md) documenting import scripts, options, troubleshooting
+- [X] T092 Update [quickstart.md](specs/001-import-results-standings/quickstart.md) with actual CLI commands + real examples post-implementation
+- [X] T093 Create [README-IMPORT.md](scripts/README-IMPORT.md) documenting import scripts, options, troubleshooting
 - [ ] T094 Add docstrings to all new classes/functions in `scripts/_import_logger.py`, `scripts/_migration_helpers.py` (enhanced), `scripts/migrate_results.py` (enhanced), `scripts/migrate_standings.py` (enhanced)
 - [ ] T095 Document the import log JSON schema in comments or README (timestamp, level, stage, fields)
 
