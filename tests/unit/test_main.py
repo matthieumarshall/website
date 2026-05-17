@@ -133,19 +133,19 @@ class TestPublicPageRoutes:
 
         assert re.search(
             r'<button[^>]+data-bs-target="#toc-collapse-mobile"', response.text
-        )
+        ), "Mobile contents toggle button not found"
         assert re.search(
             r'<ul[^>]+id="toc-list-mobile"[^>]+class="[^"]*\btoc-list\b',
             response.text,
-        )
+        ), "Mobile TOC list not found"
         assert re.search(
             r'<div[^>]+class="[^"]*\bcol-lg-3\b[^"]*\bd-none\b[^"]*\bd-lg-block\b',
             response.text,
-        )
+        ), "Desktop TOC sidebar wrapper not found"
         assert re.search(
             r'<ul[^>]+id="toc-list-desktop"[^>]+class="[^"]*\btoc-list\b',
             response.text,
-        )
+        ), "Desktop TOC list not found"
 
     def test_all_public_pages_return_html(self, test_client: TestClient) -> None:
         for _, route in self._pages:
