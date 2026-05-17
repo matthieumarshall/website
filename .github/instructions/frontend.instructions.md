@@ -61,6 +61,7 @@ Use HTMX attributes for all partial page updates:
 - FastAPI endpoints that serve HTMX responses must return **HTML fragments**, not JSON.
 - Always set `hx-target` explicitly; avoid relying on default same-element replacement for clarity.
 - Use `hx-boost` on `<a>` tags to progressively enhance navigation without JS.
+- **HTMX 2.x event change**: `htmx:afterSwap` fires on the **swapped child elements**, not the triggering element. `evt.detail.elt` is therefore unreliable for identifying which button or link triggered a swap. For side-effects that depend on knowing the trigger (e.g. updating an active-tab indicator), use a plain `click` listener with `evt.target.closest('[data-attr]')` instead — it fires synchronously and works across HTMX versions.
 
 ```html
 <!-- Good — HTMX partial update -->
