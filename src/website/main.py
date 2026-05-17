@@ -20,6 +20,7 @@ from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from fastapi.responses import (
+    FileResponse,
     HTMLResponse,
     JSONResponse,
     RedirectResponse,
@@ -430,6 +431,42 @@ def results_export_pdf(
         content=pdf_bytes,
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# Path to the results PDFs, resolved at startup to avoid repetition.
+_RESULTS_PDF_ROOT = Path(__file__).parent.parent.parent.parent / "data" / "uploads"
+
+
+@app.get("/results/source-pdf")
+def results_source_pdf(
+    fixture_id: int,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+) -> FileResponse:
+    """Serve the original results PDF for a fixture.
+
+    The path is stored in the database as a value relative to the
+    ``data/uploads`` directory so that no
+    user-supplied path can escape that tree.
+    """
+    fixture = repository.get_fixture_by_id(db, fixture_id)
+    if fixture is None or not fixture.source_pdf:
+        raise HTTPException(status_code=404, detail="Source PDF not available")
+
+    # Defend against path-traversal: resolve inside the known root and verify.
+    safe_path = (_RESULTS_PDF_ROOT / fixture.source_pdf).resolve()
+    try:
+        safe_path.relative_to(_RESULTS_PDF_ROOT.resolve())
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Source PDF not available")  # noqa: B904
+
+    if not safe_path.is_file():
+        raise HTTPException(status_code=404, detail="Source PDF not available")
+
+    return FileResponse(
+        safe_path,
+        media_type="application/pdf",
+        filename=safe_path.name,
     )
 
 

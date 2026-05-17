@@ -44,6 +44,16 @@ def find_season_id(con: duckdb.DuckDBPyConnection, season_name: str) -> int:
     """Return the id for *season_name* (case-insensitive).
 
     Raises SystemExit with a helpful message if the season is not found.
+
+    Args:
+        con: DuckDB connection
+        season_name: Name of the season (e.g., "2021-2022")
+
+    Returns:
+        Season ID
+
+    Raises:
+        SystemExit: If season not found
     """
     row = con.execute(
         "SELECT id FROM seasons WHERE lower(name) = lower(?)", [season_name]
@@ -76,7 +86,16 @@ def create_season_if_missing(con: duckdb.DuckDBPyConnection, season_name: str) -
 def find_fixture_by_date(
     con: duckdb.DuckDBPyConnection, fixture_date: date, season_id: int
 ) -> int | None:
-    """Return the fixture id for *fixture_date* in *season_id*, or None."""
+    """Return the fixture id for *fixture_date* in *season_id*, or None.
+
+    Args:
+        con: DuckDB connection
+        fixture_date: Date of the fixture
+        season_id: ID of the season
+
+    Returns:
+        Fixture ID if found, None otherwise
+    """
     row = con.execute(
         "SELECT id FROM fixtures WHERE season_id = ? AND date = ?",
         [season_id, fixture_date],
@@ -394,3 +413,117 @@ def str_or_none(value: str | None) -> str | None:
         return None
     stripped = value.strip()
     return stripped if stripped else None
+
+
+# ---------------------------------------------------------------------------
+# Import-specific helpers (for migrate_results and migrate_standings)
+# ---------------------------------------------------------------------------
+
+
+def create_fixture_if_missing(
+    con: duckdb.DuckDBPyConnection,
+    season_id: int,
+    fixture_date: date,
+    venue_name: str,
+) -> int:
+    """Create a fixture if missing, or return its ID if it already exists.
+
+    This is an idempotent helper for the import process. It checks if a fixture
+    already exists for the given (season_id, date) pair. If it does, returns its ID.
+    Otherwise, creates a new fixture with the provided venue name as the title.
+
+    Args:
+        con: DuckDB connection
+        season_id: ID of the season this fixture belongs to
+        fixture_date: Date of the fixture (as date object)
+        venue_name: Venue/location name (becomes fixture title and location_name)
+
+    Returns:
+        Fixture ID (either existing or newly created)
+    """
+    # Check if fixture already exists
+    existing = find_fixture_by_date(con, fixture_date, season_id)
+    if existing is not None:
+        return existing
+
+    # Create new fixture (using venue_name for both title and location_name)
+    con.execute(
+        "INSERT INTO fixtures (season_id, date, title, location_name, address) VALUES (?, ?, ?, ?, ?)",
+        [season_id, fixture_date, venue_name, venue_name, ""],
+    )
+    # Fetch and return the newly created fixture ID
+    result = con.execute(
+        "SELECT id FROM fixtures WHERE season_id = ? AND date = ?",
+        [season_id, fixture_date],
+    ).fetchone()
+    assert result is not None  # noqa: S101 # nosec B101 — just inserted
+    return int(result[0])
+
+
+def fixture_exists(
+    con: duckdb.DuckDBPyConnection, season_id: int, fixture_date: date
+) -> bool:
+    """Check if a fixture exists for the given (season_id, date) pair.
+
+    Args:
+        con: DuckDB connection
+        season_id: ID of the season
+        fixture_date: Date of the fixture
+
+    Returns:
+        True if fixture exists, False otherwise
+    """
+    return find_fixture_by_date(con, fixture_date, season_id) is not None
+
+
+def result_exists(
+    con: duckdb.DuckDBPyConnection,
+    race_id: int,
+    athlete_name: str,
+    time: str,
+) -> bool:
+    """Check if a result already exists with the given (race_id, athlete_name, time).
+
+    This deduplication check prevents importing duplicate result records.
+    Duplicates are identified by the combination of race ID, athlete name, and time.
+
+    Args:
+        con: DuckDB connection
+        race_id: ID of the race
+        athlete_name: Name of the athlete
+        time: Finish time (as recorded in PDF)
+
+    Returns:
+        True if result exists, False otherwise
+    """
+    row = con.execute(
+        "SELECT id FROM results WHERE race_id = ? AND athlete_name = ? AND time = ?",
+        [race_id, athlete_name, time],
+    ).fetchone()
+    return row is not None
+
+
+def standing_exists(
+    con: duckdb.DuckDBPyConnection,
+    season_id: int,
+    category: str,
+    position: int,
+) -> bool:
+    """Check if a standing record exists for the given criteria.
+
+    Used to prevent duplicate standings during import.
+
+    Args:
+        con: DuckDB connection
+        season_id: ID of the season
+        category: Category code (e.g., "SM40")
+        position: League position (e.g., 1, 2, 3)
+
+    Returns:
+        True if standing exists, False otherwise
+    """
+    row = con.execute(
+        "SELECT id FROM individual_standings WHERE season_id = ? AND category = ? AND position = ?",
+        [season_id, category, position],
+    ).fetchone()
+    return row is not None

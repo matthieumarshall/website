@@ -98,3 +98,8 @@ uv run uvicorn website.main:app --reload
 - Avoid adding new dependencies without justification; prefer the standard library or existing project deps.
 - Database schema changes go in numbered SQL scripts under `migrations/`; never mutate the schema inside application code at startup.
 - Log at `WARNING` or above in production; never log passwords, tokens, or PII.
+
+<!-- SPECKIT START -->
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
+<!-- SPECKIT END -->

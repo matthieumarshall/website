@@ -210,6 +210,7 @@ def _row_to_fixture(row: tuple) -> Fixture:
         latitude=row[9],
         longitude=row[10],
         what3words=row[11],
+        source_pdf=row[12] if len(row) > 12 else None,
     )
 
 
@@ -222,7 +223,7 @@ def count_fixtures_for_season(db: duckdb.DuckDBPyConnection, season_id: int) -> 
 
 _FIXTURE_SELECT = (
     "SELECT id, season_id, title, date, location_name, address, timetable,"
-    " travel_instructions, created_at, latitude, longitude, what3words"
+    " travel_instructions, created_at, latitude, longitude, what3words, source_pdf"
     " FROM fixtures"
 )
 
@@ -328,6 +329,20 @@ def update_fixture(
 def delete_fixture(db: duckdb.DuckDBPyConnection, fixture_id: int) -> bool:
     db.execute("DELETE FROM fixtures WHERE id = ?", [fixture_id])
     return True
+
+
+def set_fixture_source_pdf(
+    db: duckdb.DuckDBPyConnection, fixture_id: int, source_pdf: str | None
+) -> None:
+    """Store the relative path of the original results PDF for *fixture_id*.
+
+    *source_pdf* must be a path relative to ``data/original_website/files/results/``.
+    Pass ``None`` to clear the field.
+    """
+    db.execute(
+        "UPDATE fixtures SET source_pdf = ? WHERE id = ?",
+        [source_pdf, fixture_id],
+    )
 
 
 # ---------------------------------------------------------------------------

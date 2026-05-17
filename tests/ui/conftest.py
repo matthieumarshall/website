@@ -114,6 +114,34 @@ def server_process():
             False,
         ),
     )
+    # Seed a race and results so results-browsing UI tests have data to render
+    race = repository.create_race(con, fixture.id, "Senior Women Race", display_order=1)
+    repository.create_result(
+        con,
+        race_id=race.id,
+        position=1,
+        athlete_name="Alice Smith",
+        time="35:12",
+        category="Senior Women",
+        gender="F",
+        race_number=101,
+        category_position=1,
+        gender_position=1,
+        club="Oxford City AC",
+    )
+    repository.create_result(
+        con,
+        race_id=race.id,
+        position=2,
+        athlete_name="Bob Jones",
+        time="36:45",
+        category="Senior Men",
+        gender="M",
+        race_number=202,
+        category_position=1,
+        gender_position=1,
+        club="Abingdon AC",
+    )
     con.close()
 
     # Start uvicorn server in test mode
