@@ -215,6 +215,24 @@
     }
   });
 
+  // Fixture-tab active state: the fixture button bar lives outside #race-panel
+  // and is not replaced when HTMX swaps that element.  Update the active class
+  // via a click listener rather than htmx:afterSwap so we are not dependent on
+  // HTMX version-specific event detail shapes (HTMX 2.x fires afterSwap on the
+  // swapped children, not on the trigger, so evt.detail.elt is unreliable).
+  document.addEventListener("click", function (evt) {
+    var btn = evt.target.closest("[data-fixture-tab]");
+    if (!btn) return;
+    var group = btn.closest('[role="group"]');
+    if (!group) return;
+    group.querySelectorAll(".btn").forEach(function (b) {
+      b.classList.remove("active");
+      b.setAttribute("aria-pressed", "false");
+    });
+    btn.classList.add("active");
+    btn.setAttribute("aria-pressed", "true");
+  });
+
   // Initial page load
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);

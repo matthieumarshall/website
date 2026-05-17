@@ -51,6 +51,13 @@ Planned islands:
 - Image upload (MIME allowlist, 5 MB cap, staff only) — **DONE**
 - HTML sanitisation with `nh3` before DB write — **DONE**
 - Custom fonts - **DONE**
+
+### 2.2 Rules & Constitution
+- View rules & constitution page — **DONE**
+- Edit rules & constitution (rich-text editor, admin / content creator only) — **DONE**
+- HTML sanitisation with `nh3` before DB write — **DONE**
+- Export rules & constitution to PDF — **DONE**
+
 ---
 
 ## Phase 3: Fixtures
@@ -78,10 +85,11 @@ Planned islands:
 - Display all historical results in web page — **DONE**
 - Export results to CSV — **DONE**
 - Export results to PDF — **DONE**
+- Serve original source PDF for each race (uploaded during migration) — **DONE**
 
 ### 4.2 Standings
-- Calculate standings dynamically per season — *not started*
-- Publish historical standings (static data for past seasons) — *not started*
+- Calculate standings dynamically per season — *started*
+- Publish historical standings (static data for past seasons) — *started*
 
 ### 4.3 Live / External Data
 - Integrate results dynamically from Tempo Events API — *not started*
@@ -123,7 +131,7 @@ Planned islands:
 - Keyboard navigation support for all interactive elements — *not started*
 - Proper semantic HTML and ARIA labels where required — *not started*
 - Sufficient colour contrast ratios (4.5:1 for normal text) — **DONE**
-- Alt text on all images — *not started*
+- Alt text on all images — *started*
 - Accessible form labels and error messaging — *not started*
 - Screen reader testing (NVDA, JAWS) — *not started*
 - Automated accessibility testing in CI/CD pipeline — *not started*

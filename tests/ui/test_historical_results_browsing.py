@@ -237,3 +237,83 @@ class TestHistoricalResultsBrowsing:
         assert "Senior Women" in body, (
             "Seeded category 'Senior Women' not found in standings category-panel"
         )
+
+
+# ---------------------------------------------------------------------------
+# Fixture-tab active-state (regression test for HTMX partial-swap bug)
+# ---------------------------------------------------------------------------
+
+
+class TestFixtureTabActiveState:
+    """Clicking a round button updates the dark-grey active indicator correctly.
+
+    Bug: the fixture button bar lives outside #race-panel. When HTMX swaps
+    #race-panel the button group is not refreshed, so the active class stayed
+    on the previously-selected button.  The fix adds a data-fixture-tab attr
+    to each button and an htmx:afterSwap listener in results-filter.js that
+    manually moves the active class to the clicked button.
+    """
+
+    def test_fixture_tab_active_state_updates_on_click(self, browser: Page) -> None:
+        """Clicking the second round tab gives it the active class and removes it from the first."""
+        page_errors: list[str] = []
+        browser.on("pageerror", lambda exc: page_errors.append(str(exc)))
+
+        # The fixture-panel route auto-selects the first fixture, so fixture 1
+        # should start as active.
+        browser.goto(f"{BASE}/results")
+        browser.wait_for_load_state("networkidle")
+
+        fixture_buttons = browser.locator(
+            "#fixture-panel .btn-group button[data-fixture-tab]"
+        )
+        assert fixture_buttons.count() == 2, (
+            f"Expected 2 fixture tab buttons, got {fixture_buttons.count()}"
+        )
+
+        first_btn_class = fixture_buttons.nth(0).get_attribute("class") or ""
+        assert "active" in first_btn_class, (
+            "First fixture tab should be active on initial page load"
+        )
+        second_btn_class = fixture_buttons.nth(1).get_attribute("class") or ""
+        assert "active" not in second_btn_class, (
+            "Second fixture tab should not be active initially"
+        )
+
+        # Click the second fixture tab
+        fixture_buttons.nth(1).click()
+        browser.wait_for_load_state("networkidle")
+
+        # After HTMX swap the active class must move to the second button
+        second_btn_class_after = fixture_buttons.nth(1).get_attribute("class") or ""
+        assert "active" in second_btn_class_after, (
+            "Second fixture tab should become active after being clicked"
+        )
+        first_btn_class_after = fixture_buttons.nth(0).get_attribute("class") or ""
+        assert "active" not in first_btn_class_after, (
+            "First fixture tab should lose the active class after second is clicked"
+        )
+
+        assert not page_errors, (
+            f"Unexpected JS errors during fixture tab switch: {page_errors}"
+        )
+
+    def test_fixture_tab_aria_pressed_updates_on_click(self, browser: Page) -> None:
+        """aria-pressed attribute follows the active fixture tab."""
+        browser.goto(f"{BASE}/results")
+        browser.wait_for_load_state("networkidle")
+
+        fixture_buttons = browser.locator(
+            "#fixture-panel .btn-group button[data-fixture-tab]"
+        )
+        assert fixture_buttons.count() == 2
+
+        fixture_buttons.nth(1).click()
+        browser.wait_for_load_state("networkidle")
+
+        assert fixture_buttons.nth(1).get_attribute("aria-pressed") == "true", (
+            "Clicked fixture tab should have aria-pressed=true"
+        )
+        assert fixture_buttons.nth(0).get_attribute("aria-pressed") == "false", (
+            "Unselected fixture tab should have aria-pressed=false"
+        )
