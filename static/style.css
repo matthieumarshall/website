@@ -25,7 +25,9 @@
   --bs-body-color: var(--brand-text);
   --bs-heading-color: var(--brand-primary);
   --bs-link-color: var(--brand-primary);
+  --bs-link-color-rgb: var(--brand-primary-rgb);       /* Bootstrap 5 renders links via rgba(--bs-link-color-rgb) not --bs-link-color */
   --bs-link-hover-color: var(--brand-accent);
+  --bs-link-hover-color-rgb: var(--brand-accent-rgb);
   --bs-border-color: color-mix(in srgb, var(--brand-primary) 10%, #fff);
 }
 
