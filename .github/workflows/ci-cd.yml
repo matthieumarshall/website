@@ -70,13 +70,36 @@ jobs:
       - name: pip-audit - Check for vulnerable dependencies
         run: |
           echo "Running pip-audit for Python dependency vulnerabilities..."
+          audit_requirements="$(mktemp)"
+          trap 'rm -f "$audit_requirements"' EXIT
+          # Export the locked third-party dependency set only.
+          # Exclude the local project package and the direct URL pyresults wheel because
+          # pip-audit cannot resolve them on PyPI.
+          uv export \
+            --locked \
+            --all-extras \
+            --format requirements.txt \
+            --no-hashes \
+            --no-emit-project \
+            --no-emit-local \
+            --no-emit-package pyresults \
+            -o "$audit_requirements"
           # Note: CVE-2026-4539 in pygments 2.19.2 (via pytest) has no patch yet.
           # Requires local access; low risk. Awaiting upstream fix.
           # Note: GHSA-58qw-9mgm-455v in pip 26.0.1 has no fix version yet.
           # Requires local access; low risk. Awaiting upstream fix.
           # Note: GHSA-jp4c-xjxw-mgf9 in pip 26.0.1 has no fix version yet.
           # Requires local access; low risk. Awaiting upstream fix.
-          uv run pip-audit --ignore CVE-2026-4539 --ignore GHSA-58qw-9mgm-455v --ignore GHSA-jp4c-xjxw-mgf9 || exit 1
+          # Note: PYSEC-2026-89 in markdown 3.10.2 has no newer release available yet.
+          # This package is only used by the seed_rules CLI in the dev dependency group.
+          # Note: PYSEC-2025-183 in pyjwt 2.12.1 is a disputed advisory with no fixed release.
+          uv run pip-audit \
+            -r "$audit_requirements" \
+            --ignore CVE-2026-4539 \
+            --ignore GHSA-58qw-9mgm-455v \
+            --ignore GHSA-jp4c-xjxw-mgf9 \
+            --ignore PYSEC-2026-89 \
+            --ignore PYSEC-2025-183 || exit 1
 
       - name: gitleaks - Scan for secrets
         uses: gitleaks/gitleaks-action@v2
@@ -247,7 +270,7 @@ jobs:
 
       - name: Create workflow summary
         run: |
-          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
+          cat >> "$GITHUB_STEP_SUMMARY" << 'EOF'
           # CI/CD Pipeline Results
 
           ## Pipeline Status
