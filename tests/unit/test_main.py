@@ -5,6 +5,7 @@ import re
 import duckdb
 from fastapi.testclient import TestClient
 
+from website import repository
 from website.helpers import SIDEBAR_ITEMS
 
 
@@ -116,6 +117,35 @@ class TestPublicPageRoutes:
 
     def test_rules_and_constitution_page_loads(self, test_client: TestClient) -> None:
         assert test_client.get("/rules-and-constitution").status_code == 200
+
+    def test_rules_and_constitution_renders_mobile_and_desktop_toc_targets(
+        self,
+        test_client: TestClient,
+        test_db: duckdb.DuckDBPyConnection,
+    ) -> None:
+        repository.upsert_static_page(
+            test_db,
+            "rules-and-constitution",
+            "<h1>League Rules</h1><h2>Eligibility</h2><p>Details</p>",
+        )
+
+        response = test_client.get("/rules-and-constitution")
+
+        assert re.search(
+            r'<button[^>]+data-bs-target="#toc-collapse-mobile"', response.text
+        ), "Mobile contents toggle button not found"
+        assert re.search(
+            r'<ul[^>]+id="toc-list-mobile"[^>]+class="[^"]*\btoc-list\b',
+            response.text,
+        ), "Mobile TOC list not found"
+        assert re.search(
+            r'<div[^>]+class="[^"]*\bcol-lg-3\b[^"]*\bd-none\b[^"]*\bd-lg-block\b',
+            response.text,
+        ), "Desktop TOC sidebar wrapper not found"
+        assert re.search(
+            r'<ul[^>]+id="toc-list-desktop"[^>]+class="[^"]*\btoc-list\b',
+            response.text,
+        ), "Desktop TOC list not found"
 
     def test_all_public_pages_return_html(self, test_client: TestClient) -> None:
         for _, route in self._pages:
