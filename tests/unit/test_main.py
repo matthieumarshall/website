@@ -191,8 +191,16 @@ class TestAdministrationAccess:
     def test_document_sections_render(self, test_client: TestClient) -> None:
         response = test_client.get("/administration")
         assert response.status_code == 200
-        for heading in ("Notices", "Agendas", "Meeting notes", "Accounts"):
+        expected_sections = (
+            ("notices", "Notices"),
+            ("agendas", "Agendas"),
+            ("meeting-notes", "Meeting notes"),
+            ("accounts", "Accounts"),
+        )
+        for section_id, heading in expected_sections:
             assert f">{heading}</h2>" in response.text
+            assert f'id="{section_id}-heading"' in response.text
+            assert f'aria-labelledby="{section_id}-heading"' in response.text
 
     def test_document_download_links_include_pdf_and_zip(
         self, test_client: TestClient
