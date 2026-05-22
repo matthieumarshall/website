@@ -1,10 +1,30 @@
 {% extends "base.html" %}
-
 {% block title %}Administration — Oxfordshire Cross Country League{% endblock %}
-
 {% block content %}
-<div>
-  <h1 class="h3 mb-3">Administration</h1>
-  <p class="text-muted">Administration content coming soon.</p>
-</div>
+  <div class="mb-4">
+    <h1 class="h3 mb-2">Administration</h1>
+    <p class="text-muted mb-0">Download league administration documents by section.</p>
+  </div>
+  {% for section in administration_sections %}
+    <section class="card mb-4" aria-labelledby="{{ section.id }}-heading">
+      <div class="card-body">
+        <h2 id="{{ section.id }}-heading" class="h5 mb-2">{{ section.title }}</h2>
+        <p class="text-muted small mb-3">{{ section.description }}</p>
+        {% if section.documents %}
+          <ul class="list-unstyled mb-0">
+            {% for document in section.documents %}
+              <li class="py-2 {% if not loop.first %}border-top{% endif %}">
+                <a href="{{ document.href }}"
+                   download
+                   class="fw-semibold text-decoration-none">{{ document.name }}</a>
+                <span class="badge rounded-pill text-bg-light border ms-2">{{ document.file_type }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="text-muted mb-0">No documents have been published in this section yet.</p>
+        {% endif %}
+      </div>
+    </section>
+  {% endfor %}
 {% endblock %}
