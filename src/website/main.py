@@ -673,10 +673,88 @@ def rules_and_constitution_export_pdf(
     )
 
 
+_ADMINISTRATION_DOCUMENT_SECTIONS: list[dict[str, Any]] = [
+    {
+        "id": "notices",
+        "title": "Notices",
+        "description": "League notices and official communications.",
+        "documents": [
+            {
+                "name": "Notice to Clubs (PDF)",
+                "href": "/uploads/administration/notices/notice-to-clubs.pdf",
+                "file_type": "PDF",
+            },
+            {
+                "name": "Notice Archive (ZIP)",
+                "href": "/uploads/administration/notices/notice-archive.zip",
+                "file_type": "ZIP",
+            },
+        ],
+    },
+    {
+        "id": "agendas",
+        "title": "Agendas",
+        "description": "Meeting agendas published ahead of committee sessions.",
+        "documents": [
+            {
+                "name": "Committee Agenda (PDF)",
+                "href": "/uploads/administration/agendas/committee-agenda.pdf",
+                "file_type": "PDF",
+            },
+            {
+                "name": "Agenda Pack (ZIP)",
+                "href": "/uploads/administration/agendas/agenda-pack.zip",
+                "file_type": "ZIP",
+            },
+        ],
+    },
+    {
+        "id": "meeting-notes",
+        "title": "Meeting notes",
+        "description": "Approved notes and supporting meeting documents.",
+        "documents": [
+            {
+                "name": "Meeting Notes (PDF)",
+                "href": "/uploads/administration/meeting-notes/meeting-notes.pdf",
+                "file_type": "PDF",
+            },
+            {
+                "name": "Meeting Notes Attachments (ZIP)",
+                "href": "/uploads/administration/meeting-notes/meeting-notes-pack.zip",
+                "file_type": "ZIP",
+            },
+        ],
+    },
+    {
+        "id": "accounts",
+        "title": "Accounts",
+        "description": "Accounts packs and published financial summaries.",
+        "documents": [
+            {
+                "name": "Annual Accounts (PDF)",
+                "href": "/uploads/administration/accounts/annual-accounts.pdf",
+                "file_type": "PDF",
+            },
+            {
+                "name": "Accounts Supporting Files (ZIP)",
+                "href": "/uploads/administration/accounts/accounts-supporting-files.zip",
+                "file_type": "ZIP",
+            },
+        ],
+    },
+]
+
+
 @app.get("/administration", response_class=HTMLResponse)
 def administration(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
-        request, "administration.html", page_context(request, "administration")
+        request,
+        "administration.html",
+        page_context(
+            request,
+            "administration",
+            administration_sections=_ADMINISTRATION_DOCUMENT_SECTIONS,
+        ),
     )
 
 
