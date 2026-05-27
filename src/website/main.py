@@ -33,6 +33,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
+from website.administration_documents import ADMINISTRATION_DOCUMENT_SECTIONS
 from website.auth import verify_password
 from website.database import get_db, run_migrations
 from website.helpers import (
@@ -676,7 +677,13 @@ def rules_and_constitution_export_pdf(
 @app.get("/administration", response_class=HTMLResponse)
 def administration(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
-        request, "administration.html", page_context(request, "administration")
+        request,
+        "administration.html",
+        page_context(
+            request,
+            "administration",
+            administration_sections=ADMINISTRATION_DOCUMENT_SECTIONS,
+        ),
     )
 
 
