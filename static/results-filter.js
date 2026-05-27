@@ -173,9 +173,10 @@
     syncExportLinks();
   }
 
-  // Re-init when the race table is swapped by HTMX
+  // Re-init when the race panel is swapped by HTMX (fixture tab or race tab click).
+  // All HTMX swaps on this page target #race-panel, not #race-table.
   document.addEventListener("htmx:afterSwap", function (evt) {
-    if (evt.detail && evt.detail.target && evt.detail.target.id === "race-table") {
+    if (evt.detail && evt.detail.target && evt.detail.target.id === "race-panel") {
       // Repopulate dropdowns based on new table rows
       const rows = getTableRows();
       const categorySelect = document.getElementById("filter-category");
@@ -194,15 +195,24 @@
       const genderSelect = document.getElementById("filter-gender");
       if (genderSelect) genderSelect.value = "";
 
-      // Update sentinel race ID from the new panel if available
+      // Re-wire event listeners — the filter elements were replaced by the swap
+      ["filter-category", "filter-club", "filter-gender"].forEach(function (id) {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener("change", applyFilters);
+      });
+      if (nameInput) nameInput.addEventListener("input", applyFilters);
+      const posToggle = document.getElementById("toggle-pos");
+      const genPosToggle = document.getElementById("toggle-gen-pos");
+      if (posToggle) posToggle.addEventListener("change", applyColumnToggles);
+      if (genPosToggle) genPosToggle.addEventListener("change", applyColumnToggles);
+
+      // Update sentinel race ID from the active race tab button
       const sentinel = document.getElementById("results-filter");
       if (sentinel) {
-        // race_id is embedded in the race tab button that was clicked
         const activeBtn = document.querySelector(
           "#race-panel .btn-group button.active, #race-panel .btn.active"
         );
         if (activeBtn) {
-          // Extract race_id from hx-get attribute
           const hxGet = activeBtn.getAttribute("hx-get") || "";
           const match = hxGet.match(/race_id=(\d+)/);
           if (match) sentinel.dataset.raceId = match[1];

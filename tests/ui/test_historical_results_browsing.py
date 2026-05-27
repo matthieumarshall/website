@@ -317,3 +317,148 @@ class TestFixtureTabActiveState:
         assert fixture_buttons.nth(0).get_attribute("aria-pressed") == "false", (
             "Unselected fixture tab should have aria-pressed=false"
         )
+
+
+# ---------------------------------------------------------------------------
+# Results filter dropdown population and client-side filtering
+# ---------------------------------------------------------------------------
+
+
+class TestResultsFilterDropdowns:
+    """Regression tests for results-filter.js dropdown + filtering behaviour.
+
+    Bug: the htmx:afterSwap handler checked for target.id === "race-table" but
+    all HTMX swaps on the results page target #race-panel.  The handler never
+    fired, so after any fixture/race tab click the Club and Category dropdowns
+    stayed empty and their event listeners were not wired up.
+    """
+
+    def test_club_dropdown_populated_on_initial_load(self, browser: Page) -> None:
+        """Club dropdown contains actual club names from the seeded race on first load."""
+        browser.goto(f"{BASE}/results")
+        browser.wait_for_load_state("networkidle")
+
+        club_select = browser.locator("#filter-club")
+        assert club_select.count() > 0, "#filter-club select not found"
+        options = club_select.locator("option").all_inner_texts()
+        # Seeded results have Oxford City AC and Abingdon AC
+        assert "Oxford City AC" in options, (
+            f"Oxford City AC missing from club dropdown; got: {options}"
+        )
+        assert "Abingdon AC" in options, (
+            f"Abingdon AC missing from club dropdown; got: {options}"
+        )
+
+    def test_category_dropdown_populated_on_initial_load(self, browser: Page) -> None:
+        """Category dropdown contains actual category names from the seeded race."""
+        browser.goto(f"{BASE}/results")
+        browser.wait_for_load_state("networkidle")
+
+        cat_select = browser.locator("#filter-category")
+        assert cat_select.count() > 0, "#filter-category select not found"
+        options = cat_select.locator("option").all_inner_texts()
+        assert "Senior Women" in options, (
+            f"'Senior Women' missing from category dropdown; got: {options}"
+        )
+        assert "Senior Men" in options, (
+            f"'Senior Men' missing from category dropdown; got: {options}"
+        )
+
+    def test_club_filter_hides_non_matching_rows(self, browser: Page) -> None:
+        """Selecting a club hides rows from other clubs."""
+        browser.goto(f"{BASE}/results")
+        browser.wait_for_load_state("networkidle")
+
+        browser.locator("#filter-club").select_option("Oxford City AC")
+
+        # Alice Smith is Oxford City AC — must remain visible
+        alice_row = browser.locator("#results-table tbody tr", has_text="Alice Smith")
+        assert alice_row.is_visible(), "Alice Smith (Oxford City AC) should be visible"
+
+        # Bob Jones is Abingdon AC — must be hidden
+        bob_row = browser.locator("#results-table tbody tr", has_text="Bob Jones")
+        assert not bob_row.is_visible(), "Bob Jones (Abingdon AC) should be hidden"
+
+    def test_category_filter_hides_non_matching_rows(self, browser: Page) -> None:
+        """Selecting a category hides rows from other categories."""
+        browser.goto(f"{BASE}/results")
+        browser.wait_for_load_state("networkidle")
+
+        browser.locator("#filter-category").select_option("Senior Women")
+
+        alice_row = browser.locator("#results-table tbody tr", has_text="Alice Smith")
+        assert alice_row.is_visible(), "Alice Smith (Senior Women) should be visible"
+
+        bob_row = browser.locator("#results-table tbody tr", has_text="Bob Jones")
+        assert not bob_row.is_visible(), "Bob Jones (Senior Men) should be hidden"
+
+    def test_dropdowns_repopulated_after_fixture_tab_switch(
+        self, browser: Page
+    ) -> None:
+        """Regression: dropdowns must be repopulated after switching fixture tabs.
+
+        Before the fix, htmx:afterSwap checked for target.id === 'race-table'
+        but all swaps target #race-panel, so the handler never ran.
+        """
+        page_errors: list[str] = []
+        browser.on("pageerror", lambda exc: page_errors.append(str(exc)))
+
+        browser.goto(f"{BASE}/results")
+        browser.wait_for_load_state("networkidle")
+
+        # Switch to fixture 2
+        fixture_buttons = browser.locator(
+            "#fixture-panel .btn-group button[data-fixture-tab]"
+        )
+        fixture_buttons.nth(1).click()
+        browser.wait_for_load_state("networkidle")
+
+        # Fixture 2 has Charlie Brown from Oxford City AC
+        options = browser.locator("#filter-club").locator("option").all_inner_texts()
+        assert "Oxford City AC" in options, (
+            f"Club dropdown not repopulated after fixture switch; got: {options}"
+        )
+
+        assert not page_errors, (
+            f"Unexpected JS errors during fixture tab switch: {page_errors}"
+        )
+
+    def test_club_filter_works_after_fixture_tab_switch(self, browser: Page) -> None:
+        """Regression: event listeners must be re-wired after an HTMX swap.
+
+        Before the fix the filter <select> elements were replaced by the swap
+        but no new 'change' listener was attached, so selecting a club had no
+        effect on row visibility.
+        """
+        browser.goto(f"{BASE}/results")
+        browser.wait_for_load_state("networkidle")
+
+        # Switch to fixture 2 (has Charlie Brown, Oxford City AC)
+        fixture_buttons = browser.locator(
+            "#fixture-panel .btn-group button[data-fixture-tab]"
+        )
+        fixture_buttons.nth(1).click()
+        browser.wait_for_load_state("networkidle")
+
+        # All rows visible before filtering
+        charlie_row = browser.locator(
+            "#results-table tbody tr", has_text="Charlie Brown"
+        )
+        assert charlie_row.is_visible(), "Charlie Brown should be visible initially"
+
+        # Select a non-matching club to verify the listener fires
+        browser.locator("#filter-club").select_option("Oxford City AC")
+        # Charlie Brown IS Oxford City AC — he must still be visible
+        assert charlie_row.is_visible(), (
+            "Charlie Brown (Oxford City AC) should remain visible when that club is selected"
+        )
+
+        # Now pick a club that does NOT exist in fixture 2 to confirm hiding works.
+        # Use the "All clubs" option first to reset, then check no-match message
+        # by typing a name that doesn't exist.
+        browser.locator("#filter-club").select_option("")  # back to "All clubs"
+        browser.locator("#filter-name").fill("zzz_no_match")
+        no_match = browser.locator("#results-no-match")
+        assert no_match.is_visible(), (
+            "#results-no-match message should show when no rows match the name filter"
+        )
