@@ -223,6 +223,28 @@ class RaceWithResults(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Administration documents
+# ---------------------------------------------------------------------------
+
+
+class AdministrationDocument(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    name: str
+    href: str
+    file_type: str
+
+
+class AdministrationSection(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    title: str
+    description: str
+    documents: list[AdministrationDocument]
+
+
+# ---------------------------------------------------------------------------
 # Static Pages
 # ---------------------------------------------------------------------------
 
