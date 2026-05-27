@@ -188,6 +188,33 @@ class TestAdministrationAccess:
     def test_admin_can_access(self, admin_client: TestClient) -> None:
         assert admin_client.get("/administration").status_code == 200
 
+    def test_document_sections_render(self, test_client: TestClient) -> None:
+        response = test_client.get("/administration")
+        assert response.status_code == 200
+        expected_sections = (
+            ("notices", "Notices"),
+            ("agendas", "Agendas"),
+            ("meeting-notes", "Meeting notes"),
+            ("accounts", "Accounts"),
+        )
+        for section_id, heading in expected_sections:
+            assert f">{heading}</h2>" in response.text
+            assert f'id="{section_id}-heading"' in response.text
+            assert f'aria-labelledby="{section_id}-heading"' in response.text
+
+    def test_document_download_links_include_pdf_and_zip(
+        self, test_client: TestClient
+    ) -> None:
+        response = test_client.get("/administration")
+        assert re.search(
+            r'<a[^>]+href="/uploads/administration/[^"]+\.pdf"[^>]*\bdownload\b',
+            response.text,
+        )
+        assert re.search(
+            r'<a[^>]+href="/uploads/administration/[^"]+\.zip"[^>]*\bdownload\b',
+            response.text,
+        )
+
 
 class TestNewsCrud:
     def test_news_page_accessible_to_public(self, test_client: TestClient) -> None:
