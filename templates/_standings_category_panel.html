@@ -23,8 +23,8 @@
 
 {% if individual_cats %}
 <h2 class="h5 mt-2 mb-2">Individual</h2>
-<nav aria-label="Individual category tabs" class="mb-3">
-  <div class="btn-group flex-wrap" role="group">
+<nav aria-label="Individual category tabs" class="mb-3 standings-tab-nav">
+  <div class="d-flex flex-wrap gap-1" role="group">
     {% for cat in individual_cats %}
     <button
       type="button"
@@ -42,8 +42,8 @@
 
 {% if team_cats %}
 <h2 class="h5 mt-3 mb-2">Team</h2>
-<nav aria-label="Team category tabs" class="mb-3">
-  <div class="btn-group flex-wrap" role="group">
+<nav aria-label="Team category tabs" class="mb-3 standings-tab-nav">
+  <div class="d-flex flex-wrap gap-1" role="group">
     {% for cat in team_cats %}
     <button
       type="button"
