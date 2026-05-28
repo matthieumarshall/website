@@ -95,6 +95,38 @@ def server_process():
             ),
         ],
     )
+    # Seed additional individual categories so the tab row-balancing JS is exercised.
+    con.executemany(
+        "INSERT INTO individual_standings"
+        " (season_id, category, position, athlete_name, club,"
+        "  total_score, rounds_competed, fixture_scores, is_imported)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+            (
+                season.id,
+                cat,
+                1,
+                f"Athlete {cat}",
+                "Test Club",
+                10,
+                1,
+                f'{{"{fid}": 1}}',
+                False,
+            )
+            for cat in [
+                "MV40",
+                "MV50",
+                "MV60",
+                "SM",
+                "U11B",
+                "U11G",
+                "U13B",
+                "U13G",
+                "U15B",
+                "U15G",
+            ]
+        ],
+    )
     # Seed team standings
     con.execute(
         "INSERT INTO team_standings"
@@ -113,6 +145,37 @@ def server_process():
             f'{{"{fid}": 1}}',
             False,
         ),
+    )
+    # Seed additional team categories so the team tab group also wraps.
+    con.executemany(
+        "INSERT INTO team_standings"
+        " (season_id, category, position, team_name, club, team_label,"
+        "  total_score, rounds_competed, fixture_scores, is_imported)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+            (
+                season.id,
+                cat,
+                1,
+                f"Test {cat} A",
+                "Test Club",
+                "A",
+                10,
+                1,
+                f'{{"{fid}": 1}}',
+                False,
+            )
+            for cat in [
+                "Men's Teams D1",
+                "Men's Teams D2",
+                "U11B",
+                "U11G",
+                "U13B",
+                "U13G",
+                "U15B",
+                "Women's Teams D1",
+            ]
+        ],
     )
     # Seed a race and results so results-browsing UI tests have data to render
     race = repository.create_race(con, fixture.id, "Senior Women Race", display_order=1)
