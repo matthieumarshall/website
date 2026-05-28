@@ -443,7 +443,8 @@ def results_export_pdf(
 
 
 # Path to the results PDFs, resolved at startup to avoid repetition.
-_RESULTS_PDF_ROOT = Path(__file__).parent.parent.parent.parent / "data" / "uploads"
+# __file__ is src/website/main.py → 3 parents up = project root.
+_RESULTS_PDF_ROOT = Path(__file__).parent.parent.parent / "data" / "uploads"
 
 
 @app.get("/results/source-pdf")
