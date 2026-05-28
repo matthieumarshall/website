@@ -84,3 +84,75 @@ class TestStandingsPage:
         browser.goto(f"{BASE}/standings")
         browser.wait_for_load_state("networkidle")
         assert not page_errors, f"Unexpected page errors: {page_errors}"
+
+
+class TestStandingsTabBalance:
+    """Tests that standings-tabs.js distributes tab buttons evenly across rows."""
+
+    def test_no_js_errors_on_load(self, browser: Page):
+        """standings-tabs.js produces no uncaught JavaScript errors."""
+        page_errors: list[str] = []
+        browser.on("pageerror", lambda e: page_errors.append(str(e)))
+        browser.goto(f"{BASE}/standings")
+        browser.wait_for_load_state("networkidle")
+        browser.wait_for_timeout(300)
+        assert not page_errors, f"Uncaught JS errors: {page_errors}"
+
+    def test_tab_buttons_have_uniform_width_when_wrapped(self, browser: Page):
+        """When tab buttons wrap onto multiple rows, the JS gives them all the same width."""
+        browser.set_viewport_size({"width": 600, "height": 800})
+        browser.goto(f"{BASE}/standings")
+        browser.wait_for_load_state("networkidle")
+        browser.wait_for_timeout(300)  # allow rAF callbacks to settle
+
+        data = browser.evaluate("""
+            () => {
+                const result = {};
+                document.querySelectorAll('nav.standings-tab-nav').forEach(nav => {
+                    const label = nav.getAttribute('aria-label');
+                    const container = nav.querySelector('[role="group"]');
+                    const btns = Array.from(container ? container.querySelectorAll('button') : []);
+                    if (!btns.length) return;
+                    const firstTop = btns[0].getBoundingClientRect().top;
+                    result[label] = {
+                        widths: btns.map(b => b.offsetWidth),
+                        wraps: btns.some(b => Math.round(b.getBoundingClientRect().top) > Math.round(firstTop) + 1)
+                    };
+                });
+                return result;
+            }
+        """)
+
+        # At 600 px there should be enough categories to force at least one group to wrap.
+        assert any(v["wraps"] for v in data.values()), (
+            "Expected at least one tab group to wrap at a 600 px viewport, "
+            "but none did — the balancing code may not have been exercised."
+        )
+
+        for label, info in data.items():
+            if not info["wraps"]:
+                continue
+            widths = info["widths"]
+            assert all(abs(w - widths[0]) <= 1 for w in widths), (
+                f"Non-uniform button widths in '{label}' after wrapping: {widths}"
+            )
+
+    def test_tab_buttons_do_not_overflow_container(self, browser: Page):
+        """No tab button extends beyond the right edge of its flex container."""
+        browser.set_viewport_size({"width": 600, "height": 800})
+        browser.goto(f"{BASE}/standings")
+        browser.wait_for_load_state("networkidle")
+        browser.wait_for_timeout(300)
+
+        overflowing = browser.evaluate("""
+            () => Array.from(
+                document.querySelectorAll('nav.standings-tab-nav [role="group"]')
+            ).flatMap(container => {
+                const right = container.getBoundingClientRect().right;
+                return Array.from(container.querySelectorAll('button'))
+                    .filter(b => b.getBoundingClientRect().right > right + 1)
+                    .map(b => b.textContent.trim());
+            })
+        """)
+
+        assert overflowing == [], f"Buttons overflow their container: {overflowing}"
