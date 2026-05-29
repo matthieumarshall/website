@@ -232,6 +232,12 @@ def server_process():
         gender_position=1,
         club="Oxford City AC",
     )
+    # Seed administration sections so the administration page has data to render
+    for i, (slug, title) in enumerate([("notices", "Notices"), ("agendas", "Agendas")]):
+        repository.create_administration_section(
+            con, slug=slug, title=title, description="", sort_order=i
+        )
+
     con.close()
 
     # Start uvicorn server in test mode
