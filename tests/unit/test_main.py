@@ -188,7 +188,26 @@ class TestAdministrationAccess:
     def test_admin_can_access(self, admin_client: TestClient) -> None:
         assert admin_client.get("/administration").status_code == 200
 
-    def test_document_sections_render(self, test_client: TestClient) -> None:
+    def test_document_sections_render(
+        self, test_client: TestClient, test_db: duckdb.DuckDBPyConnection
+    ) -> None:
+        # Seed sections so the DB-backed page has content to render
+        repository.create_administration_section(
+            test_db, slug="notices", title="Notices", description="", sort_order=0
+        )
+        repository.create_administration_section(
+            test_db, slug="agendas", title="Agendas", description="", sort_order=1
+        )
+        repository.create_administration_section(
+            test_db,
+            slug="meeting-notes",
+            title="Meeting notes",
+            description="",
+            sort_order=2,
+        )
+        repository.create_administration_section(
+            test_db, slug="accounts", title="Accounts", description="", sort_order=3
+        )
         response = test_client.get("/administration")
         assert response.status_code == 200
         expected_sections = (
@@ -203,8 +222,28 @@ class TestAdministrationAccess:
             assert f'aria-labelledby="{section_id}-heading"' in response.text
 
     def test_document_download_links_include_pdf_and_zip(
-        self, test_client: TestClient
+        self, test_client: TestClient, test_db: duckdb.DuckDBPyConnection
     ) -> None:
+        # Seed a section with one PDF and one ZIP document
+        section = repository.create_administration_section(
+            test_db, slug="agendas", title="Agendas", description="", sort_order=0
+        )
+        repository.create_administration_document(
+            test_db,
+            section_id=section.id,
+            display_name="2025 AGM Agenda",
+            filename="agenda.pdf",
+            file_type="PDF",
+            sort_order=2025,
+        )
+        repository.create_administration_document(
+            test_db,
+            section_id=section.id,
+            display_name="2025 AGM Pack",
+            filename="pack.zip",
+            file_type="ZIP",
+            sort_order=2025,
+        )
         response = test_client.get("/administration")
         assert re.search(
             r'<a[^>]+href="/uploads/administration/[^"]+\.pdf"[^>]*\bdownload\b',
