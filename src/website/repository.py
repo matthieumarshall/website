@@ -3,6 +3,8 @@ import re as _re
 import duckdb
 
 from website.models import (
+    AdministrationDocument,
+    AdministrationSection,
     Fixture,
     FixtureImage,
     PaginatedPosts,
@@ -719,3 +721,183 @@ def upsert_static_page(
     ).fetchone()
     assert row is not None  # noqa: S101 # nosec B101 — just upserted
     return _row_to_static_page(row)
+
+
+# ---------------------------------------------------------------------------
+# Administration documents
+# ---------------------------------------------------------------------------
+
+
+def _row_to_admin_document(row: tuple, section_slug: str) -> AdministrationDocument:
+    doc_id, section_id, display_name, filename, file_type, sort_order = (
+        row[0],
+        row[1],
+        row[2],
+        row[3],
+        row[4],
+        row[5],
+    )
+    href = f"/uploads/administration/{section_slug}/{filename}"
+    return AdministrationDocument(
+        id=doc_id,
+        section_id=section_id,
+        display_name=display_name,
+        filename=filename,
+        href=href,
+        file_type=file_type,
+        sort_order=sort_order,
+    )
+
+
+def list_administration_sections(
+    db: duckdb.DuckDBPyConnection,
+) -> list[AdministrationSection]:
+    section_rows = db.execute(
+        "SELECT id, slug, title, description, sort_order"
+        " FROM administration_sections ORDER BY sort_order ASC, title ASC"
+    ).fetchall()
+    sections: list[AdministrationSection] = []
+    for s_row in section_rows:
+        s_id, slug, title, description, s_order = (
+            s_row[0],
+            s_row[1],
+            s_row[2],
+            s_row[3],
+            s_row[4],
+        )
+        doc_rows = db.execute(
+            "SELECT id, section_id, display_name, filename, file_type, sort_order"
+            " FROM administration_documents WHERE section_id = ?"
+            " ORDER BY sort_order DESC, display_name ASC",
+            [s_id],
+        ).fetchall()
+        documents = [_row_to_admin_document(r, slug) for r in doc_rows]
+        sections.append(
+            AdministrationSection(
+                id=s_id,
+                slug=slug,
+                title=title,
+                description=description,
+                sort_order=s_order,
+                documents=documents,
+            )
+        )
+    return sections
+
+
+def get_administration_section(
+    db: duckdb.DuckDBPyConnection, section_id: int
+) -> AdministrationSection | None:
+    row = db.execute(
+        "SELECT id, slug, title, description, sort_order"
+        " FROM administration_sections WHERE id = ?",
+        [section_id],
+    ).fetchone()
+    if row is None:
+        return None
+    s_id, slug, title, description, s_order = (row[0], row[1], row[2], row[3], row[4])
+    doc_rows = db.execute(
+        "SELECT id, section_id, display_name, filename, file_type, sort_order"
+        " FROM administration_documents WHERE section_id = ?"
+        " ORDER BY sort_order DESC, display_name ASC",
+        [s_id],
+    ).fetchall()
+    documents = [_row_to_admin_document(r, slug) for r in doc_rows]
+    return AdministrationSection(
+        id=s_id,
+        slug=slug,
+        title=title,
+        description=description,
+        sort_order=s_order,
+        documents=documents,
+    )
+
+
+def create_administration_section(
+    db: duckdb.DuckDBPyConnection,
+    slug: str,
+    title: str,
+    description: str,
+    sort_order: int = 0,
+) -> AdministrationSection:
+    db.execute(
+        "INSERT INTO administration_sections (slug, title, description, sort_order)"
+        " VALUES (?, ?, ?, ?)",
+        [slug, title, description, sort_order],
+    )
+    row = db.execute(
+        "SELECT id, slug, title, description, sort_order"
+        " FROM administration_sections WHERE slug = ?",
+        [slug],
+    ).fetchone()
+    assert row is not None  # noqa: S101 # nosec B101 — just inserted
+    return AdministrationSection(
+        id=row[0],
+        slug=row[1],
+        title=row[2],
+        description=row[3],
+        sort_order=row[4],
+        documents=[],
+    )
+
+
+def delete_administration_section(
+    db: duckdb.DuckDBPyConnection, section_id: int
+) -> None:
+    row = db.execute(
+        "SELECT COUNT(*) FROM administration_documents WHERE section_id = ?",
+        [section_id],
+    ).fetchone()
+    count: int = row[0] if row is not None else 0
+    if count > 0:
+        raise ValueError(
+            f"Cannot delete section {section_id}: it still has {count} document(s). "
+            "Delete all documents first."
+        )
+    db.execute("DELETE FROM administration_sections WHERE id = ?", [section_id])
+
+
+def create_administration_document(
+    db: duckdb.DuckDBPyConnection,
+    section_id: int,
+    display_name: str,
+    filename: str,
+    file_type: str,
+    sort_order: int = 0,
+    uploaded_by_id: int | None = None,
+) -> AdministrationDocument:
+    db.execute(
+        "INSERT INTO administration_documents"
+        " (section_id, display_name, filename, file_type, sort_order, uploaded_by_id)"
+        " VALUES (?, ?, ?, ?, ?, ?)",
+        [section_id, display_name, filename, file_type, sort_order, uploaded_by_id],
+    )
+    row = db.execute(
+        "SELECT id, section_id, display_name, filename, file_type, sort_order"
+        " FROM administration_documents"
+        " WHERE section_id = ? ORDER BY uploaded_at DESC LIMIT 1",
+        [section_id],
+    ).fetchone()
+    assert row is not None  # noqa: S101 # nosec B101 — just inserted
+    section = get_administration_section(db, section_id)
+    slug = section.slug if section else str(section_id)
+    return _row_to_admin_document(row, slug)
+
+
+def delete_administration_document(
+    db: duckdb.DuckDBPyConnection, doc_id: int
+) -> dict | None:
+    """Delete a document record. Returns {filename, section_slug} for disk deletion, or None."""
+    row = db.execute(
+        "SELECT d.filename, s.slug"
+        " FROM administration_documents d"
+        " JOIN administration_sections s ON s.id = d.section_id"
+        " WHERE d.id = ?",
+        [doc_id],
+    ).fetchone()
+    if row is None:
+        return None
+    filename: str = row[0]
+    section_slug: str = row[1]
+    db.execute("DELETE FROM administration_documents WHERE id = ?", [doc_id])
+    return {"filename": filename, "section_slug": section_slug}
