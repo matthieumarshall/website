@@ -2,6 +2,7 @@ import json
 import logging
 import mimetypes
 import os
+import re
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -727,9 +728,7 @@ def administration_create_section(
     validate_csrf(request, csrf_token)
     slug = slug.strip().lower()
     # Validate slug: alphanumeric + hyphens only
-    import re as _re_local
-
-    if not _re_local.match(r"^[a-z0-9-]+$", slug):
+    if not re.match(r"^[a-z0-9-]+$", slug):
         raise HTTPException(
             status_code=400,
             detail="Slug must contain only lowercase letters, digits, and hyphens.",

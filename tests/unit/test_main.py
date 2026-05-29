@@ -1,8 +1,10 @@
 """Tests for FastAPI routes and main application"""
 
 import re
+from pathlib import Path
 
 import duckdb
+import pytest
 from fastapi.testclient import TestClient
 
 from website import repository
@@ -253,6 +255,168 @@ class TestAdministrationAccess:
             r'<a[^>]+href="/uploads/administration/[^"]+\.zip"[^>]*\bdownload\b',
             response.text,
         )
+
+
+class TestAdministrationManage:
+    def test_manage_page_requires_admin(self, test_client: TestClient) -> None:
+        response = test_client.get("/administration/manage", follow_redirects=False)
+        assert response.status_code in (302, 403)
+
+    def test_manage_page_accessible_to_admin(self, admin_client: TestClient) -> None:
+        assert admin_client.get("/administration/manage").status_code == 200
+
+    def test_create_section(
+        self,
+        admin_client: TestClient,
+        test_db: duckdb.DuckDBPyConnection,
+    ) -> None:
+        manage_page = admin_client.get("/administration/manage")
+        csrf = re.search(r'name="csrf_token"\s+value="([^"]+)"', manage_page.text)
+        assert csrf
+        resp = admin_client.post(
+            "/administration/manage/sections",
+            data={
+                "title": "Test Section",
+                "slug": "test-section",
+                "description": "A test section",
+                "csrf_token": csrf.group(1),
+            },
+        )
+        assert resp.status_code == 200
+        assert "Test Section" in resp.text
+        sections = repository.list_administration_sections(test_db)
+        assert any(s.slug == "test-section" for s in sections)
+
+    def test_create_section_invalid_slug(self, admin_client: TestClient) -> None:
+        manage_page = admin_client.get("/administration/manage")
+        csrf = re.search(r'name="csrf_token"\s+value="([^"]+)"', manage_page.text)
+        assert csrf
+        resp = admin_client.post(
+            "/administration/manage/sections",
+            data={
+                "title": "Bad Slug",
+                "slug": "Bad Slug!!",
+                "description": "",
+                "csrf_token": csrf.group(1),
+            },
+        )
+        assert resp.status_code == 400
+
+    def test_delete_empty_section(
+        self,
+        admin_client: TestClient,
+        test_db: duckdb.DuckDBPyConnection,
+    ) -> None:
+        section = repository.create_administration_section(
+            test_db, slug="to-delete", title="To Delete", description="", sort_order=0
+        )
+        manage_page = admin_client.get("/administration/manage")
+        csrf = re.search(r'name="csrf_token"\s+value="([^"]+)"', manage_page.text)
+        assert csrf
+        resp = admin_client.post(
+            f"/administration/manage/sections/{section.id}/delete",
+            data={"csrf_token": csrf.group(1)},
+        )
+        assert resp.status_code == 200
+        sections = repository.list_administration_sections(test_db)
+        assert not any(s.id == section.id for s in sections)
+
+    def test_delete_section_with_documents_rejected(
+        self,
+        admin_client: TestClient,
+        test_db: duckdb.DuckDBPyConnection,
+    ) -> None:
+        section = repository.create_administration_section(
+            test_db, slug="nonempty", title="Non-empty", description="", sort_order=0
+        )
+        repository.create_administration_document(
+            test_db,
+            section_id=section.id,
+            display_name="A doc",
+            filename="doc.pdf",
+            file_type="PDF",
+            sort_order=0,
+        )
+        manage_page = admin_client.get("/administration/manage")
+        csrf = re.search(r'name="csrf_token"\s+value="([^"]+)"', manage_page.text)
+        assert csrf
+        resp = admin_client.post(
+            f"/administration/manage/sections/{section.id}/delete",
+            data={"csrf_token": csrf.group(1)},
+        )
+        assert resp.status_code == 400
+
+    def test_upload_document(
+        self,
+        admin_client: TestClient,
+        test_db: duckdb.DuckDBPyConnection,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        monkeypatch.setattr("website.main._ADMIN_DOCS_DIR", tmp_path)
+        section = repository.create_administration_section(
+            test_db, slug="agendas", title="Agendas", description="", sort_order=0
+        )
+        manage_page = admin_client.get("/administration/manage")
+        csrf = re.search(r'name="csrf_token"\s+value="([^"]+)"', manage_page.text)
+        assert csrf
+        resp = admin_client.post(
+            f"/administration/manage/sections/{section.id}/documents",
+            data={"display_name": "2025 Agenda", "csrf_token": csrf.group(1)},
+            files={"file": ("agenda.pdf", b"%PDF-1.4", "application/pdf")},
+        )
+        assert resp.status_code == 200
+        assert "2025 Agenda" in resp.text
+        sections = repository.list_administration_sections(test_db)
+        section_docs = next(s for s in sections if s.slug == "agendas").documents
+        assert len(section_docs) == 1
+        assert section_docs[0].display_name == "2025 Agenda"
+
+    def test_upload_document_bad_extension(
+        self,
+        admin_client: TestClient,
+        test_db: duckdb.DuckDBPyConnection,
+    ) -> None:
+        section = repository.create_administration_section(
+            test_db, slug="agendas", title="Agendas", description="", sort_order=0
+        )
+        manage_page = admin_client.get("/administration/manage")
+        csrf = re.search(r'name="csrf_token"\s+value="([^"]+)"', manage_page.text)
+        assert csrf
+        resp = admin_client.post(
+            f"/administration/manage/sections/{section.id}/documents",
+            data={"display_name": "Malware", "csrf_token": csrf.group(1)},
+            files={"file": ("evil.exe", b"MZ", "application/octet-stream")},
+        )
+        assert resp.status_code == 400
+
+    def test_delete_document(
+        self,
+        admin_client: TestClient,
+        test_db: duckdb.DuckDBPyConnection,
+    ) -> None:
+        section = repository.create_administration_section(
+            test_db, slug="agendas", title="Agendas", description="", sort_order=0
+        )
+        doc = repository.create_administration_document(
+            test_db,
+            section_id=section.id,
+            display_name="Old Doc",
+            filename="old.pdf",
+            file_type="PDF",
+            sort_order=0,
+        )
+        manage_page = admin_client.get("/administration/manage")
+        csrf = re.search(r'name="csrf_token"\s+value="([^"]+)"', manage_page.text)
+        assert csrf
+        resp = admin_client.post(
+            f"/administration/manage/documents/{doc.id}/delete",
+            data={"csrf_token": csrf.group(1)},
+        )
+        assert resp.status_code == 200
+        sections = repository.list_administration_sections(test_db)
+        section_docs = next(s for s in sections if s.slug == "agendas").documents
+        assert not any(d.id == doc.id for d in section_docs)
 
 
 class TestNewsCrud:
