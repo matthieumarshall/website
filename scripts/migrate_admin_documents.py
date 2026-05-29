@@ -23,8 +23,10 @@ import uuid
 from pathlib import Path
 
 # Ensure UTF-8 output on Windows terminals that default to cp1252
-if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
+import io as _io
+
+if isinstance(sys.stdout, _io.TextIOWrapper) and sys.stdout.encoding.lower() != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 # Allow importing from src/website
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
