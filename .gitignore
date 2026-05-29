@@ -27,6 +27,9 @@ wheels/
 # uv
 .uv.lock
 
+# Scratch / script output
+dry_run_output.txt
+
 # Database
 *.db
 

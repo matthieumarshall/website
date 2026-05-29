@@ -1,22 +1,29 @@
 {% extends "base.html" %}
 {% block title %}Administration — Oxfordshire Cross Country League{% endblock %}
 {% block content %}
-  <div class="mb-4">
-    <h1 class="h3 mb-2">Administration</h1>
-    <p class="text-muted mb-0">Download league administration documents by section.</p>
+  <div class="mb-4 d-flex flex-wrap align-items-center justify-content-between gap-2">
+    <div>
+      <h1 class="h3 mb-2">Administration</h1>
+      <p class="text-muted mb-0">Download league administration documents by section.</p>
+    </div>
+    {% if current_user and current_user.role == UserRole.admin.value %}
+      <a href="/administration/manage" class="btn btn-outline-secondary btn-sm">Manage documents</a>
+    {% endif %}
   </div>
   {% for section in administration_sections %}
-    <section class="card mb-4" aria-labelledby="{{ section.id }}-heading">
+    <section class="card mb-4" aria-labelledby="{{ section.slug }}-heading">
       <div class="card-body">
-        <h2 id="{{ section.id }}-heading" class="h5 mb-2">{{ section.title }}</h2>
-        <p class="text-muted small mb-3">{{ section.description }}</p>
+        <h2 id="{{ section.slug }}-heading" class="h5 mb-2">{{ section.title }}</h2>
+        {% if section.description %}
+          <p class="text-muted small mb-3">{{ section.description }}</p>
+        {% endif %}
         {% if section.documents %}
           <ul class="list-unstyled mb-0">
             {% for document in section.documents %}
               <li class="py-2 {% if not loop.first %}border-top{% endif %}">
                 <a href="{{ document.href }}"
                    download
-                   class="fw-semibold text-decoration-none">{{ document.name }}</a>
+                   class="fw-semibold text-decoration-none">{{ document.display_name }}</a>
                 <span class="badge rounded-pill text-bg-light border ms-2">{{ document.file_type }}</span>
               </li>
             {% endfor %}
@@ -27,4 +34,7 @@
       </div>
     </section>
   {% endfor %}
+  {% if not administration_sections %}
+    <p class="text-muted">No document sections have been created yet.</p>
+  {% endif %}
 {% endblock %}

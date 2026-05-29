@@ -230,17 +230,25 @@ class RaceWithResults(BaseModel):
 class AdministrationDocument(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    name: str
-    href: str
+    id: int
+    section_id: int
+    display_name: str
+    filename: str
+    href: (
+        str  # computed by repository: /uploads/administration/<section_slug>/<filename>
+    )
     file_type: str
+    sort_order: int
 
 
 class AdministrationSection(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    id: str
+    id: int
+    slug: str  # used for HTML anchors and URL path segments
     title: str
     description: str
+    sort_order: int
     documents: list[AdministrationDocument]
 
 
