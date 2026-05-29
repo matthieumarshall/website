@@ -10,31 +10,37 @@
       <a href="/administration/manage" class="btn btn-outline-secondary btn-sm">Manage documents</a>
     {% endif %}
   </div>
-  {% for section in administration_sections %}
-    <section class="card mb-4" aria-labelledby="{{ section.slug }}-heading">
-      <div class="card-body">
-        <h2 id="{{ section.slug }}-heading" class="h5 mb-2">{{ section.title }}</h2>
-        {% if section.description %}
-          <p class="text-muted small mb-3">{{ section.description }}</p>
-        {% endif %}
-        {% if section.documents %}
-          <ul class="list-unstyled mb-0">
-            {% for document in section.documents %}
-              <li class="py-2 {% if not loop.first %}border-top{% endif %}">
-                <a href="{{ document.href }}"
-                   download
-                   class="fw-semibold text-decoration-none">{{ document.display_name }}</a>
-                <span class="badge rounded-pill text-bg-light border ms-2">{{ document.file_type }}</span>
-              </li>
-            {% endfor %}
-          </ul>
-        {% else %}
-          <p class="text-muted mb-0">No documents have been published in this section yet.</p>
-        {% endif %}
+  <div class="row row-cols-1 row-cols-md-2 g-4">
+    {% for section in administration_sections %}
+      <div class="col">
+        <section class="card h-100" aria-labelledby="{{ section.slug }}-heading">
+          <div class="card-body">
+            <h2 id="{{ section.slug }}-heading" class="h5 mb-2">{{ section.title }}</h2>
+            {% if section.description %}
+              <p class="text-muted small mb-3">{{ section.description }}</p>
+            {% endif %}
+            {% if section.documents %}
+              <ul class="list-unstyled mb-0">
+                {% for document in section.documents %}
+                  <li class="py-2 {% if not loop.first %}border-top{% endif %}">
+                    <a href="{{ document.href }}"
+                       download
+                       class="fw-semibold text-decoration-none">{{ document.display_name }}</a>
+                    <span class="badge rounded-pill text-bg-light border ms-2">{{ document.file_type }}</span>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p class="text-muted mb-0">No documents have been published in this section yet.</p>
+            {% endif %}
+          </div>
+        </section>
       </div>
-    </section>
-  {% endfor %}
-  {% if not administration_sections %}
-    <p class="text-muted">No document sections have been created yet.</p>
-  {% endif %}
+    {% endfor %}
+    {% if not administration_sections %}
+      <div class="col">
+        <p class="text-muted">No document sections have been created yet.</p>
+      </div>
+    {% endif %}
+  </div>
 {% endblock %}
