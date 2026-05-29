@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}Manage Administration Documents — Oxfordshire Cross Country League{% endblock %}
+{% block content %}
+  <div class="mb-4 d-flex flex-wrap align-items-center justify-content-between gap-2">
+    <div>
+      <h1 class="h3 mb-1">Manage Administration Documents</h1>
+      <p class="text-muted mb-0">Upload and organise publicly downloadable documents.</p>
+    </div>
+    <a href="/administration" class="btn btn-outline-secondary btn-sm">View public page</a>
+  </div>
+
+  {% if sections %}
+    {% for section in sections %}
+      <section class="card mb-4" aria-labelledby="section-{{ section.id }}-heading">
+        <div class="card-header d-flex align-items-center justify-content-between gap-2 flex-wrap">
+          <h2 id="section-{{ section.id }}-heading" class="h6 mb-0">{{ section.title }}</h2>
+          <form
+            action="/administration/manage/sections/{{ section.id }}/delete"
+            method="post"
+            onsubmit="return confirm('Delete section \u201c{{ section.title }}\u201d? This only works if the section is empty.');"
+          >
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="btn btn-outline-danger btn-sm">Delete section</button>
+          </form>
+        </div>
+        <div class="card-body">
+          {% if section.description %}
+            <p class="text-muted small mb-3">{{ section.description }}</p>
+          {% endif %}
+
+          {# Document list #}
+          {% if section.documents %}
+            <ul class="list-unstyled mb-3">
+              {% for doc in section.documents %}
+                <li class="d-flex align-items-center justify-content-between gap-2 py-2 {% if not loop.first %}border-top{% endif %}">
+                  <div>
+                    <a href="{{ doc.href }}" class="fw-semibold text-decoration-none" target="_blank" rel="noopener">{{ doc.display_name }}</a>
+                    <span class="badge rounded-pill text-bg-light border ms-2">{{ doc.file_type }}</span>
+                  </div>
+                  <form
+                    action="/administration/manage/documents/{{ doc.id }}/delete"
+                    method="post"
+                    onsubmit="return confirm('Delete \u201c{{ doc.display_name }}\u201d?');"
+                  >
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
+                  </form>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="text-muted small mb-3">No documents in this section yet.</p>
+          {% endif %}
+
+          {# Upload form #}
+          <form
+            action="/administration/manage/sections/{{ section.id }}/documents"
+            method="post"
+            enctype="multipart/form-data"
+          >
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="row g-2 align-items-end">
+              <div class="col-sm-5">
+                <label for="display-name-{{ section.id }}" class="form-label form-label-sm">Display name</label>
+                <input
+                  type="text"
+                  id="display-name-{{ section.id }}"
+                  name="display_name"
+                  class="form-control form-control-sm"
+                  placeholder="e.g. 2025 AGM Agenda"
+                  required
+                  aria-required="true"
+                >
+              </div>
+              <div class="col-sm-5">
+                <label for="file-{{ section.id }}" class="form-label form-label-sm">File</label>
+                <input
+                  type="file"
+                  id="file-{{ section.id }}"
+                  name="file"
+                  class="form-control form-control-sm"
+                  accept=".pdf,.zip,.docx,.xlsx,.csv,.txt"
+                  required
+                  aria-required="true"
+                >
+              </div>
+              <div class="col-sm-2">
+                <button type="submit" class="btn btn-primary btn-sm w-100">Upload</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </section>
+    {% endfor %}
+  {% else %}
+    <p class="text-muted mb-4">No sections yet. Create one below.</p>
+  {% endif %}
+
+  {# Add new section #}
+  <div class="card">
+    <div class="card-header">
+      <h2 class="h6 mb-0">Add a new section</h2>
+    </div>
+    <div class="card-body">
+      <form action="/administration/manage/sections" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="row g-2 align-items-end">
+          <div class="col-sm-4">
+            <label for="new-section-title" class="form-label form-label-sm">Title</label>
+            <input
+              type="text"
+              id="new-section-title"
+              name="title"
+              class="form-control form-control-sm"
+              placeholder="e.g. Constitution"
+              required
+              aria-required="true"
+            >
+          </div>
+          <div class="col-sm-3">
+            <label for="new-section-slug" class="form-label form-label-sm">Slug (URL identifier)</label>
+            <input
+              type="text"
+              id="new-section-slug"
+              name="slug"
+              class="form-control form-control-sm"
+              placeholder="e.g. constitution"
+              pattern="[a-z0-9\-]+"
+              title="Lowercase letters, digits, and hyphens only"
+              required
+              aria-required="true"
+            >
+          </div>
+          <div class="col-sm-4">
+            <label for="new-section-description" class="form-label form-label-sm">Description (optional)</label>
+            <input
+              type="text"
+              id="new-section-description"
+              name="description"
+              class="form-control form-control-sm"
+              placeholder="Short description shown to visitors"
+            >
+          </div>
+          <div class="col-sm-1">
+            <button type="submit" class="btn btn-primary btn-sm w-100">Add</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endblock %}

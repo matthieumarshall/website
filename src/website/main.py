@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import duckdb
-from fastapi import Depends, FastAPI, Form, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.exception_handlers import http_exception_handler
 from fastapi_permissions import (
     Allow,
@@ -33,7 +33,6 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
-from website.administration_documents import ADMINISTRATION_DOCUMENT_SECTIONS
 from website.auth import verify_password
 from website.database import get_db, run_migrations
 from website.helpers import (
@@ -80,8 +79,11 @@ if not _secret_key:
 
 _UPLOADS_DIR = Path("data/uploads")
 _FIXTURE_MAPS_DIR = Path("data/fixture-maps")
+_ADMIN_DOCS_DIR = Path("data/uploads/administration")
 _ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 _MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5 MB
+_ALLOWED_DOC_EXTENSIONS = {".pdf", ".zip", ".docx", ".xlsx", ".csv", ".txt"}
+_MAX_DOC_BYTES = 20 * 1024 * 1024  # 20 MB
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -118,6 +120,7 @@ async def _lifespan(app: FastAPI):  # noqa: ARG001
 
     _UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
     _FIXTURE_MAPS_DIR.mkdir(parents=True, exist_ok=True)
+    _ADMIN_DOCS_DIR.mkdir(parents=True, exist_ok=True)
     db_path = _get_db_path()
     if db_path != ":memory:":
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
@@ -185,6 +188,7 @@ app.add_middleware(SecurityHeadersMiddleware)  # type: ignore[arg-type]
 # before the lifespan startup handler gets a chance to create it.)
 _UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 _FIXTURE_MAPS_DIR.mkdir(parents=True, exist_ok=True)
+_ADMIN_DOCS_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(_UPLOADS_DIR)), name="uploads")
 app.mount(
     "/fixture-maps", StaticFiles(directory=str(_FIXTURE_MAPS_DIR)), name="fixture-maps"
@@ -676,14 +680,200 @@ def rules_and_constitution_export_pdf(
 
 
 @app.get("/administration", response_class=HTMLResponse)
-def administration(request: Request) -> HTMLResponse:
+def administration(
+    request: Request,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+) -> HTMLResponse:
+    sections = repository.list_administration_sections(db)
     return templates.TemplateResponse(
         request,
         "administration.html",
         page_context(
             request,
             "administration",
-            administration_sections=ADMINISTRATION_DOCUMENT_SECTIONS,
+            administration_sections=sections,
+        ),
+    )
+
+
+@app.get("/administration/manage", response_class=HTMLResponse)
+def administration_manage(
+    request: Request,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _ADMIN_ACL),
+) -> HTMLResponse:
+    sections = repository.list_administration_sections(db)
+    return templates.TemplateResponse(
+        request,
+        "administration_manage.html",
+        page_context(
+            request,
+            "administration",
+            sections=sections,
+        ),
+    )
+
+
+@app.post("/administration/manage/sections", response_class=HTMLResponse)
+def administration_create_section(
+    request: Request,
+    title: str = Form(...),
+    description: str = Form(""),
+    slug: str = Form(...),
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _ADMIN_ACL),
+) -> HTMLResponse:
+    validate_csrf(request, csrf_token)
+    slug = slug.strip().lower()
+    # Validate slug: alphanumeric + hyphens only
+    import re as _re_local
+
+    if not _re_local.match(r"^[a-z0-9-]+$", slug):
+        raise HTTPException(
+            status_code=400,
+            detail="Slug must contain only lowercase letters, digits, and hyphens.",
+        )
+    title = title.strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Title is required.")
+    # Derive sort_order from current section count
+    existing = repository.list_administration_sections(db)
+    sort_order = len(existing)
+    try:
+        repository.create_administration_section(
+            db,
+            slug=slug,
+            title=title,
+            description=description.strip(),
+            sort_order=sort_order,
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=400, detail="A section with that slug already exists."
+        )
+    sections = repository.list_administration_sections(db)
+    return templates.TemplateResponse(
+        request,
+        "administration_manage.html",
+        page_context(
+            request,
+            "administration",
+            sections=sections,
+        ),
+    )
+
+
+@app.post(
+    "/administration/manage/sections/{section_id}/delete",
+    response_class=HTMLResponse,
+)
+def administration_delete_section(
+    section_id: int,
+    request: Request,
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _ADMIN_ACL),
+) -> HTMLResponse:
+    validate_csrf(request, csrf_token)
+    try:
+        repository.delete_administration_section(db, section_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    sections = repository.list_administration_sections(db)
+    return templates.TemplateResponse(
+        request,
+        "administration_manage.html",
+        page_context(
+            request,
+            "administration",
+            sections=sections,
+        ),
+    )
+
+
+@app.post(
+    "/administration/manage/sections/{section_id}/documents",
+    response_class=HTMLResponse,
+)
+async def administration_upload_document(
+    section_id: int,
+    request: Request,
+    display_name: str = Form(...),
+    file: UploadFile = File(...),
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _ADMIN_ACL),
+) -> HTMLResponse:
+    validate_csrf(request, csrf_token)
+    section = repository.get_administration_section(db, section_id)
+    if section is None:
+        raise HTTPException(status_code=404, detail="Section not found")
+    suffix = Path(file.filename or "document").suffix.lower()
+    if suffix not in _ALLOWED_DOC_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type '{suffix}'. Allowed: {', '.join(_ALLOWED_DOC_EXTENSIONS)}",
+        )
+    data = await file.read(_MAX_DOC_BYTES + 1)
+    if len(data) > _MAX_DOC_BYTES:
+        raise HTTPException(status_code=413, detail="File exceeds 20 MB limit")
+    safe_name = f"{uuid.uuid4().hex}{suffix}"
+    section_dir = _ADMIN_DOCS_DIR / section.slug
+    section_dir.mkdir(parents=True, exist_ok=True)
+    (section_dir / safe_name).write_bytes(data)
+    file_type = suffix.lstrip(".").upper()
+    # Sort order: one more than the current maximum in this section
+    sort_order = len(section.documents)
+    display_name_clean = display_name.strip()
+    if not display_name_clean:
+        raise HTTPException(status_code=400, detail="Display name is required.")
+    repository.create_administration_document(
+        db,
+        section_id=section_id,
+        display_name=display_name_clean,
+        filename=safe_name,
+        file_type=file_type,
+        sort_order=sort_order,
+        uploaded_by_id=getattr(get_current_user(request), "id", None),
+    )
+    sections = repository.list_administration_sections(db)
+    return templates.TemplateResponse(
+        request,
+        "administration_manage.html",
+        page_context(
+            request,
+            "administration",
+            sections=sections,
+        ),
+    )
+
+
+@app.post(
+    "/administration/manage/documents/{doc_id}/delete",
+    response_class=HTMLResponse,
+)
+def administration_delete_document(
+    doc_id: int,
+    request: Request,
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _ADMIN_ACL),
+) -> HTMLResponse:
+    validate_csrf(request, csrf_token)
+    result = repository.delete_administration_document(db, doc_id)
+    if result is not None:
+        filepath = _ADMIN_DOCS_DIR / result["section_slug"] / result["filename"]
+        if filepath.exists():
+            filepath.unlink()
+    sections = repository.list_administration_sections(db)
+    return templates.TemplateResponse(
+        request,
+        "administration_manage.html",
+        page_context(
+            request,
+            "administration",
+            sections=sections,
         ),
     )
 
