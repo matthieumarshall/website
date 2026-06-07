@@ -117,4 +117,5 @@ Use the **vps** skill for step-by-step guidance on deploying, checking logs, res
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
+at `specs/002-team-entries/plan.md`.
 <!-- SPECKIT END -->

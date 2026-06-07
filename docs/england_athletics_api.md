@@ -209,3 +209,9 @@ Response:
   ]
 }
 ```
+
+# Test credentials
+User - eventprov2
+Password - $33#(sport2
+Certificate - data\TrApiStagingEVENT2ClientCert.pfx.txt is the client certificate
+Password to install – EvSTg@561760v2
