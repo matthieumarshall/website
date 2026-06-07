@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}{% if club %}Edit Club{% else %}Add Club{% endif %} — Oxfordshire Cross Country League{% endblock %}
+{% block content %}
+<div class="mb-4">
+  <a href="/admin/clubs" class="btn btn-outline-secondary btn-sm mb-3">&larr; Back to clubs</a>
+  <h1 class="h3 mb-0">{% if club %}Edit Club{% else %}Add Club{% endif %}</h1>
+</div>
+
+{% if error %}
+  <div class="alert alert-danger" role="alert">{{ error }}</div>
+{% endif %}
+
+<form method="post" action="{% if club %}/admin/clubs/{{ club.id }}{% else %}/admin/clubs{% endif %}" novalidate>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  <div class="mb-3">
+    <label for="name" class="form-label">Club name</label>
+    <input type="text" id="name" name="name" class="form-control" required
+           value="{{ club.name if club else '' }}"
+           placeholder="e.g. Oxford Running Club">
+  </div>
+
+  <div class="mb-3">
+    <label for="oxl_code" class="form-label">OXL code</label>
+    <input type="text" id="oxl_code" name="oxl_code" class="form-control" required
+           value="{{ club.oxl_code if club else '' }}"
+           placeholder="e.g. ORC"
+           pattern="[A-Z0-9\-]+"
+           title="Uppercase letters, digits, and hyphens only">
+    <div class="form-text">Short identifier used in race numbers (uppercase).</div>
+  </div>
+
+  <div class="mb-3">
+    <label for="ea_club_id" class="form-label">England Athletics club ID</label>
+    <input type="text" id="ea_club_id" name="ea_club_id" class="form-control" required
+           value="{{ club.ea_club_id if club else '' }}"
+           placeholder="e.g. 123456">
+    <div class="form-text">Numeric identifier from the England Athletics system.</div>
+  </div>
+
+  {% if club %}
+    <div class="mb-3">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="is_active" name="is_active"
+               {% if club.is_active %}checked{% endif %}>
+        <label class="form-check-label" for="is_active">Active (managers can submit entries)</label>
+      </div>
+    </div>
+  {% endif %}
+
+  <div class="d-flex gap-2">
+    <button type="submit" class="btn btn-primary">{% if club %}Save changes{% else %}Add club{% endif %}</button>
+    <a href="/admin/clubs" class="btn btn-outline-secondary">Cancel</a>
+  </div>
+</form>
+{% endblock %}
