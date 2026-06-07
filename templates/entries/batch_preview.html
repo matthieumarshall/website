@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Confirm Entries — {{ season.name }} — Oxfordshire Cross Country League{% endblock %}
+{% block content %}
+<div class="mb-4">
+  <a href="/entries/{{ season.id }}/add" class="btn btn-outline-secondary btn-sm mb-2">&larr; Back to athlete selection</a>
+  <h1 class="h3 mb-1">Confirm Entries — {{ season.name }}</h1>
+  <p class="text-muted mb-0">Club: <strong>{{ club_name }}</strong></p>
+</div>
+
+<div class="table-responsive mb-4">
+  <table class="table align-middle">
+    <thead class="table-light">
+      <tr>
+        <th scope="col">Athlete</th>
+        <th scope="col">Age category</th>
+        <th scope="col">Price</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for athlete in athletes %}
+        <tr>
+          <td>{{ athlete.athlete_name }}</td>
+          <td>
+            <span class="badge {% if athlete.is_junior %}text-bg-info{% else %}text-bg-secondary{% endif %}">
+              {{ athlete.ea_age_category }}
+            </span>
+          </td>
+          <td>£{{ "%.2f"|format(athlete.amount_pence / 100) }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot class="table-light fw-bold">
+      {% if junior_count > 0 %}
+        <tr>
+          <td colspan="2">Junior subtotal ({{ junior_count }} athlete{% if junior_count != 1 %}s{% endif %})</td>
+          <td>£{{ "%.2f"|format(junior_total / 100) }}</td>
+        </tr>
+      {% endif %}
+      {% if adult_count > 0 %}
+        <tr>
+          <td colspan="2">Adult subtotal ({{ adult_count }} athlete{% if adult_count != 1 %}s{% endif %})</td>
+          <td>£{{ "%.2f"|format(adult_total / 100) }}</td>
+        </tr>
+      {% endif %}
+      <tr class="table-primary">
+        <td colspan="2">Total</td>
+        <td>£{{ "%.2f"|format(total_pence / 100) }}</td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <h2 class="h6 mb-2">Payment</h2>
+    <p class="text-muted mb-3 small">You will be taken to Stripe to complete payment securely. We accept debit/credit card and BACS Direct Debit.</p>
+    <form method="post" action="/entries/{{ season.id }}/batch/{{ batch.id }}/checkout">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn btn-success">Proceed to payment &rarr;</button>
+    </form>
+  </div>
+</div>
+
+<p class="text-muted small">
+  <a href="/entries/{{ season.id }}">Save for later and view season entries</a> — your selection has been saved.
+</p>
+{% endblock %}

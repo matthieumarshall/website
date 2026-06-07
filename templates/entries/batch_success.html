@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Payment Confirmed — {{ season.name }} — Oxfordshire Cross Country League{% endblock %}
+{% block content %}
+<div class="text-center py-5">
+  {% if batch.status == 'paid' %}
+    <div class="mb-3" aria-hidden="true" style="font-size:3rem;">✓</div>
+    <h1 class="h3 mb-2 text-success">Payment confirmed!</h1>
+    <p class="text-muted mb-4">
+      Your entry for <strong>{{ club_name }}</strong> in <strong>{{ season.name }}</strong> has been confirmed.
+      Race numbers have been assigned.
+    </p>
+    <div class="d-flex flex-wrap gap-2 justify-content-center">
+      <a href="/entries/{{ season.id }}/batch/{{ batch.id }}/receipt" class="btn btn-primary">View receipt</a>
+      <a href="/entries/{{ season.id }}/batch/{{ batch.id }}/receipt.pdf" class="btn btn-outline-secondary">Download PDF</a>
+      <a href="/entries/{{ season.id }}" class="btn btn-outline-secondary">View season entries</a>
+    </div>
+  {% elif batch.status == 'payment_initiated' %}
+    <div class="mb-3" aria-hidden="true" style="font-size:3rem;">⏳</div>
+    <h1 class="h3 mb-2 text-info">BACS payment initiated</h1>
+    <p class="text-muted mb-2">
+      Your BACS Direct Debit has been set up. Payment typically settles within 3–7 business days.
+      Race numbers will be assigned once payment clears.
+    </p>
+    <p class="text-muted mb-4 small">
+      You will receive a notification once payment is confirmed. Your entry is reserved in the meantime.
+    </p>
+    <div class="d-flex flex-wrap gap-2 justify-content-center">
+      <a href="/entries/{{ season.id }}/batch/{{ batch.id }}/receipt" class="btn btn-outline-primary">View provisional receipt</a>
+      <a href="/entries/{{ season.id }}" class="btn btn-outline-secondary">View season entries</a>
+    </div>
+  {% else %}
+    <div class="mb-3" aria-hidden="true" style="font-size:3rem;">⚠️</div>
+    <h1 class="h3 mb-2">Entry submitted</h1>
+    <p class="text-muted mb-4">Your entry has been submitted. Payment status: <strong>{{ batch.status }}</strong>.</p>
+    <a href="/entries" class="btn btn-outline-secondary">Back to entries</a>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,29 @@
+<tr id="tier-row-{{ tier.fixtures_remaining }}">
+  <td>{{ tier.fixtures_remaining }}</td>
+  <td>
+    <form method="post" action="/admin/entries/{{ season.id }}/pricing"
+          hx-post="/admin/entries/{{ season.id }}/pricing"
+          hx-target="#tier-row-{{ tier.fixtures_remaining }}"
+          hx-swap="outerHTML">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="fixtures_remaining" value="{{ tier.fixtures_remaining }}">
+      <div class="d-flex gap-2 align-items-center flex-wrap">
+        <div class="input-group input-group-sm" style="max-width:120px">
+          <span class="input-group-text">£</span>
+          <input type="number" class="form-control" name="junior_pence_display"
+                 value="{{ "%.2f"|format(tier.junior_pence / 100) }}"
+                 step="0.01" min="0" required aria-label="Junior price in pounds">
+        </div>
+        <div class="input-group input-group-sm" style="max-width:120px">
+          <span class="input-group-text">£</span>
+          <input type="number" class="form-control" name="adult_pence_display"
+                 value="{{ "%.2f"|format(tier.adult_pence / 100) }}"
+                 step="0.01" min="0" required aria-label="Adult price in pounds">
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">Save</button>
+      </div>
+    </form>
+  </td>
+  <td></td>
+  <td></td>
+</tr>

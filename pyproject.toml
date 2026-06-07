@@ -27,6 +27,8 @@ dependencies = [
     "httpx>=0.28.1",
     "fpdf2>=2.8.7",
     "cryptography>46.0.6",
+    "stripe>=15.2.0",
+    "weasyprint>=69.0",
 ]
 
 [project.optional-dependencies]

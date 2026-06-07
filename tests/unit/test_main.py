@@ -103,7 +103,6 @@ class TestPublicPageRoutes:
     _pages = [
         ("news", "/news"),
         ("results", "/results"),
-        ("entries", "/entries"),
         ("rules_and_constitution", "/rules-and-constitution"),
         ("fixtures", "/fixtures"),
     ]
@@ -115,7 +114,10 @@ class TestPublicPageRoutes:
         assert test_client.get("/results").status_code == 200
 
     def test_entries_page_loads(self, test_client: TestClient) -> None:
-        assert test_client.get("/entries").status_code == 200
+        # /entries requires club_manager auth — unauthenticated request redirects to login
+        # (TestClient follows redirects, so we check the login page title is in the response)
+        response = test_client.get("/entries")
+        assert "Login" in response.text or response.status_code in (302, 403)
 
     def test_rules_and_constitution_page_loads(self, test_client: TestClient) -> None:
         assert test_client.get("/rules-and-constitution").status_code == 200
