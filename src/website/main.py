@@ -7,7 +7,7 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import duckdb
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -206,6 +206,9 @@ app.mount(
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 templates.env.filters["fromjson"] = json.loads
+cast(dict[str, object], templates.env.globals)["STRIPE_PUBLISHABLE_KEY"] = (
+    os.environ.get("STRIPE_PUBLISHABLE_KEY", "")
+)
 
 # ---------------------------------------------------------------------------
 # Permissions
@@ -635,7 +638,7 @@ def entries_create_batch(
     csrf_token: str = Form(...),
     db: duckdb.DuckDBPyConnection = Depends(get_db),
     ctx: dict = Depends(require_club_manager),
-) -> HTMLResponse | RedirectResponse:
+) -> Response:
     """Create a pending_payment entry batch from selected athlete URNs."""
     validate_csrf(request, csrf_token)
     club_manager = ctx["club_manager"]
@@ -770,7 +773,7 @@ async def entries_batch_checkout(
     csrf_token: str = Form(...),
     db: duckdb.DuckDBPyConnection = Depends(get_db),
     ctx: dict = Depends(require_club_manager),
-) -> HTMLResponse | RedirectResponse:
+) -> Response:
     validate_csrf(request, csrf_token)
     club_manager = ctx["club_manager"]
     season = repository.get_season_by_id(db, season_id)
@@ -2182,7 +2185,7 @@ def admin_entries_config_save(
     csrf_token: str = Form(...),
     db: duckdb.DuckDBPyConnection = Depends(get_db),
     _: list = Permission("edit", _ADMIN_ACL),
-) -> HTMLResponse | RedirectResponse:
+) -> Response:
     validate_csrf(request, csrf_token)
     season = repository.get_season_by_id(db, season_id)
     if season is None:
@@ -2229,7 +2232,7 @@ def admin_entries_pricing_save(
     csrf_token: str = Form(...),
     db: duckdb.DuckDBPyConnection = Depends(get_db),
     _: list = Permission("edit", _ADMIN_ACL),
-) -> HTMLResponse | RedirectResponse:
+) -> Response:
     validate_csrf(request, csrf_token)
     season = repository.get_season_by_id(db, season_id)
     if season is None:
@@ -2299,7 +2302,7 @@ def admin_clubs_create(
     csrf_token: str = Form(...),
     db: duckdb.DuckDBPyConnection = Depends(get_db),
     _: list = Permission("edit", _ADMIN_ACL),
-) -> HTMLResponse | RedirectResponse:
+) -> Response:
     validate_csrf(request, csrf_token)
     name = name.strip()
     oxl_code = oxl_code.strip().upper()
@@ -2356,7 +2359,7 @@ def admin_clubs_update(
     csrf_token: str = Form(...),
     db: duckdb.DuckDBPyConnection = Depends(get_db),
     _: list = Permission("edit", _ADMIN_ACL),
-) -> HTMLResponse | RedirectResponse:
+) -> Response:
     validate_csrf(request, csrf_token)
     club = repository.get_club_by_id(club_id, db)
     if club is None:
@@ -2413,7 +2416,7 @@ def admin_club_managers_create(
     csrf_token: str = Form(...),
     db: duckdb.DuckDBPyConnection = Depends(get_db),
     _: list = Permission("edit", _ADMIN_ACL),
-) -> HTMLResponse | RedirectResponse:
+) -> Response:
     validate_csrf(request, csrf_token)
     username = username.strip()
     email_clean: str | None = email.strip() or None
