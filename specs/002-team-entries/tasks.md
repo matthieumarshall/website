@@ -97,7 +97,7 @@ description: "Task list for Team Entries feature implementation"
 **Independent Test**: Mock EA API returning 5 athletes (3 registered, 1 unregistered, 1 already entered); assert only 3 selectable; POST batch with 2 valid URNs; assert `entry_batches` row exists in `pending_payment` status with correct `total_pence`.
 
 - [X] T026 [US1] Implement `fetch_club_athletes()` in `src/website/entries.py`: `httpx.Client` with `http1=True`, mTLS cert loaded from `EA_CERT_PATH`/`EA_CERT_PASSWORD` env vars, headers from `_ea_headers()`, URL from staging/live toggle (`EA_STAGING` env var); return `list[dict]` of athlete objects
-- [ ] T027 [US1] Implement `compute_fixtures_remaining(season_id, db) -> int` in `src/website/entries.py`: count fixtures where `date > today AND combine(date, time(12,0), utc) > now()`
+- [X] T027 [US1] Implement `compute_fixtures_remaining(season_id, db) -> int` in `src/website/entries.py`: count fixtures where `date > today AND combine(date, time(12,0), utc) > now()`
 - [X] T028 [US1] Implement `GET /entries` route in `src/website/main.py`: require `club_manager`; query seasons with `season_entry_config.entries_open = true`; render `templates/entries/season_select.html`
 - [X] T029 [P] [US1] Create `templates/entries/season_select.html`: list of open seasons with name, fixtures remaining count, next fixture date and deadline; link to `/entries/{season_id}/add`
 - [X] T030 [US1] Implement `GET /entries/{season_id}/add` route: require `club_manager`; check `entries_open` + `compute_fixtures_remaining > 0`; call `fetch_club_athletes()` with club's `ea_club_id`; compute `ea_age_category` + `is_junior` for each athlete using `get_oxl_age_category()`; load `get_entered_ea_urns(season_id)`; render `templates/entries/athlete_select.html`
@@ -162,9 +162,9 @@ description: "Task list for Team Entries feature implementation"
 
 **Independent Test**: Create first batch (paid, 5 fixtures remaining); advance mock date so 1 fixture has passed; create second batch; assert price reflects `fixtures_remaining=4`; assert athletes from first batch are excluded from selection.
 
-- [ ] T048 [US5] Update `GET /entries/{season_id}` to show "Add more athletes" button for manager's own club when `compute_fixtures_remaining > 0` (button links to `/entries/{season_id}/add`) — no new route needed; logic already handles multiple batches
-- [ ] T049 [US5] Update `get_entered_ea_urns` to `get_entered_ea_urns(season_id, club_id, db)` in `src/website/repository.py`: queries `athlete_entries` for that club across ALL batches (any status: `paid`, `payment_initiated`, `pending_payment`) to prevent the same club entering the same athlete twice — the same athlete entered by a different club is not excluded
-- [ ] T050 [US5] Add unit test `tests/unit/test_entries.py::test_second_batch_excludes_already_entered_athletes` — mock two batches, assert URNs from first batch not selectable in second
+- [X] T048 [US5] Update `GET /entries/{season_id}` to show "Add more athletes" button for manager's own club when `compute_fixtures_remaining > 0` (button links to `/entries/{season_id}/add`) — no new route needed; logic already handles multiple batches
+- [X] T049 [US5] Update `get_entered_ea_urns` to `get_entered_ea_urns(season_id, club_id, db)` in `src/website/repository.py`: queries `athlete_entries` for that club across ALL batches (any status: `paid`, `payment_initiated`, `pending_payment`) to prevent the same club entering the same athlete twice — the same athlete entered by a different club is not excluded
+- [X] T050 [US5] Add unit test `tests/unit/test_entries.py::test_second_batch_excludes_already_entered_athletes` — mock two batches, assert URNs from first batch not selectable in second
 
 **Checkpoint**: Manager can submit a second batch; already-entered athletes excluded; new batch priced at current fixtures_remaining.
 
@@ -177,7 +177,7 @@ description: "Task list for Team Entries feature implementation"
 **Independent Test**: Insert batches for 3 clubs across 2 seasons; GET `/admin/entries` and assert all 3 clubs appear; filter by `season_id` and assert only that season's clubs appear; GET drill-down and assert per-club totals correct.
 
 - [X] T051 [US7] Extend `GET /admin/entries/{season_id}` (already scaffolded in T022) to include per-club entry counts, total amount paid, count of `payment_initiated` batches; render full data in `templates/admin/entries/season_detail.html`
-- [ ] T052 [US7] Add HTMX filter to `templates/admin/entries/overview.html`: season dropdown + club dropdown + status filter; `hx-get` to `/admin/entries` with updated params; partial HTML response for table body
+- [X] T052 [US7] Add HTMX filter to `templates/admin/entries/overview.html`: season dropdown + club dropdown + status filter; `hx-get` to `/admin/entries` with updated params; partial HTML response for table body
 
 **Checkpoint**: Admin can filter by season/club/status and see per-club drill-down with correct totals.
 
@@ -188,13 +188,13 @@ description: "Task list for Team Entries feature implementation"
 **Purpose**: Security hardening, GDPR, WCAG, error handling, and dev tooling.
 
 - [X] T053 Update `templates/privacy.html` data inventory: add EA athlete data (ea_urn, athlete_name, date_of_birth, ea_age_category) with purpose (EA license validation + league entry), retention (season + 1 year), basis (contract/legitimate interest)
-- [ ] T054 [P] Add `STRIPE_PUBLISHABLE_KEY` to Jinja2 global context in `src/website/main.py` (via `app.state` or template context injection) so templates can embed it for future Stripe.js use without hardcoding
-- [ ] T055 [P] Write unit tests `tests/unit/test_entries.py`: `test_get_oxl_age_category` (boundary ages for each category), `test_is_junior`, `test_is_entry_open_for_fixture` (before/after 12:00 midday), `test_compute_fixtures_remaining_counts_only_future` — all with in-memory DuckDB `:memory:`
-- [ ] T056 [P] Write unit tests `tests/unit/test_payments.py`: `test_verify_webhook_valid_signature`, `test_verify_webhook_invalid_signature_raises`, `test_batch_status_transitions` (state machine for all 4 webhook events) — Stripe calls mocked with `unittest.mock.patch`
-- [ ] T057 [P] Write unit tests `tests/unit/test_receipts.py`: `test_generate_pdf_receipt_returns_bytes`, `test_receipt_html_contains_required_fields` — WeasyPrint mocked to avoid system dep in CI
+- [X] T054 [P] Add `STRIPE_PUBLISHABLE_KEY` to Jinja2 global context in `src/website/main.py` (via `app.state` or template context injection) so templates can embed it for future Stripe.js use without hardcoding
+- [X] T055 [P] Write unit tests `tests/unit/test_entries.py`: `test_get_oxl_age_category` (boundary ages for each category), `test_is_junior`, `test_is_entry_open_for_fixture` (before/after 12:00 midday), `test_compute_fixtures_remaining_counts_only_future` — all with in-memory DuckDB `:memory:`
+- [X] T056 [P] Write unit tests `tests/unit/test_payments.py`: `test_verify_webhook_valid_signature`, `test_verify_webhook_invalid_signature_raises`, `test_batch_status_transitions` (state machine for all 4 webhook events) — Stripe calls mocked with `unittest.mock.patch`
+- [X] T057 [P] Write unit tests `tests/unit/test_receipts.py`: `test_generate_pdf_receipt_returns_bytes`, `test_receipt_html_contains_required_fields` — WeasyPrint mocked to avoid system dep in CI
 - [ ] T058 [P] Accessibility pass on all new templates: verify all `<input>` elements have `<label>` or `aria-label`; status badges use `role="status"`; table headers use `<th scope="col">`; keyboard navigation reachable (Tab order); run `axe` check in Playwright on entry + receipt pages
 - [X] T059 [P] Run `bandit -r src/ -ll` and resolve any new findings introduced by `entries.py`, `payments.py`, `receipts.py`; add `# nosec` with comment only where finding is a confirmed false positive
-- [ ] T060 Write dev seed script `scripts/seed_entries_dev.py`: create test season + 5 fixtures + `season_entry_config` + price tiers + admin user + Oxford City AC club + club_manager user (as per quickstart.md)
+- [X] T060 Write dev seed script `scripts/seed_entries_dev.py`: create test season + 5 fixtures + `season_entry_config` + price tiers + admin user + Oxford City AC club + club_manager user (as per quickstart.md)
 - [X] T061 [P] Add WeasyPrint system dependency note to `docs/setup.md`: `sudo apt-get install -y libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz0b` required on Ubuntu VPS
 - [ ] T062 Write Playwright UI test `tests/ui/test_entries.spec.ts`: full happy-path card payment journey (login as manager → select season → select athletes → preview → mock Stripe redirect → receipt page → download PDF); assert receipt PDF response header and page content
 
