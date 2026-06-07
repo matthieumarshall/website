@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Select Athletes — {{ season.name }} — Oxfordshire Cross Country League{% endblock %}
+{% block content %}
+<div class="mb-4">
+  <a href="/entries" class="btn btn-outline-secondary btn-sm mb-2">&larr; Back to seasons</a>
+  <h1 class="h3 mb-1">{{ season.name }} — Select Athletes</h1>
+  <p class="text-muted mb-0">Club: <strong>{{ club_manager.club_name }}</strong></p>
+</div>
+
+{% if deadline_warning %}
+  <div class="alert alert-warning d-flex align-items-center gap-2" role="alert">
+    <strong>Deadline approaching!</strong> {{ deadline_warning }}
+  </div>
+{% endif %}
+
+{% if error %}
+  <div class="alert alert-danger" role="alert">{{ error }}</div>
+{% endif %}
+
+<div class="mb-3 p-3 bg-light rounded border">
+  <strong>{{ fixtures_remaining }}</strong> fixture{% if fixtures_remaining != 1 %}s{% endif %} remaining in this season.
+  Price per athlete: Junior <strong>£{{ "%.2f"|format(tier.junior_pence / 100) }}</strong> / Adult <strong>£{{ "%.2f"|format(tier.adult_pence / 100) }}</strong>
+</div>
+
+<form method="post" action="/entries/{{ season.id }}/batch" novalidate>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  {% if athletes %}
+    <p class="text-muted mb-3">
+      Select the athletes you wish to enter. Athletes who are already entered this season are shown but cannot be selected again.
+    </p>
+    <div class="table-responsive mb-4">
+      <table class="table table-hover align-middle">
+        <thead class="table-light">
+          <tr>
+            <th scope="col"><span class="visually-hidden">Select</span></th>
+            <th scope="col">Name</th>
+            <th scope="col">Age category</th>
+            <th scope="col">Registration</th>
+            <th scope="col">Price</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for athlete in athletes %}
+            <tr class="{% if athlete.already_entered %}table-secondary{% endif %}">
+              <td>
+                <input type="checkbox"
+                       id="athlete-{{ athlete.ea_urn }}"
+                       name="ea_urns"
+                       value="{{ athlete.ea_urn }}"
+                       class="form-check-input"
+                       {% if athlete.already_entered or not athlete.is_registered %}disabled{% endif %}
+                       {% if athlete.already_entered %}title="Already entered this season"{% endif %}>
+              </td>
+              <td>
+                <label for="athlete-{{ athlete.ea_urn }}" class="mb-0">{{ athlete.athlete_name }}</label>
+              </td>
+              <td>
+                <span class="badge {% if athlete.is_junior %}text-bg-info{% else %}text-bg-secondary{% endif %}">
+                  {{ athlete.ea_age_category }}
+                </span>
+              </td>
+              <td>
+                {% if athlete.is_registered %}
+                  <span class="badge text-bg-success">Registered</span>
+                {% else %}
+                  <span class="badge text-bg-danger">Not registered</span>
+                {% endif %}
+                {% if athlete.already_entered %}
+                  <span class="badge text-bg-warning ms-1">Already entered</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if athlete.is_junior %}
+                  £{{ "%.2f"|format(tier.junior_pence / 100) }}
+                {% else %}
+                  £{{ "%.2f"|format(tier.adult_pence / 100) }}
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="d-flex gap-2 align-items-center">
+      <button type="submit" class="btn btn-primary">Review &amp; Pay</button>
+      <a href="/entries" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+  {% else %}
+    <div class="alert alert-info" role="alert">
+      No athletes found for your club in the England Athletics system. Please contact the league administrator.
+    </div>
+  {% endif %}
+</form>
+{% endblock %}
