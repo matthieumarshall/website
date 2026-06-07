@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"
+     role="img" aria-label="Oxfordshire Cross Country League logo — variant A">
+  <title>OXL — Oxfordshire Cross Country League</title>
+
+  <!-- Gold outer ring -->
+  <circle cx="100" cy="100" r="97" fill="#B09A50"/>
+  <!-- Off-white field -->
+  <circle cx="100" cy="100" r="90" fill="#F7F5F2"/>
+  <!-- Brown inner accent ring -->
+  <circle cx="100" cy="100" r="86" fill="none" stroke="#6B4F3A" stroke-width="1.5"/>
+
+  <!--
+    OXL — stroke-based letters; stroke-linecap/linejoin="round" for curves.
+
+    Letter positions (200×200 canvas, centre 100,100):
+      O  ellipse cx=58  cy=100  rx=12  ry=28
+      X  diagonal box  x 82–122  y 66–134
+      L  polyline       x 134,   y 66–134, crossbar to x 155
+
+    X curve style — UPWARD BOW (elegant / classic):
+      Both arms arc toward the top of the badge.
+      Control points sit above the straight-line midpoint (102,100):
+        \  arm  Q 114,78  → midpoint of curve ≈ (107, 89)
+        /  arm  Q  90,78  → midpoint of curve ≈ ( 97, 89)  [mirror]
+      The X appears to "lift" or spread its arms upward.
+  -->
+  <g fill="none" stroke="#1F3A5F" stroke-width="12"
+     stroke-linecap="round" stroke-linejoin="round">
+
+    <!-- O -->
+    <ellipse cx="58" cy="100" rx="12" ry="28"/>
+
+    <!-- X: upward-bow arcs -->
+    <path d="M 82,66 Q 114,78 122,134"/>
+    <path d="M 122,66 Q  90,78  82,134"/>
+
+    <!-- L -->
+    <polyline points="134,66 134,134 155,134"/>
+
+  </g>
+</svg>
