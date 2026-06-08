@@ -196,7 +196,7 @@ description: "Task list for Team Entries feature implementation"
 - [X] T059 [P] Run `bandit -r src/ -ll` and resolve any new findings introduced by `entries.py`, `payments.py`, `receipts.py`; add `# nosec` with comment only where finding is a confirmed false positive
 - [X] T060 Write dev seed script `scripts/seed_entries_dev.py`: create test season + 5 fixtures + `season_entry_config` + price tiers + admin user + Oxford City AC club + club_manager user (as per quickstart.md)
 - [X] T061 [P] Add WeasyPrint system dependency note to `docs/setup.md`: `sudo apt-get install -y libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz0b` required on Ubuntu VPS
-- [ ] T062 Write Playwright UI test `tests/ui/test_entries.spec.ts`: full happy-path card payment journey (login as manager → select season → select athletes → preview → mock Stripe redirect → receipt page → download PDF); assert receipt PDF response header and page content
+- [X] T062 Write Playwright UI test `tests/ui/test_entries.spec.ts`: full happy-path card payment journey (login as manager → select season → select athletes → preview → mock Stripe redirect → receipt page → download PDF); assert receipt PDF response header and page content
 
 ---
 
