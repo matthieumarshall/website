@@ -238,6 +238,115 @@ def server_process():
             con, slug=slug, title=title, description="", sort_order=i
         )
 
+    # ------------------------------------------------------------------
+    # Seed entries domain: club, manager, config, paid batch for receipt tests
+    # Use a dedicated season so we don't hit the max-fixtures-per-season limit.
+    # ------------------------------------------------------------------
+    from datetime import date, timedelta
+    from website.models import AthleteEntryRow
+
+    entries_season = repository.create_season(con, "Entries Test Season")
+
+    repository.create_club(con, name="UI Test Club", oxl_code="UTC", ea_club_id="9999")
+    row = con.execute("SELECT id FROM clubs WHERE oxl_code='UTC'").fetchone()
+    assert row is not None
+    ui_club_id = row[0]
+
+    # Club manager user
+    con.execute(
+        "INSERT INTO users (username, hashed_password, role) VALUES (?, ?, ?)",
+        [
+            "entries_manager",
+            hash_password("ManagerPassword123!@#"),
+            UserRole.club_manager.value,
+        ],
+    )
+    row = con.execute(
+        "SELECT id FROM users WHERE username='entries_manager'"
+    ).fetchone()
+    assert row is not None
+    manager_user_id = row[0]
+    repository.create_club_manager(
+        con, user_id=manager_user_id, club_id=ui_club_id, email="mgr@example.com"
+    )
+
+    # Entry config: open, future fixtures
+    repository.upsert_season_entry_config(
+        con,
+        season_id=entries_season.id,
+        entries_open=True,
+        ea_reference_date="2025-08-31",
+        total_fixtures=5,
+    )
+
+    # Future fixtures (so compute_fixtures_remaining > 0)
+    today = date.today()
+    for i in range(5):
+        future = today + timedelta(weeks=(i + 1) * 3)
+        repository.create_fixture(
+            con,
+            season_id=entries_season.id,
+            title=f"UI Race {i + 1}",
+            date=str(future),
+            location_name="UI Venue",
+            address="1 Test Road",
+            timetable=[],
+            travel_instructions="",
+        )
+
+    # Price tier
+    repository.upsert_price_tier(
+        con,
+        season_id=entries_season.id,
+        fixtures_remaining=5,
+        junior_pence=800,
+        adult_pence=1000,
+    )
+
+    # Pre-paid entry batch for receipt tests
+    ui_batch = repository.create_entry_batch(
+        con,
+        season_id=entries_season.id,
+        club_id=ui_club_id,
+        manager_user_id=manager_user_id,
+        fixtures_remaining_at_entry=5,
+        total_pence=1800,
+    )
+    repository.create_athlete_entries(
+        con,
+        batch_id=ui_batch.id,
+        season_id=entries_season.id,
+        club_id=ui_club_id,
+        athletes=[
+            AthleteEntryRow(
+                ea_urn=10000001,
+                athlete_name="Test Junior",
+                date_of_birth=date(2012, 3, 15),
+                ea_age_category="U15",
+                is_junior=True,
+                amount_pence=800,
+            ),
+            AthleteEntryRow(
+                ea_urn=10000002,
+                athlete_name="Test Senior",
+                date_of_birth=date(1988, 7, 20),
+                ea_age_category="Senior",
+                is_junior=False,
+                amount_pence=1000,
+            ),
+        ],
+    )
+    repository.update_batch_status(
+        con,
+        batch_id=ui_batch.id,
+        status="paid",
+        stripe_payment_method="card",
+    )
+    repository.assign_race_numbers(ui_batch.id, con)
+    # Expose the batch ID and season ID via env vars so tests can use them
+    os.environ["UI_TEST_BATCH_ID"] = str(ui_batch.id)
+    os.environ["UI_TEST_SEASON_ID"] = str(entries_season.id)
+
     con.close()
 
     # Start uvicorn server in test mode
@@ -342,6 +451,51 @@ def admin_browser(server_process, admin_auth_state):
         browser = p.chromium.launch(headless=True)
         # Inject saved cookies — no login request needed
         context = browser.new_context(storage_state=admin_auth_state)
+        page = context.new_page()
+
+        yield page
+
+        page.close()
+        context.close()
+        browser.close()
+
+
+@pytest.fixture(scope="session")
+def manager_auth_state(server_process):
+    """Log in as the seeded club manager once per session."""
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context()
+        page = context.new_page()
+
+        page.goto("http://localhost:8000/login")
+        page.fill("input[name='username']", "entries_manager")
+        page.fill("input[name='password']", "ManagerPassword123!@#")
+        page.click("button[type='submit']")
+        page.wait_for_load_state("networkidle")
+
+        if page.url == "http://localhost:8000/login":
+            error_msgs = page.locator(".alert-danger").all_text_contents()
+            raise RuntimeError(
+                f"Manager login failed. Page still on login. "
+                f"Errors: {error_msgs if error_msgs else 'No errors shown'}"
+            )
+
+        state = context.storage_state()
+
+        page.close()
+        context.close()
+        browser.close()
+
+    return state
+
+
+@pytest.fixture
+def manager_browser(server_process, manager_auth_state):
+    """Provide a Playwright browser context pre-logged-in as club manager."""
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(storage_state=manager_auth_state)
         page = context.new_page()
 
         yield page
