@@ -268,5 +268,5 @@ T031 athlete_select.html          ← parallel with T030
 | 7 — Season Overview | US4 (P2) | T046–T047 | T047 ✓ |
 | 8 — Multi-Submission | US5 (P2) | T048–T050 | T050 ✓ |
 | 9 — Admin Overview | US7 (P2) | T051–T052 | — |
-| 10 — Polish | — | T053–T062 | T054–T059, T061 ✓ |
+| 10 — Polish | — | T053–T062 | T054–T059, T061–T062 ✓ |
 | **Total** | | **69 tasks** | **~26 parallelisable** |
