@@ -1505,3 +1505,64 @@ def update_athlete_race_number(
         "UPDATE athlete_entries SET race_number = ? WHERE id = ?",
         [race_number, athlete_id],
     )
+
+
+def list_club_allocations_for_season(
+    db: duckdb.DuckDBPyConnection, season_id: int
+) -> list[dict]:
+    """Return all clubs with their allocations and current usage for a season."""
+    rows = db.execute(
+        """
+        SELECT c.id, c.name,
+               COALESCE(ca.allocated_slots, 0) AS allocated_slots,
+               COUNT(CASE WHEN eb.status = 'paid' THEN ae.id END) AS current_used
+        FROM clubs c
+        LEFT JOIN club_allocations ca ON ca.club_id = c.id AND ca.season_id = ?
+        LEFT JOIN entry_batches eb ON eb.club_id = c.id AND eb.season_id = ?
+        LEFT JOIN athlete_entries ae ON ae.batch_id = eb.id
+        WHERE eb.id IS NOT NULL OR ca.season_id IS NOT NULL
+        GROUP BY c.id, c.name, ca.allocated_slots
+        ORDER BY c.name
+        """,
+        [season_id, season_id],
+    ).fetchall()
+    return [
+        {
+            "club_id": r[0],
+            "club_name": r[1],
+            "allocated_slots": r[2],
+            "current_used": r[3],
+            "remaining": max(0, r[2] - r[3]) if r[2] > 0 else 0,
+        }
+        for r in rows
+    ]
+
+
+def list_paid_athlete_entries_for_season(
+    db: duckdb.DuckDBPyConnection, season_id: int
+) -> list[dict]:
+    """Return all paid athlete entries for a season, sorted by club and name."""
+    rows = db.execute(
+        """
+        SELECT ae.id, c.name AS club_name, ae.athlete_name, ae.ea_age_category,
+               ae.date_of_birth, ae.ea_urn, ae.race_number
+        FROM athlete_entries ae
+        JOIN clubs c ON c.id = ae.club_id
+        JOIN entry_batches eb ON eb.id = ae.batch_id
+        WHERE ae.season_id = ? AND eb.status = 'paid'
+        ORDER BY c.name, ae.athlete_name
+        """,
+        [season_id],
+    ).fetchall()
+    return [
+        {
+            "athlete_id": r[0],
+            "club_name": r[1],
+            "athlete_name": r[2],
+            "age_category": r[3],
+            "date_of_birth": r[4],
+            "ea_urn": r[5],
+            "race_number": r[6],
+        }
+        for r in rows
+    ]

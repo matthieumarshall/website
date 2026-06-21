@@ -338,3 +338,184 @@ class TestAllocationChecking:
         # Don't set allocation - check should fail
         result = entries.check_allocation(season_id, club_id, 1, test_db)
         assert result is False
+
+
+class TestAllocationDisplay:
+    """Tests for allocation display/listing functions."""
+
+    def test_list_club_allocations_for_season(self, test_db):
+        """Verify list returns club allocations with usage."""
+        # Create season and clubs
+        test_db.execute("INSERT INTO seasons(name) VALUES(?)", ["TestSeason9"])
+        season_id = test_db.execute(
+            "SELECT id FROM seasons WHERE name = 'TestSeason9'"
+        ).fetchone()[0]
+
+        test_db.execute(
+            "INSERT INTO clubs(name, oxl_code, ea_club_id) VALUES(?, ?, ?)",
+            ["Club A", "CA", "2001"],
+        )
+        club_a_id = test_db.execute(
+            "SELECT id FROM clubs WHERE name = 'Club A'"
+        ).fetchone()[0]
+
+        test_db.execute(
+            "INSERT INTO clubs(name, oxl_code, ea_club_id) VALUES(?, ?, ?)",
+            ["Club B", "CB", "2002"],
+        )
+        club_b_id = test_db.execute(
+            "SELECT id FROM clubs WHERE name = 'Club B'"
+        ).fetchone()[0]
+
+        # Set allocations
+        repository.upsert_club_allocation(test_db, season_id, club_a_id, 30)
+        repository.upsert_club_allocation(test_db, season_id, club_b_id, 20)
+
+        # Create entry batches and athletes
+        test_db.execute(
+            "INSERT INTO users(username, hashed_password, role) VALUES(?, ?, ?)",
+            ["mgr1", "hash1", "manager"],
+        )
+        mgr_id = test_db.execute(
+            "SELECT id FROM users WHERE username = 'mgr1'"
+        ).fetchone()[0]
+
+        test_db.execute(
+            "INSERT INTO entry_batches(season_id, club_id, manager_user_id, status, "
+            "fixtures_remaining_at_entry, total_pence, created_at) "
+            "VALUES(?, ?, ?, ?, ?, ?, now())",
+            [season_id, club_a_id, mgr_id, "paid", 10, 5000],
+        )
+        batch_id = test_db.execute(
+            "SELECT id FROM entry_batches WHERE club_id = ?", [club_a_id]
+        ).fetchone()[0]
+
+        test_db.execute(
+            "INSERT INTO athlete_entries(season_id, club_id, batch_id, ea_urn, "
+            "athlete_name, date_of_birth, ea_age_category, is_junior, amount_pence) "
+            "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                season_id,
+                club_a_id,
+                batch_id,
+                1001,
+                "Alice",
+                "2010-05-15",
+                "U13",
+                True,
+                2500,
+            ],
+        )
+        test_db.execute(
+            "INSERT INTO athlete_entries(season_id, club_id, batch_id, ea_urn, "
+            "athlete_name, date_of_birth, ea_age_category, is_junior, amount_pence) "
+            "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                season_id,
+                club_a_id,
+                batch_id,
+                1002,
+                "Bob",
+                "2012-08-22",
+                "U11",
+                True,
+                2500,
+            ],
+        )
+
+        allocations = repository.list_club_allocations_for_season(test_db, season_id)
+        assert len(allocations) >= 2
+        club_a_alloc = next((a for a in allocations if a["club_id"] == club_a_id), None)
+        assert club_a_alloc is not None
+        assert club_a_alloc["allocated_slots"] == 30
+        assert club_a_alloc["current_used"] == 2
+        assert club_a_alloc["remaining"] == 28
+
+    def test_list_paid_athlete_entries_for_season(self, test_db):
+        """Verify list returns only paid athlete entries."""
+        # Create season and club
+        test_db.execute("INSERT INTO seasons(name) VALUES(?)", ["TestSeason10"])
+        season_id = test_db.execute(
+            "SELECT id FROM seasons WHERE name = 'TestSeason10'"
+        ).fetchone()[0]
+
+        test_db.execute(
+            "INSERT INTO clubs(name, oxl_code, ea_club_id) VALUES(?, ?, ?)",
+            ["Club C", "CC", "2003"],
+        )
+        club_id = test_db.execute(
+            "SELECT id FROM clubs WHERE name = 'Club C'"
+        ).fetchone()[0]
+
+        # Create user
+        test_db.execute(
+            "INSERT INTO users(username, hashed_password, role) VALUES(?, ?, ?)",
+            ["mgr2", "hash2", "manager"],
+        )
+        mgr_id = test_db.execute(
+            "SELECT id FROM users WHERE username = 'mgr2'"
+        ).fetchone()[0]
+
+        # Create paid batch with athletes
+        test_db.execute(
+            "INSERT INTO entry_batches(season_id, club_id, manager_user_id, status, "
+            "fixtures_remaining_at_entry, total_pence, created_at) "
+            "VALUES(?, ?, ?, ?, ?, ?, now())",
+            [season_id, club_id, mgr_id, "paid", 10, 5000],
+        )
+        paid_batch_id = test_db.execute(
+            "SELECT id FROM entry_batches WHERE status = 'paid'"
+        ).fetchone()[0]
+
+        # Create pending batch with athletes
+        test_db.execute(
+            "INSERT INTO entry_batches(season_id, club_id, manager_user_id, status, "
+            "fixtures_remaining_at_entry, total_pence, created_at) "
+            "VALUES(?, ?, ?, ?, ?, ?, now())",
+            [season_id, club_id, mgr_id, "pending_payment", 10, 5000],
+        )
+        pending_batch_id = test_db.execute(
+            "SELECT id FROM entry_batches WHERE status = 'pending_payment'"
+        ).fetchone()[0]
+
+        # Add athletes to both batches
+        test_db.execute(
+            "INSERT INTO athlete_entries(season_id, club_id, batch_id, ea_urn, "
+            "athlete_name, date_of_birth, ea_age_category, is_junior, amount_pence, race_number) "
+            "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                season_id,
+                club_id,
+                paid_batch_id,
+                2001,
+                "Charlie",
+                "2008-03-10",
+                "U15",
+                True,
+                2500,
+                5,
+            ],
+        )
+        test_db.execute(
+            "INSERT INTO athlete_entries(season_id, club_id, batch_id, ea_urn, "
+            "athlete_name, date_of_birth, ea_age_category, is_junior, amount_pence) "
+            "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                season_id,
+                club_id,
+                pending_batch_id,
+                2002,
+                "Diana",
+                "2010-11-25",
+                "U13",
+                True,
+                2500,
+            ],
+        )
+
+        athletes = repository.list_paid_athlete_entries_for_season(test_db, season_id)
+        # Should only have Charlie (from paid batch)
+        assert len(athletes) == 1
+        assert athletes[0]["athlete_name"] == "Charlie"
+        assert athletes[0]["race_number"] == 5
+        assert athletes[0]["ea_urn"] == 2001

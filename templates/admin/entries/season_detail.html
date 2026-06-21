@@ -116,4 +116,106 @@
     <p class="text-muted">No submissions yet for this season.</p>
   {% endif %}
 </section>
+
+{# Club Allocations #}
+<section aria-labelledby="allocations-heading" class="mt-5">
+  <h2 id="allocations-heading" class="h5 mb-3">Club allocations</h2>
+  {% if club_allocations %}
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead class="table-light">
+          <tr>
+            <th scope="col">Club</th>
+            <th scope="col">Allocated</th>
+            <th scope="col">Currently used</th>
+            <th scope="col">Remaining</th>
+            <th scope="col" style="width: 120px;">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for alloc in club_allocations %}
+            <tr>
+              <td>{{ alloc.club_name }}</td>
+              <td>
+                {% if alloc.allocated_slots > 0 %}
+                  {{ alloc.allocated_slots }}
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+              <td>{{ alloc.current_used }}</td>
+              <td>
+                {% if alloc.allocated_slots > 0 %}
+                  <span class="{% if alloc.remaining < 5 %}text-warning{% endif %}">
+                    {{ alloc.remaining }}
+                  </span>
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+              <td>
+                <button class="btn btn-sm btn-outline-secondary"
+                        hx-get="/admin/entries/{{ season.id }}/club/{{ alloc.club_id }}/allocation-form"
+                        hx-target="#alloc-form-{{ alloc.club_id }}"
+                        hx-swap="innerHTML">Edit</button>
+              </td>
+            </tr>
+            <tr style="display: none;" id="alloc-form-{{ alloc.club_id }}"></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="text-muted">No clubs with entries for this season.</p>
+  {% endif %}
+</section>
+
+{# Paid Athlete Entries #}
+<section aria-labelledby="athletes-heading" class="mt-5">
+  <h2 id="athletes-heading" class="h5 mb-3">Paid athlete entries</h2>
+  {% if paid_athletes %}
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead class="table-light">
+          <tr>
+            <th scope="col">Club</th>
+            <th scope="col">Athlete name</th>
+            <th scope="col">Age category</th>
+            <th scope="col">DOB</th>
+            <th scope="col">EA URN</th>
+            <th scope="col">Race number</th>
+            <th scope="col" style="width: 120px;">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for athlete in paid_athletes %}
+            <tr>
+              <td>{{ athlete.club_name }}</td>
+              <td>{{ athlete.athlete_name }}</td>
+              <td>{{ athlete.age_category }}</td>
+              <td>{{ athlete.date_of_birth.strftime('%d %b %Y') if athlete.date_of_birth else '—' }}</td>
+              <td>{{ athlete.ea_urn }}</td>
+              <td>
+                {% if athlete.race_number %}
+                  {{ athlete.race_number }}
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+              <td>
+                <button class="btn btn-sm btn-outline-secondary"
+                        hx-get="/admin/entries/{{ season.id }}/athlete/{{ athlete.athlete_id }}/race-number-form"
+                        hx-target="#race-form-{{ athlete.athlete_id }}"
+                        hx-swap="innerHTML">Edit</button>
+              </td>
+            </tr>
+            <tr style="display: none;" id="race-form-{{ athlete.athlete_id }}"></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="text-muted">No paid athlete entries for this season yet.</p>
+  {% endif %}
+</section>
 {% endblock %}
