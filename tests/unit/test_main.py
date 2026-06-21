@@ -8,7 +8,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from website import repository
+from website.auth import hash_password
 from website.helpers import SIDEBAR_ITEMS
+from website.models import UserRole
 
 
 class TestHomeRoute:
@@ -51,6 +53,11 @@ class TestHomeRoute:
 class TestLoginPageRoute:
     def test_login_page_loads(self, test_client: TestClient) -> None:
         assert test_client.get("/login").status_code == 200
+
+    def test_login_page_preserves_next_path(self, test_client: TestClient) -> None:
+        response = test_client.get("/login?next=/entries")
+        assert response.status_code == 200
+        assert 'name="next_path" value="/entries"' in response.text
 
 
 class TestSidebarItems:
@@ -116,8 +123,48 @@ class TestPublicPageRoutes:
     def test_entries_page_loads(self, test_client: TestClient) -> None:
         # /entries requires club_manager auth — unauthenticated request redirects to login
         # (TestClient follows redirects, so we check the login page title is in the response)
-        response = test_client.get("/entries")
-        assert "Login" in response.text or response.status_code in (302, 403)
+        response = test_client.get("/entries", follow_redirects=False)
+        assert response.status_code == 302
+        assert response.headers["location"] == "/login?next=/entries"
+
+    def test_entries_page_redirects_admin_to_admin_entries(
+        self, admin_client: TestClient
+    ) -> None:
+        response = admin_client.get("/entries", follow_redirects=False)
+        assert response.status_code == 303
+        assert response.headers["location"] == "/admin/entries"
+
+    def test_admin_entries_empty_state_links_to_fixtures(
+        self, admin_client: TestClient
+    ) -> None:
+        response = admin_client.get("/admin/entries")
+        assert response.status_code == 200
+        assert 'href="/fixtures"' in response.text
+
+    def test_login_redirects_back_to_entries_after_success(
+        self, test_client: TestClient, test_db: duckdb.DuckDBPyConnection
+    ) -> None:
+        repository.create_user(
+            test_db,
+            "admin_login_test",
+            hash_password("AdminPassword123!@#"),
+            UserRole.admin,
+        )
+        login_page = test_client.get("/login?next=/entries")
+        match = re.search(r'name="csrf_token"\s+value="([^"]+)"', login_page.text)
+        assert match
+        response = test_client.post(
+            "/login",
+            data={
+                "username": "admin_login_test",
+                "password": "AdminPassword123!@#",
+                "csrf_token": match.group(1),
+                "next_path": "/entries",
+            },
+            follow_redirects=False,
+        )
+        assert response.status_code == 302
+        assert response.headers["location"] == "/entries"
 
     def test_rules_and_constitution_page_loads(self, test_client: TestClient) -> None:
         assert test_client.get("/rules-and-constitution").status_code == 200
@@ -428,7 +475,7 @@ class TestNewsCrud:
     def test_create_form_requires_auth(self, test_client: TestClient) -> None:
         response = test_client.get("/news/create", follow_redirects=False)
         assert response.status_code == 302
-        assert response.headers["location"] == "/login"
+        assert response.headers["location"].startswith("/login")
 
     def test_create_form_available_to_content_creator(
         self, content_creator_client: TestClient
@@ -539,7 +586,7 @@ class TestAccountPage:
     ) -> None:
         response = test_client.get("/account", follow_redirects=False)
         assert response.status_code == 302
-        assert response.headers["location"] == "/login"
+        assert response.headers["location"].startswith("/login")
 
     def test_account_accessible_when_logged_in_as_admin(
         self, admin_client: TestClient
@@ -614,7 +661,7 @@ class TestFixturesSeasonCrud:
         )
         assert response.status_code in (302, 403)
         if response.status_code == 302:
-            assert response.headers["location"] == "/login"
+            assert response.headers["location"].startswith("/login")
 
     def test_create_season_as_admin(
         self,
@@ -797,13 +844,13 @@ class TestFixturesFixtureCrud:
         )
         assert resp.status_code in (302, 403)
         if resp.status_code == 302:
-            assert resp.headers["location"] == "/login"
+            assert resp.headers["location"].startswith("/login")
 
     def test_new_season_form_requires_auth(self, test_client: TestClient) -> None:
         resp = test_client.get("/fixtures/seasons/new", follow_redirects=False)
         assert resp.status_code in (302, 403)
         if resp.status_code == 302:
-            assert resp.headers["location"] == "/login"
+            assert resp.headers["location"].startswith("/login")
 
 
 class TestFixturesCopy:
@@ -830,7 +877,7 @@ class TestFixturesCopy:
         )
         assert resp.status_code in (302, 403)
         if resp.status_code == 302:
-            assert resp.headers["location"] == "/login"
+            assert resp.headers["location"].startswith("/login")
 
     def test_copy_form_loads_as_admin(
         self, admin_client: TestClient, test_db: duckdb.DuckDBPyConnection
@@ -925,7 +972,7 @@ class TestLogout:
         # After logout, account page should redirect to login
         resp = admin_client.get("/account", follow_redirects=False)
         assert resp.status_code == 302
-        assert resp.headers["location"] == "/login"
+        assert resp.headers["location"].startswith("/login")
 
 
 # ---------------------------------------------------------------------------
@@ -1551,4 +1598,4 @@ class TestFixturesUpdateFixture:
         )
         assert resp.status_code in (302, 403)
         if resp.status_code == 302:
-            assert resp.headers["location"] == "/login"
+            assert resp.headers["location"].startswith("/login")

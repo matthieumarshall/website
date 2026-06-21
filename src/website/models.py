@@ -293,15 +293,6 @@ class ClubManager(BaseModel):
     club_name: str
 
 
-class PriceTier(BaseModel):
-    model_config = ConfigDict(frozen=True)
-
-    season_id: int
-    fixtures_remaining: int
-    junior_pence: int
-    adult_pence: int
-
-
 class AthleteEntryRow(BaseModel):
     model_config = ConfigDict(frozen=True)
 

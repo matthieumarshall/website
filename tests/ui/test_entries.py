@@ -235,19 +235,6 @@ class TestAdminEntriesPages:
         content = admin_browser.content()
         assert "UI Test Club" in content or "Entries Test Season" in content
 
-    def test_admin_entries_pricing_page_loads(self, admin_browser):
-        """The /admin/entries/{season_id}/pricing page renders price tiers."""
-        season_id = os.environ.get("UI_TEST_SEASON_ID", "1")
-        admin_browser.goto(f"http://localhost:8000/admin/entries/{season_id}/pricing")
-        admin_browser.wait_for_load_state("networkidle")
-        content = admin_browser.content()
-        # Should show pricing or the season name
-        assert (
-            "Pricing" in content
-            or "price" in content.lower()
-            or "Entries Test Season" in content
-        )
-
     def test_admin_clubs_list_loads(self, admin_browser):
         """The /admin/clubs page lists the seeded club."""
         admin_browser.goto("http://localhost:8000/admin/clubs")

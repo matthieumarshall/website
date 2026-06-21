@@ -17,7 +17,7 @@
 
 <div class="row g-4 mb-4">
   {# Entry config panel #}
-  <div class="col-md-5">
+  <div class="col-md-7">
     <section class="card h-100" aria-labelledby="config-heading">
       <div class="card-header">
         <h2 id="config-heading" class="h6 mb-0">Entry configuration</h2>
@@ -45,47 +45,31 @@
                    min="1" max="20"
                    value="{{ config.total_fixtures if config else '' }}" required>
           </div>
+          <div class="mb-3">
+            <label for="junior_pence_per_fixture_display" class="form-label">Junior price per fixture</label>
+            <div class="input-group">
+              <span class="input-group-text">&pound;</span>
+              <input type="number" id="junior_pence_per_fixture_display" name="junior_pence_per_fixture_display"
+                     class="form-control" step="0.01" min="0"
+                     value="{{ '%.2f'|format((config.junior_pence_per_fixture or 0) / 100) if config else '0.00' }}" required>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label for="adult_pence_per_fixture_display" class="form-label">Adult price per fixture</label>
+            <div class="input-group">
+              <span class="input-group-text">&pound;</span>
+              <input type="number" id="adult_pence_per_fixture_display" name="adult_pence_per_fixture_display"
+                     class="form-control" step="0.01" min="0"
+                     value="{{ '%.2f'|format((config.adult_pence_per_fixture or 0) / 100) if config else '0.00' }}" required>
+            </div>
+            <div class="form-text">Total entry fee = price per fixture &times; fixtures remaining at time of entry.</div>
+          </div>
           <button type="submit" class="btn btn-primary btn-sm">Save config</button>
         </form>
       </div>
     </section>
   </div>
 
-  {# Price tiers panel #}
-  <div class="col-md-7">
-    <section class="card h-100" aria-labelledby="pricing-heading">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <h2 id="pricing-heading" class="h6 mb-0">Price tiers</h2>
-        <a href="/admin/entries/{{ season.id }}/pricing" class="btn btn-outline-primary btn-sm">Manage pricing</a>
-      </div>
-      <div class="card-body p-0">
-        {% if price_tiers %}
-          <div class="table-responsive">
-            <table class="table table-sm mb-0">
-              <thead class="table-light">
-                <tr>
-                  <th scope="col">Fixtures remaining</th>
-                  <th scope="col">Junior</th>
-                  <th scope="col">Adult</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for tier in price_tiers %}
-                  <tr>
-                    <td>{{ tier.fixtures_remaining }}</td>
-                    <td>£{{ "%.2f"|format(tier.junior_pence / 100) }}</td>
-                    <td>£{{ "%.2f"|format(tier.adult_pence / 100) }}</td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        {% else %}
-          <p class="text-muted p-3 mb-0">No price tiers set. <a href="/admin/entries/{{ season.id }}/pricing">Add pricing</a>.</p>
-        {% endif %}
-      </div>
-    </section>
-  </div>
 </div>
 
 {# Entry batches for this season #}

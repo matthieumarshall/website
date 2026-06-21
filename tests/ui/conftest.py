@@ -270,13 +270,15 @@ def server_process():
         con, user_id=manager_user_id, club_id=ui_club_id, email="mgr@example.com"
     )
 
-    # Entry config: open, future fixtures
+    # Entry config: open, future fixtures, with per-fixture prices
     repository.upsert_season_entry_config(
         con,
         season_id=entries_season.id,
         entries_open=True,
         ea_reference_date="2025-08-31",
         total_fixtures=5,
+        junior_pence_per_fixture=160,  # £1.60/fixture × 5 = £8.00
+        adult_pence_per_fixture=200,  # £2.00/fixture × 5 = £10.00
     )
 
     # Future fixtures (so compute_fixtures_remaining > 0)
@@ -293,15 +295,6 @@ def server_process():
             timetable=[],
             travel_instructions="",
         )
-
-    # Price tier
-    repository.upsert_price_tier(
-        con,
-        season_id=entries_season.id,
-        fixtures_remaining=5,
-        junior_pence=800,
-        adult_pence=1000,
-    )
 
     # Pre-paid entry batch for receipt tests
     ui_batch = repository.create_entry_batch(

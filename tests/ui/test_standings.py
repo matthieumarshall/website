@@ -63,6 +63,25 @@ class TestStandingsPage:
             "Seeded team not found in team standings table"
         )
 
+    def test_team_category_button_stays_active_after_click(self, browser: Page):
+        """Clicking a team standings category button keeps it highlighted."""
+        browser.goto(f"{BASE}/standings")
+        browser.wait_for_load_state("networkidle")
+
+        team_button = browser.locator(
+            'nav[aria-label="Team category tabs"] button',
+            has_text="Senior Women",
+        ).first
+        team_button.click()
+
+        browser.wait_for_selector("text=Oxford City AC A")
+        assert "active" in (team_button.get_attribute("class") or ""), (
+            "Expected the clicked team category button to have the active class"
+        )
+        assert team_button.get_attribute("aria-pressed") == "true", (
+            "Expected the clicked team category button to be aria-pressed true"
+        )
+
     def test_individual_table_shows_position_and_score(self, browser: Page):
         """Individual standings table has position and total score columns."""
         response = browser.request.get(
