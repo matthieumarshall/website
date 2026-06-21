@@ -21,8 +21,73 @@ _EA_STAGING_BASE = (
 )
 _EA_LIVE_BASE = "https://TrinityAPI.myathletics.uk/TrinityAPIService.svc/"
 
-# OXL age categories ordered junior→senior for display
 _JUNIOR_CATEGORIES = frozenset({"U9", "U11", "U13", "U15", "U17"})
+
+
+def _get_test_athletes() -> list[dict]:
+    """Return realistic test athletes for local development.
+
+    These match the expected format from the EA TRAPI API.
+    When EA_TEST_MODE=true or running in test environment, these are returned.
+    """
+    return [
+        {
+            "IndividualRef": 3361001,
+            "FirstName": "Alice",
+            "LastName": "Smith",
+            "DateOfBirth": "2010-05-15",
+            "RegistrationStatus": "Active",
+        },
+        {
+            "IndividualRef": 3361002,
+            "FirstName": "Bob",
+            "LastName": "Jones",
+            "DateOfBirth": "2012-08-22",
+            "RegistrationStatus": "Active",
+        },
+        {
+            "IndividualRef": 3361003,
+            "FirstName": "Charlie",
+            "LastName": "Brown",
+            "DateOfBirth": "2008-03-10",
+            "RegistrationStatus": "Active",
+        },
+        {
+            "IndividualRef": 3361004,
+            "FirstName": "Diana",
+            "LastName": "Miller",
+            "DateOfBirth": "2015-11-30",
+            "RegistrationStatus": "Active",
+        },
+        {
+            "IndividualRef": 3361005,
+            "FirstName": "Edward",
+            "LastName": "Davis",
+            "DateOfBirth": "1995-07-05",
+            "RegistrationStatus": "Active",
+        },
+        {
+            "IndividualRef": 3361006,
+            "FirstName": "Fiona",
+            "LastName": "Wilson",
+            "DateOfBirth": "2014-02-18",
+            "RegistrationStatus": "Active",
+        },
+        {
+            "IndividualRef": 3361007,
+            "FirstName": "George",
+            "LastName": "Taylor",
+            "DateOfBirth": "2009-09-25",
+            "RegistrationStatus": "Active",
+        },
+        {
+            "IndividualRef": 3361008,
+            "FirstName": "Hannah",
+            "LastName": "Anderson",
+            "DateOfBirth": "2011-12-03",
+            "RegistrationStatus": "Active",
+        },
+    ]
 
 
 def _ea_base_url() -> str:
@@ -50,6 +115,10 @@ def fetch_club_athletes(ea_club_id: str) -> list[dict]:
     Raises HTTPException(503) if the EA API is unreachable or credentials are missing.
     Raises HTTPException(502) on unexpected EA API errors.
     """
+    # Test mode: return dummy athletes for local development
+    if os.environ.get("EA_TEST_MODE", "").lower() == "true":
+        return _get_test_athletes()
+
     cert_path = os.environ.get("EA_CERT_PATH", "")
     cert_password = os.environ.get("EA_CERT_PASSWORD", "")
     call_key = os.environ.get("EA_CALL_KEY", "")
