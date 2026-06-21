@@ -19,7 +19,8 @@
 
 <div class="mb-3 p-3 bg-light rounded border">
   <strong>{{ fixtures_remaining }}</strong> fixture{% if fixtures_remaining != 1 %}s{% endif %} remaining in this season.
-  Price per athlete: Junior <strong>£{{ "%.2f"|format(tier.junior_pence / 100) }}</strong> / Adult <strong>£{{ "%.2f"|format(tier.adult_pence / 100) }}</strong>
+  Price per fixture: Junior <strong>&pound;{{ "%.2f"|format(junior_pence_per_fixture / 100) }}</strong> / Adult <strong>&pound;{{ "%.2f"|format(adult_pence_per_fixture / 100) }}</strong>.
+  Total entry fee: Junior <strong>&pound;{{ "%.2f"|format(junior_total_pence / 100) }}</strong> / Adult <strong>&pound;{{ "%.2f"|format(adult_total_pence / 100) }}</strong>.
 </div>
 
 <form method="post" action="/entries/{{ season.id }}/batch" novalidate>
@@ -72,9 +73,9 @@
               </td>
               <td>
                 {% if athlete.is_junior %}
-                  £{{ "%.2f"|format(tier.junior_pence / 100) }}
+                  &pound;{{ "%.2f"|format(junior_total_pence / 100) }}
                 {% else %}
-                  £{{ "%.2f"|format(tier.adult_pence / 100) }}
+                  &pound;{{ "%.2f"|format(adult_total_pence / 100) }}
                 {% endif %}
               </td>
             </tr>
