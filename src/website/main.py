@@ -1011,54 +1011,6 @@ def standings_category_panel(
     )
 
 
-def _normalize_fixture_scores_for_standings(
-    rows: list[dict], fixtures: list
-) -> list[dict]:
-    fixture_ids = [str(f.id) for f in fixtures]
-    fixture_count = len(fixtures)
-
-    for row in rows:
-        scores_by_fixture: dict[str, int] = {}
-        fixture_scores_raw = row.get("fixture_scores") or {}
-
-        if isinstance(fixture_scores_raw, str):
-            try:
-                fixture_scores_raw = json.loads(fixture_scores_raw)
-            except json.JSONDecodeError:
-                fixture_scores_raw = {}
-
-        if isinstance(fixture_scores_raw, dict):
-            for raw_key, value in fixture_scores_raw.items():
-                if raw_key is None:
-                    continue
-                key = str(raw_key).strip()
-                if key in fixture_ids:
-                    scores_by_fixture[key] = value
-                    continue
-
-                normalized = key.lower()
-                if normalized.startswith("r") and normalized[1:].isdigit():
-                    index = int(normalized[1:]) - 1
-                    if 0 <= index < fixture_count:
-                        fixture_id = str(fixtures[index].id)
-                        if fixture_id not in scores_by_fixture:
-                            scores_by_fixture[fixture_id] = value
-                    continue
-
-                if key.isdigit():
-                    if key in fixture_ids:
-                        scores_by_fixture[key] = value
-                        continue
-                    index = int(key) - 1
-                    if 0 <= index < fixture_count:
-                        fixture_id = str(fixtures[index].id)
-                        if fixture_id not in scores_by_fixture:
-                            scores_by_fixture[fixture_id] = value
-
-        row["scores_by_fixture"] = scores_by_fixture
-    return rows
-
-
 @app.get("/standings/table", response_class=HTMLResponse)
 def standings_table(
     request: Request,
@@ -1076,9 +1028,6 @@ def standings_table(
         rows = repository.load_team_standings(db, season_id, category)
     else:
         rows = repository.load_individual_standings(db, season_id, category)
-
-    rows = _normalize_fixture_scores_for_standings(rows, fixtures)
-
     return templates.TemplateResponse(
         request,
         "_standings_table.html",
