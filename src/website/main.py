@@ -723,6 +723,18 @@ def entries_create_batch(
                 amount_pence=amount,
             )
         )
+    # Check allocation before creating batch
+    if not entries_module.check_allocation(
+        season_id, club_manager.club_id, len(ea_urns), db
+    ):
+        allocation = repository.get_club_allocation(db, season_id, club_manager.club_id)
+        current_count = repository.get_club_athlete_count(
+            db, season_id, club_manager.club_id
+        )
+        raise HTTPException(
+            status_code=400,
+            detail=f"Club has exceeded allocation. Allocated: {allocation or 0}, Currently used: {current_count}, Requested: {len(ea_urns)}",
+        )
     batch = repository.create_entry_batch(
         db,
         season_id=season_id,
@@ -2217,6 +2229,66 @@ def admin_entries_config_save(
         junior_pence_per_fixture=round(junior_pence_per_fixture_display * 100),
         adult_pence_per_fixture=round(adult_pence_per_fixture_display * 100),
     )
+    return RedirectResponse(f"/admin/entries/{season_id}", status_code=303)
+
+
+@app.post("/admin/entries/{season_id}/club/{club_id}/allocation")
+def admin_set_club_allocation(
+    request: Request,
+    season_id: int,
+    club_id: int,
+    allocated_slots: int = Form(...),
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _ADMIN_ACL),
+) -> Response:
+    """Update club's athlete allocation for a season."""
+    validate_csrf(request, csrf_token)
+    season = repository.get_season_by_id(db, season_id)
+    if season is None:
+        raise HTTPException(status_code=404)
+    club = repository.get_club_by_id(club_id, db)
+    if club is None:
+        raise HTTPException(status_code=404)
+    if allocated_slots <= 0:
+        raise HTTPException(status_code=422, detail="Allocation must be greater than 0")
+    repository.upsert_club_allocation(db, season_id, club_id, allocated_slots)
+    return RedirectResponse(f"/admin/entries/{season_id}", status_code=303)
+
+
+@app.post("/admin/entries/{season_id}/athlete/{athlete_id}/race-number")
+def admin_update_athlete_race_number(
+    request: Request,
+    season_id: int,
+    athlete_id: int,
+    race_number: int = Form(...),
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _ADMIN_ACL),
+) -> Response:
+    """Update an athlete's race number."""
+    validate_csrf(request, csrf_token)
+    season = repository.get_season_by_id(db, season_id)
+    if season is None:
+        raise HTTPException(status_code=404)
+    if race_number <= 0:
+        raise HTTPException(
+            status_code=422, detail="Race number must be greater than 0"
+        )
+    # Check for duplicates in the same season
+    existing = db.execute(
+        """
+        SELECT COUNT(*) FROM athlete_entries
+        WHERE season_id = ? AND race_number = ? AND id != ?
+        """,
+        [season_id, race_number, athlete_id],
+    ).fetchone()
+    if existing and existing[0] > 0:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Race number {race_number} already assigned to another athlete",
+        )
+    repository.update_athlete_race_number(db, athlete_id, race_number)
     return RedirectResponse(f"/admin/entries/{season_id}", status_code=303)
 
 
