@@ -3,7 +3,7 @@
 Creates:
 - Season "2025-26" with entry config (entries open, EA ref date 2025-08-31)
 - 5 future fixtures
-- Price tiers: fixtures_remaining 5→4→3→2→1 with decreasing prices
+- Entry pricing configured per fixture for juniors and adults
 - Admin user: admin / admin123
 - Club: Oxford City AC (EA club ID 1765 — staging test club)
 - Club manager user: oxc_manager / manager123
@@ -62,8 +62,8 @@ def main() -> None:
         if not existing_f:
             con.execute(
                 """
-                INSERT INTO fixtures (season_id, name, date, location, postcode)
-                VALUES (?, ?, ?, 'TBC', 'OX1 1AA')
+                INSERT INTO fixtures (season_id, title, date, location_name, address)
+                VALUES (?, ?, ?, 'TBC', 'TBC')
                 """,
                 [season_id, f"Race {i}", fixture_date],
             )
@@ -80,28 +80,12 @@ def main() -> None:
         entries_open=True,
         ea_reference_date="2025-08-31",
         total_fixtures=5,
+        junior_pence_per_fixture=160,
+        adult_pence_per_fixture=200,
     )
-    print("Set season entry config (entries_open=True, ref_date=2025-08-31)")
-
-    # ------------------------------------------------------------------
-    # Price tiers
-    # ------------------------------------------------------------------
-    price_tiers = [
-        (5, 1500, 800),  # 5 remaining: £15 junior / £8 adult
-        (4, 1200, 650),  # 4 remaining: £12 / £6.50
-        (3, 900, 500),  # 3 remaining: £9  / £5
-        (2, 600, 350),  # 2 remaining: £6  / £3.50
-        (1, 300, 200),  # 1 remaining: £3  / £2
-    ]
-    for fixtures_remaining, junior_pence, adult_pence in price_tiers:
-        repository.upsert_price_tier(
-            con,
-            season_id=season_id,
-            fixtures_remaining=fixtures_remaining,
-            junior_pence=junior_pence,
-            adult_pence=adult_pence,
-        )
-    print("Created price tiers (5→1 fixtures remaining)")
+    print(
+        "Set season entry config (entries_open=True, ref_date=2025-08-31, junior=£1.60/fixture, adult=£2.00/fixture)"
+    )
 
     # ------------------------------------------------------------------
     # Admin user

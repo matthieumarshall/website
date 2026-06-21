@@ -13,7 +13,6 @@ from website.models import (
     FixtureImage,
     PaginatedPosts,
     Post,
-    PriceTier,
     Race,
     Result,
     Season,
@@ -1085,7 +1084,7 @@ def get_season_entry_config(
     season_id: int, db: duckdb.DuckDBPyConnection
 ) -> dict | None:
     row = db.execute(
-        "SELECT season_id, entries_open, ea_reference_date, total_fixtures FROM season_entry_config WHERE season_id = ?",
+        "SELECT season_id, entries_open, ea_reference_date, total_fixtures, junior_pence_per_fixture, adult_pence_per_fixture FROM season_entry_config WHERE season_id = ?",
         [season_id],
     ).fetchone()
     if row is None:
@@ -1095,6 +1094,8 @@ def get_season_entry_config(
         "entries_open": row[1],
         "ea_reference_date": row[2],
         "total_fixtures": row[3],
+        "junior_pence_per_fixture": row[4],
+        "adult_pence_per_fixture": row[5],
     }
 
 
@@ -1104,6 +1105,8 @@ def upsert_season_entry_config(
     entries_open: bool,
     ea_reference_date: str,
     total_fixtures: int,
+    junior_pence_per_fixture: int = 0,
+    adult_pence_per_fixture: int = 0,
 ) -> None:
     existing = db.execute(
         "SELECT season_id FROM season_entry_config WHERE season_id = ?", [season_id]
@@ -1112,79 +1115,31 @@ def upsert_season_entry_config(
         db.execute(
             """
             UPDATE season_entry_config
-            SET entries_open = ?, ea_reference_date = ?, total_fixtures = ?
+            SET entries_open = ?, ea_reference_date = ?, total_fixtures = ?,
+                junior_pence_per_fixture = ?, adult_pence_per_fixture = ?
             WHERE season_id = ?
             """,
-            [entries_open, ea_reference_date, total_fixtures, season_id],
+            [
+                entries_open,
+                ea_reference_date,
+                total_fixtures,
+                junior_pence_per_fixture,
+                adult_pence_per_fixture,
+                season_id,
+            ],
         )
     else:
         db.execute(
-            "INSERT INTO season_entry_config (season_id, entries_open, ea_reference_date, total_fixtures) VALUES (?, ?, ?, ?)",
-            [season_id, entries_open, ea_reference_date, total_fixtures],
+            "INSERT INTO season_entry_config (season_id, entries_open, ea_reference_date, total_fixtures, junior_pence_per_fixture, adult_pence_per_fixture) VALUES (?, ?, ?, ?, ?, ?)",
+            [
+                season_id,
+                entries_open,
+                ea_reference_date,
+                total_fixtures,
+                junior_pence_per_fixture,
+                adult_pence_per_fixture,
+            ],
         )
-
-
-def list_price_tiers(db: duckdb.DuckDBPyConnection, season_id: int) -> list[PriceTier]:
-    rows = db.execute(
-        "SELECT season_id, fixtures_remaining, junior_pence, adult_pence FROM entry_price_tiers WHERE season_id = ? ORDER BY fixtures_remaining DESC",
-        [season_id],
-    ).fetchall()
-    return [
-        PriceTier(
-            season_id=r[0], fixtures_remaining=r[1], junior_pence=r[2], adult_pence=r[3]
-        )
-        for r in rows
-    ]
-
-
-def get_price_tier(
-    season_id: int, fixtures_remaining: int, db: duckdb.DuckDBPyConnection
-) -> PriceTier | None:
-    row = db.execute(
-        "SELECT season_id, fixtures_remaining, junior_pence, adult_pence FROM entry_price_tiers WHERE season_id = ? AND fixtures_remaining = ?",
-        [season_id, fixtures_remaining],
-    ).fetchone()
-    if row is None:
-        return None
-    return PriceTier(
-        season_id=row[0],
-        fixtures_remaining=row[1],
-        junior_pence=row[2],
-        adult_pence=row[3],
-    )
-
-
-def upsert_price_tier(
-    db: duckdb.DuckDBPyConnection,
-    season_id: int,
-    fixtures_remaining: int,
-    junior_pence: int,
-    adult_pence: int,
-) -> PriceTier:
-    existing = db.execute(
-        "SELECT id FROM entry_price_tiers WHERE season_id = ? AND fixtures_remaining = ?",
-        [season_id, fixtures_remaining],
-    ).fetchone()
-    if existing:
-        db.execute(
-            """
-            UPDATE entry_price_tiers
-            SET junior_pence = ?, adult_pence = ?, updated_at = current_timestamp
-            WHERE season_id = ? AND fixtures_remaining = ?
-            """,
-            [junior_pence, adult_pence, season_id, fixtures_remaining],
-        )
-    else:
-        db.execute(
-            "INSERT INTO entry_price_tiers (season_id, fixtures_remaining, junior_pence, adult_pence) VALUES (?, ?, ?, ?)",
-            [season_id, fixtures_remaining, junior_pence, adult_pence],
-        )
-    return PriceTier(
-        season_id=season_id,
-        fixtures_remaining=fixtures_remaining,
-        junior_pence=junior_pence,
-        adult_pence=adult_pence,
-    )
 
 
 # ---------------------------------------------------------------------------

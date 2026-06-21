@@ -7,6 +7,7 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import date, datetime
 from pathlib import Path
+from urllib.parse import quote
 from typing import Any, cast
 
 import duckdb
@@ -164,7 +165,12 @@ def _rate_limit_if_prod(rate_limit: str):
 async def _http_exception_handler(request: Request, exc: HTTPException) -> Response:
     """Redirect unauthenticated 403s to login; fall back to default handling."""
     if exc.status_code == 403 and not get_current_user(request):
-        return RedirectResponse(url="/login", status_code=302)
+        next_path = request.url.path
+        if request.url.query:
+            next_path = f"{next_path}?{request.url.query}"
+        return RedirectResponse(
+            url=f"/login?next={quote(next_path, safe='/')}", status_code=302
+        )
     return await http_exception_handler(request, exc)
 
 
@@ -500,9 +506,13 @@ def results_source_pdf(
 def entries(
     request: Request,
     db: duckdb.DuckDBPyConnection = Depends(get_db),
-    ctx: dict = Depends(require_club_manager),
-) -> HTMLResponse:
+    user: dict[str, Any] | None = Depends(get_current_user),
+) -> Response:
     """Team manager landing page: list open seasons and past batches."""
+    if user and user.get("role") == "admin":
+        return RedirectResponse(url="/admin/entries", status_code=303)
+
+    ctx: dict = require_club_manager(request, db)
     club_manager = ctx["club_manager"]
     seasons = repository.list_seasons(db)
     open_seasons = []
@@ -571,12 +581,15 @@ def entries_add_athletes(
         raise HTTPException(
             status_code=403, detail="No fixtures remaining for this season."
         )
-    tier = repository.get_price_tier(season_id, fixtures_remaining, db)
-    if tier is None:
+    junior_pence_per_fixture: int = config.get("junior_pence_per_fixture") or 0
+    adult_pence_per_fixture: int = config.get("adult_pence_per_fixture") or 0
+    if not junior_pence_per_fixture and not adult_pence_per_fixture:
         raise HTTPException(
             status_code=503,
-            detail="Price tier not configured for this fixtures-remaining count. Please contact the league administrator.",
+            detail="Entry prices have not been configured for this season. Please contact the league administrator.",
         )
+    junior_total_pence = junior_pence_per_fixture * fixtures_remaining
+    adult_total_pence = adult_pence_per_fixture * fixtures_remaining
     # Fetch athletes from EA
     # Coerce to string (EA club ID stored in clubs.ea_club_id as string)
     ea_club_id_str = _get_ea_club_id(club_manager.club_id, db)
@@ -623,7 +636,10 @@ def entries_add_athletes(
             season=season,
             club_manager=club_manager,
             athletes=athletes,
-            tier=tier,
+            junior_pence_per_fixture=junior_pence_per_fixture,
+            adult_pence_per_fixture=adult_pence_per_fixture,
+            junior_total_pence=junior_total_pence,
+            adult_total_pence=adult_total_pence,
             fixtures_remaining=fixtures_remaining,
             deadline_warning=None,
         ),
@@ -653,9 +669,8 @@ def entries_create_batch(
     if not ea_urns:
         raise HTTPException(status_code=422, detail="No athletes selected.")
     fixtures_remaining = entries_module.compute_fixtures_remaining(season_id, db)
-    tier = repository.get_price_tier(season_id, fixtures_remaining, db)
-    if tier is None:
-        raise HTTPException(status_code=503, detail="Price tier not configured.")
+    junior_pence_per_fixture: int = config.get("junior_pence_per_fixture") or 0
+    adult_pence_per_fixture: int = config.get("adult_pence_per_fixture") or 0
     # Re-validate server-side
     ea_club_id_str = _get_ea_club_id(club_manager.club_id, db)
     ea_athletes_fetched = entries_module.fetch_club_athletes(ea_club_id_str)
@@ -694,7 +709,9 @@ def entries_create_batch(
             )
         age_cat = entries_module.get_oxl_age_category(dob, reference_date)
         junior = entries_module.is_junior(age_cat)
-        amount = tier.junior_pence if junior else tier.adult_pence
+        amount = (
+            junior_pence_per_fixture if junior else adult_pence_per_fixture
+        ) * fixtures_remaining
         total_pence += amount
         athlete_rows.append(
             AthleteEntryRow(
@@ -793,18 +810,8 @@ async def entries_batch_checkout(
     base_url = str(request.base_url).rstrip("/")
     success_url = f"{base_url}/entries/{season_id}/batch/{batch_id}/success"
     cancel_url = f"{base_url}/entries/{season_id}/batch/{batch_id}/preview"
-    # Determine unit prices from first athlete or tier
-    tier = repository.get_price_tier(season_id, batch.fixtures_remaining_at_entry, db)
-    junior_unit = (
-        tier.junior_pence
-        if tier
-        else (junior_athletes[0].amount_pence if junior_athletes else 0)
-    )
-    adult_unit = (
-        tier.adult_pence
-        if tier
-        else (adult_athletes[0].amount_pence if adult_athletes else 0)
-    )
+    junior_unit = junior_athletes[0].amount_pence if junior_athletes else 0
+    adult_unit = adult_athletes[0].amount_pence if adult_athletes else 0
     checkout = _payments.create_checkout_session(
         batch_id=batch_id,
         junior_count=len(junior_athletes),
@@ -1863,10 +1870,15 @@ async def fixture_delete_image(
 
 @app.get("/login", response_class=HTMLResponse)
 def login_page(request: Request) -> Response:
+    next_path = request.query_params.get("next", "/news")
+    if not next_path.startswith("/"):
+        next_path = "/news"
     if get_current_user(request):
-        return RedirectResponse(url="/news", status_code=302)
+        return RedirectResponse(url=next_path, status_code=302)
     return templates.TemplateResponse(
-        request, "login.html", page_context(request, "login", error=None)
+        request,
+        "login.html",
+        page_context(request, "login", error=None, next_path=next_path),
     )
 
 
@@ -1876,6 +1888,7 @@ def login_submit(
     request: Request,
     username: str = Form(...),
     password: str = Form(...),
+    next_path: str = Form("/news"),
     csrf_token: str = Form(...),
     db: duckdb.DuckDBPyConnection = Depends(get_db),
 ) -> Response:
@@ -1894,7 +1907,9 @@ def login_submit(
     request.session["user_id"] = user.id
     request.session["username"] = user.username
     request.session["role"] = user.role.value
-    return RedirectResponse(url="/news", status_code=302)
+    if not next_path.startswith("/"):
+        next_path = "/news"
+    return RedirectResponse(url=next_path, status_code=302)
 
 
 @app.post("/logout")
@@ -2159,7 +2174,6 @@ def admin_entries_season_detail(
     if season is None:
         raise HTTPException(status_code=404)
     config = repository.get_season_entry_config(season_id, db)
-    price_tiers = repository.list_price_tiers(db, season_id)
     batches = repository.list_entry_batches_for_season(db, season_id)
     return templates.TemplateResponse(
         request,
@@ -2169,7 +2183,6 @@ def admin_entries_season_detail(
             "admin",
             season=season,
             config=config,
-            price_tiers=price_tiers,
             batches=batches,
         ),
     )
@@ -2182,6 +2195,8 @@ def admin_entries_config_save(
     entries_open: str = Form("off"),
     ea_reference_date: str = Form(...),
     total_fixtures: int = Form(...),
+    junior_pence_per_fixture_display: float = Form(0.0),
+    adult_pence_per_fixture_display: float = Form(0.0),
     csrf_token: str = Form(...),
     db: duckdb.DuckDBPyConnection = Depends(get_db),
     _: list = Permission("edit", _ADMIN_ACL),
@@ -2190,6 +2205,8 @@ def admin_entries_config_save(
     season = repository.get_season_by_id(db, season_id)
     if season is None:
         raise HTTPException(status_code=404)
+    if junior_pence_per_fixture_display < 0 or adult_pence_per_fixture_display < 0:
+        raise HTTPException(status_code=422, detail="Prices cannot be negative")
     open_flag = entries_open == "on"
     repository.upsert_season_entry_config(
         db,
@@ -2197,69 +2214,10 @@ def admin_entries_config_save(
         entries_open=open_flag,
         ea_reference_date=ea_reference_date,
         total_fixtures=total_fixtures,
+        junior_pence_per_fixture=round(junior_pence_per_fixture_display * 100),
+        adult_pence_per_fixture=round(adult_pence_per_fixture_display * 100),
     )
     return RedirectResponse(f"/admin/entries/{season_id}", status_code=303)
-
-
-@app.get("/admin/entries/{season_id}/pricing", response_class=HTMLResponse)
-def admin_entries_pricing(
-    request: Request,
-    season_id: int,
-    db: duckdb.DuckDBPyConnection = Depends(get_db),
-    _: list = Permission("edit", _ADMIN_ACL),
-) -> HTMLResponse:
-    season = repository.get_season_by_id(db, season_id)
-    if season is None:
-        raise HTTPException(status_code=404)
-    config = repository.get_season_entry_config(season_id, db)
-    price_tiers = repository.list_price_tiers(db, season_id)
-    return templates.TemplateResponse(
-        request,
-        "admin/entries/pricing.html",
-        page_context(
-            request, "admin", season=season, config=config, price_tiers=price_tiers
-        ),
-    )
-
-
-@app.post("/admin/entries/{season_id}/pricing", response_class=HTMLResponse)
-def admin_entries_pricing_save(
-    request: Request,
-    season_id: int,
-    fixtures_remaining: int = Form(...),
-    junior_pence_display: float = Form(...),
-    adult_pence_display: float = Form(...),
-    csrf_token: str = Form(...),
-    db: duckdb.DuckDBPyConnection = Depends(get_db),
-    _: list = Permission("edit", _ADMIN_ACL),
-) -> Response:
-    validate_csrf(request, csrf_token)
-    season = repository.get_season_by_id(db, season_id)
-    if season is None:
-        raise HTTPException(status_code=404)
-    if fixtures_remaining < 1:
-        raise HTTPException(
-            status_code=422, detail="fixtures_remaining must be \u2265 1"
-        )
-    if junior_pence_display < 0 or adult_pence_display < 0:
-        raise HTTPException(status_code=422, detail="Prices cannot be negative")
-    junior_pence = round(junior_pence_display * 100)
-    adult_pence = round(adult_pence_display * 100)
-    tier = repository.upsert_price_tier(
-        db,
-        season_id=season_id,
-        fixtures_remaining=fixtures_remaining,
-        junior_pence=junior_pence,
-        adult_pence=adult_pence,
-    )
-    if "HX-Request" in request.headers:
-        # Return updated table row fragment
-        return templates.TemplateResponse(
-            request,
-            "admin/entries/_price_tier_row.html",
-            page_context(request, "admin", season=season, tier=tier),
-        )
-    return RedirectResponse(f"/admin/entries/{season_id}/pricing", status_code=303)
 
 
 # ---------------------------------------------------------------------------
