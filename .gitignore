@@ -83,4 +83,5 @@ data/original_website
 .github\skills\vps\SKILL.md
 
 # test certificate for EA API staging environment, not for production use
-data\TrApiStagingEVENT2ClientCert.pfx.txt
+data/TrApiStagingEVENT2ClientCert.pfx.txt
+data/TrApiStagingEVENT2ClientCert.pfx.txt.clean

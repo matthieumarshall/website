@@ -2187,6 +2187,8 @@ def admin_entries_season_detail(
         raise HTTPException(status_code=404)
     config = repository.get_season_entry_config(season_id, db)
     batches = repository.list_entry_batches_for_season(db, season_id)
+    club_allocations = repository.list_club_allocations_for_season(db, season_id)
+    paid_athletes = repository.list_paid_athlete_entries_for_season(db, season_id)
     return templates.TemplateResponse(
         request,
         "admin/entries/season_detail.html",
@@ -2196,6 +2198,8 @@ def admin_entries_season_detail(
             season=season,
             config=config,
             batches=batches,
+            club_allocations=club_allocations,
+            paid_athletes=paid_athletes,
         ),
     )
 
@@ -2232,6 +2236,44 @@ def admin_entries_config_save(
     return RedirectResponse(f"/admin/entries/{season_id}", status_code=303)
 
 
+@app.get(
+    "/admin/entries/{season_id}/club/{club_id}/allocation-form",
+    response_class=HTMLResponse,
+)
+def admin_club_allocation_form(
+    request: Request,
+    season_id: int,
+    club_id: int,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _ADMIN_ACL),
+) -> HTMLResponse:
+    """Return inline allocation edit form."""
+    season = repository.get_season_by_id(db, season_id)
+    if season is None:
+        raise HTTPException(status_code=404)
+    club = repository.get_club_by_id(club_id, db)
+    if club is None:
+        raise HTTPException(status_code=404)
+    current_allocation = repository.get_club_allocation(db, season_id, club_id)
+    return HTMLResponse(
+        f"""
+        <td colspan="5">
+          <form method="post" action="/admin/entries/{season_id}/club/{club_id}/allocation"
+                class="d-flex gap-2 align-items-center">
+            <input type="hidden" name="csrf_token" value="{request.session.get("csrf_token", "")}">
+            <label for="alloc-{club_id}" class="mb-0">Allocated slots:</label>
+            <input type="number" id="alloc-{club_id}" name="allocated_slots" class="form-control form-control-sm"
+                   min="1" style="max-width: 100px;"
+                   value="{current_allocation or ""}" required>
+            <button type="submit" class="btn btn-sm btn-success">Save</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary"
+                    hx-delete="#alloc-form-{club_id}">Cancel</button>
+          </form>
+        </td>
+        """
+    )
+
+
 @app.post("/admin/entries/{season_id}/club/{club_id}/allocation")
 def admin_set_club_allocation(
     request: Request,
@@ -2254,6 +2296,46 @@ def admin_set_club_allocation(
         raise HTTPException(status_code=422, detail="Allocation must be greater than 0")
     repository.upsert_club_allocation(db, season_id, club_id, allocated_slots)
     return RedirectResponse(f"/admin/entries/{season_id}", status_code=303)
+
+
+@app.get(
+    "/admin/entries/{season_id}/athlete/{athlete_id}/race-number-form",
+    response_class=HTMLResponse,
+)
+def admin_athlete_race_number_form(
+    request: Request,
+    season_id: int,
+    athlete_id: int,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _ADMIN_ACL),
+) -> HTMLResponse:
+    """Return inline race number edit form."""
+    season = repository.get_season_by_id(db, season_id)
+    if season is None:
+        raise HTTPException(status_code=404)
+    athlete = db.execute(
+        "SELECT id, race_number FROM athlete_entries WHERE id = ? AND season_id = ?",
+        [athlete_id, season_id],
+    ).fetchone()
+    if athlete is None:
+        raise HTTPException(status_code=404)
+    return HTMLResponse(
+        f"""
+        <td colspan="7">
+          <form method="post" action="/admin/entries/{season_id}/athlete/{athlete_id}/race-number"
+                class="d-flex gap-2 align-items-center">
+            <input type="hidden" name="csrf_token" value="{request.session.get("csrf_token", "")}">
+            <label for="race-{athlete_id}" class="mb-0">Race number:</label>
+            <input type="number" id="race-{athlete_id}" name="race_number" class="form-control form-control-sm"
+                   min="1" style="max-width: 100px;"
+                   value="{athlete[1] or ""}" required>
+            <button type="submit" class="btn btn-sm btn-success">Save</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary"
+                    hx-delete="#race-form-{athlete_id}">Cancel</button>
+          </form>
+        </td>
+        """
+    )
 
 
 @app.post("/admin/entries/{season_id}/athlete/{athlete_id}/race-number")
