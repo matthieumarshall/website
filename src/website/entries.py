@@ -1,11 +1,19 @@
 """England Athletics TRAPI API client, age category logic, and entry eligibility."""
 
 import os
+import tempfile
 from datetime import date, datetime, time, timezone
+from pathlib import Path
 
 import duckdb
 import httpx
 from fastapi import HTTPException
+
+try:
+    from cryptography.hazmat.primitives.serialization import pkcs12
+    from cryptography.hazmat.backends import default_backend
+except ImportError:
+    pkcs12 = None  # type: ignore
 
 
 _EA_STAGING_BASE = (
@@ -39,16 +47,97 @@ def fetch_club_athletes(ea_club_id: str) -> list[dict]:
     Returns a list of athlete dicts. Each dict contains at minimum:
       IndividualRef (int), FirstName, LastName, DateOfBirth, RegistrationStatus.
 
-    Raises HTTPException(503) if the EA API is unreachable.
+    Raises HTTPException(503) if the EA API is unreachable or credentials are missing.
     Raises HTTPException(502) on unexpected EA API errors.
     """
     cert_path = os.environ.get("EA_CERT_PATH", "")
     cert_password = os.environ.get("EA_CERT_PASSWORD", "")
+    call_key = os.environ.get("EA_CALL_KEY", "")
+    call_secret = os.environ.get("EA_CALL_SECRET", "")
+
+    # Validate required credentials
+    if not cert_path or not cert_password or not call_key or not call_secret:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "England Athletics API is not configured. "
+                "Contact the league administrator."
+            ),
+        )
+
+    # Load PFX certificate if needed
+    cert_file_path = None
+    key_file_path = None
+    try:
+        if cert_path.endswith(".pfx") or cert_path.endswith(".pfx.txt"):
+            if not Path(cert_path).exists():
+                raise HTTPException(
+                    status_code=503,
+                    detail="EA certificate file not found.",
+                )
+            with open(cert_path, "rb") as f:
+                pfx_data = f.read()
+            # Extract certificate and key from PFX
+            try:
+                private_key, certificate, additional_certs = (
+                    pkcs12.load_key_and_certificates(
+                        pfx_data,
+                        cert_password.encode()
+                        if isinstance(cert_password, str)
+                        else cert_password,
+                        backend=default_backend(),
+                    )
+                )
+                if certificate is None or private_key is None:
+                    raise ValueError("Certificate or private key not found in PFX file")
+                # Write cert and key to temporary files
+                from cryptography.hazmat.primitives import serialization
+
+                cert_pem = certificate.public_bytes(serialization.Encoding.PEM)
+                key_pem = private_key.private_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PrivateFormat.TraditionalOpenSSL,
+                    encryption_algorithm=serialization.NoEncryption(),
+                )
+
+                # Create temp files (will be cleaned up when closed)
+                cert_temp = tempfile.NamedTemporaryFile(
+                    mode="wb", delete=False, suffix=".pem"
+                )
+                cert_temp.write(cert_pem)
+                cert_temp.close()
+                cert_file_path = cert_temp.name
+
+                key_temp = tempfile.NamedTemporaryFile(
+                    mode="wb", delete=False, suffix=".pem"
+                )
+                key_temp.write(key_pem)
+                key_temp.close()
+                key_file_path = key_temp.name
+
+            except Exception as e:
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"Failed to load EA certificate: {e}",
+                )
+        else:
+            raise HTTPException(
+                status_code=503,
+                detail="Invalid EA certificate path.",
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Error loading EA certificate: {e}",
+        )
+
     url = f"{_ea_base_url()}race-provider/clubs/{ea_club_id}/athletes"
     try:
         # http1=True required — EA API does not support HTTP/2 with client certs
         with httpx.Client(
-            cert=(cert_path, cert_password) if cert_path else None,
+            cert=(cert_file_path, key_file_path),
             http1=True,
             timeout=10.0,
         ) as client:
@@ -61,10 +150,30 @@ def fetch_club_athletes(ea_club_id: str) -> list[dict]:
                 "Please try again shortly."
             ),
         ) from exc
+    finally:
+        # Clean up temporary files
+        if cert_file_path and Path(cert_file_path).exists():
+            try:
+                Path(cert_file_path).unlink()
+            except Exception:
+                pass
+        if key_file_path and Path(key_file_path).exists():
+            try:
+                Path(key_file_path).unlink()
+            except Exception:
+                pass
 
     if resp.status_code == 404:
         # Method 5 URL not found — return empty list so caller can handle
         return []
+    if resp.status_code == 403:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "England Athletics API authentication failed. "
+                "Contact the league administrator."
+            ),
+        )
     if resp.status_code != 200:
         raise HTTPException(
             status_code=502,
