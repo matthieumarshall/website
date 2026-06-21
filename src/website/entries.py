@@ -334,3 +334,20 @@ def compute_fixtures_remaining(season_id: int, db: duckdb.DuckDBPyConnection) ->
         [season_id],
     ).fetchall()
     return sum(1 for (fixture_date,) in rows if is_entry_open_for_fixture(fixture_date))
+
+
+def check_allocation(
+    season_id: int, club_id: int, count_to_add: int, db: duckdb.DuckDBPyConnection
+) -> bool:
+    """Check if adding count_to_add athletes would exceed the club's allocation.
+
+    Returns True if the addition is allowed, False if it would exceed allocation.
+    """
+    from website import repository
+
+    allocation = repository.get_club_allocation(db, season_id, club_id)
+    if allocation is None:
+        # No allocation set - prevent any entries
+        return False
+    current_count = repository.get_club_athlete_count(db, season_id, club_id)
+    return current_count + count_to_add <= allocation

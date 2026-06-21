@@ -1440,3 +1440,68 @@ def assign_race_numbers(batch_id: int, db: duckdb.DuckDBPyConnection) -> None:
             [next_number, ae_id],
         )
         next_number += 1
+
+
+# ---------------------------------------------------------------------------
+# Club Allocations
+# ---------------------------------------------------------------------------
+
+
+def upsert_club_allocation(
+    db: duckdb.DuckDBPyConnection,
+    season_id: int,
+    club_id: int,
+    allocated_slots: int,
+) -> None:
+    """Insert or update club's athlete entry allocation for a season."""
+    if allocated_slots <= 0:
+        raise ValueError("allocated_slots must be greater than 0")
+    db.execute(
+        """
+        INSERT INTO club_allocations (season_id, club_id, allocated_slots, created_at, updated_at)
+        VALUES (?, ?, ?, now(), now())
+        ON CONFLICT(season_id, club_id) DO UPDATE SET
+            allocated_slots = excluded.allocated_slots,
+            updated_at = now()
+        """,
+        [season_id, club_id, allocated_slots],
+    )
+
+
+def get_club_allocation(
+    db: duckdb.DuckDBPyConnection, season_id: int, club_id: int
+) -> int | None:
+    """Return allocated slots for a club in a season, or None if not set."""
+    row = db.execute(
+        "SELECT allocated_slots FROM club_allocations WHERE season_id = ? AND club_id = ?",
+        [season_id, club_id],
+    ).fetchone()
+    return row[0] if row else None
+
+
+def get_club_athlete_count(
+    db: duckdb.DuckDBPyConnection, season_id: int, club_id: int
+) -> int:
+    """Count paid athlete entries for a club in a season."""
+    row = db.execute(
+        """
+        SELECT COUNT(ae.id)
+        FROM athlete_entries ae
+        JOIN entry_batches eb ON eb.id = ae.batch_id
+        WHERE ae.season_id = ? AND ae.club_id = ? AND eb.status = 'paid'
+        """,
+        [season_id, club_id],
+    ).fetchone()
+    return row[0] if row else 0
+
+
+def update_athlete_race_number(
+    db: duckdb.DuckDBPyConnection, athlete_id: int, race_number: int
+) -> None:
+    """Update an athlete's race number."""
+    if race_number <= 0:
+        raise ValueError("race_number must be greater than 0")
+    db.execute(
+        "UPDATE athlete_entries SET race_number = ? WHERE id = ?",
+        [race_number, athlete_id],
+    )
