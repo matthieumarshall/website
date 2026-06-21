@@ -106,6 +106,33 @@ def _ea_headers() -> dict[str, str]:
     }
 
 
+def _normalize_registration_status(reg_status: str) -> str:
+    """Map EA status text to the app's expected Registered/Not Registered labels."""
+    normalized = reg_status.strip().lower()
+    if "registered" in normalized and "not" not in normalized:
+        return "Registered"
+    return "Not Registered"
+
+
+def _normalize_ea_athlete(raw: dict) -> dict:
+    """Normalize EA Method 5 payload keys to app-standard athlete keys."""
+    urn = raw.get("Urn", raw.get("IndividualRef", 0))
+    first_name = raw.get("Firstname", raw.get("FirstName", ""))
+    last_name = raw.get("Lastname", raw.get("LastName", ""))
+    dob = raw.get("Dob", raw.get("DateOfBirth", ""))
+    reg_status = raw.get(
+        "CompetitiveRegStatus",
+        raw.get("RegistrationStatus", "Not Registered"),
+    )
+    return {
+        "IndividualRef": urn,
+        "FirstName": first_name,
+        "LastName": last_name,
+        "DateOfBirth": dob,
+        "RegistrationStatus": _normalize_registration_status(str(reg_status)),
+    }
+
+
 def fetch_club_athletes(ea_club_id: str) -> list[dict]:
     """Fetch all athletes for a club from the EA TRAPI API.
 
@@ -148,7 +175,7 @@ def fetch_club_athletes(ea_club_id: str) -> list[dict]:
                 pfx_data = f.read()
             # Extract certificate and key from PFX
             try:
-                private_key, certificate, additional_certs = (
+                private_key, certificate, _additional_certs = (
                     pkcs12.load_key_and_certificates(
                         pfx_data,
                         cert_password.encode()
@@ -188,7 +215,7 @@ def fetch_club_athletes(ea_club_id: str) -> list[dict]:
                 raise HTTPException(
                     status_code=503,
                     detail=f"Failed to load EA certificate: {e}",
-                )
+                ) from e
         else:
             raise HTTPException(
                 status_code=503,
@@ -200,9 +227,12 @@ def fetch_club_athletes(ea_club_id: str) -> list[dict]:
         raise HTTPException(
             status_code=503,
             detail=f"Error loading EA certificate: {e}",
-        )
+        ) from e
 
-    url = f"{_ea_base_url()}race-provider/clubs/{ea_club_id}/athletes"
+    # Staging supports the club-athletes Method 5 route as:
+    # race-provider/clubs/{clubId}/individuals?eventdate=YYYY-MM-DD
+    event_date = date.today().isoformat()
+    url = f"{_ea_base_url()}race-provider/clubs/{ea_club_id}/individuals"
     try:
         # http1=True required — EA API does not support HTTP/2 with client certs
         with httpx.Client(
@@ -210,7 +240,9 @@ def fetch_club_athletes(ea_club_id: str) -> list[dict]:
             http1=True,
             timeout=10.0,
         ) as client:
-            resp = client.get(url, headers=_ea_headers())
+            resp = client.get(
+                url, headers=_ea_headers(), params={"eventdate": event_date}
+            )
     except httpx.RequestError as exc:
         raise HTTPException(
             status_code=503,
@@ -224,17 +256,14 @@ def fetch_club_athletes(ea_club_id: str) -> list[dict]:
         if cert_file_path and Path(cert_file_path).exists():
             try:
                 Path(cert_file_path).unlink()
-            except Exception:
+            except OSError:
                 pass
         if key_file_path and Path(key_file_path).exists():
             try:
                 Path(key_file_path).unlink()
-            except Exception:
+            except OSError:
                 pass
 
-    if resp.status_code == 404:
-        # Method 5 URL not found — return empty list so caller can handle
-        return []
     if resp.status_code == 403:
         raise HTTPException(
             status_code=503,
@@ -252,7 +281,8 @@ def fetch_club_athletes(ea_club_id: str) -> list[dict]:
             ),
         )
     data = resp.json()
-    return data.get("Athletes", [])
+    athletes = data.get("Athletes") or []
+    return [_normalize_ea_athlete(a) for a in athletes]
 
 
 def get_oxl_age_category(dob: date, reference_date: date) -> str:
