@@ -8,16 +8,23 @@ import pytest
 from website import entries
 
 
+def _ea_staging_configured() -> bool:
+    return bool(
+        os.environ.get("EA_STAGING", "").lower() == "true"
+        and os.environ.get("EA_CALL_KEY")
+        and os.environ.get("EA_CALL_SECRET")
+        and os.environ.get("EA_CERT_PATH")
+        and os.environ.get("EA_CERT_PASSWORD")
+        and os.path.exists(os.environ.get("EA_CERT_PATH", ""))
+    )
+
+
 class TestEAStaging:
     """Integration tests for England Athletics staging API."""
 
     @pytest.mark.skipif(
-        os.environ.get("EA_STAGING", "").lower() != "true",
-        reason="Requires EA_STAGING=true and valid credentials",
-    )
-    @pytest.mark.skipif(
-        not os.environ.get("EA_CALL_KEY"),
-        reason="Requires EA credentials to be set",
+        not _ea_staging_configured(),
+        reason="Requires EA staging mode, credentials, and a valid certificate path",
     )
     def test_fetch_club_athletes_returns_list(self):
         """Test that fetch_club_athletes returns a list of athletes from staging."""
@@ -28,12 +35,8 @@ class TestEAStaging:
         assert len(athletes) > 0, "Expected at least one athlete from staging club"
 
     @pytest.mark.skipif(
-        os.environ.get("EA_STAGING", "").lower() != "true",
-        reason="Requires EA_STAGING=true and valid credentials",
-    )
-    @pytest.mark.skipif(
-        not os.environ.get("EA_CALL_KEY"),
-        reason="Requires EA credentials to be set",
+        not _ea_staging_configured(),
+        reason="Requires EA staging mode, credentials, and a valid certificate path",
     )
     def test_fetch_club_athletes_response_schema(self):
         """Test that athlete responses have required fields."""
@@ -56,12 +59,8 @@ class TestEAStaging:
         assert isinstance(athlete["RegistrationStatus"], str)
 
     @pytest.mark.skipif(
-        os.environ.get("EA_STAGING", "").lower() != "true",
-        reason="Requires EA_STAGING=true and valid credentials",
-    )
-    @pytest.mark.skipif(
-        not os.environ.get("EA_CALL_KEY"),
-        reason="Requires EA credentials to be set",
+        not _ea_staging_configured(),
+        reason="Requires EA staging mode, credentials, and a valid certificate path",
     )
     def test_registration_status_normalization(self):
         """Test that registration status is properly normalized."""
@@ -75,12 +74,8 @@ class TestEAStaging:
         )
 
     @pytest.mark.skipif(
-        os.environ.get("EA_STAGING", "").lower() != "true",
-        reason="Requires EA_STAGING=true and valid credentials",
-    )
-    @pytest.mark.skipif(
-        not os.environ.get("EA_CALL_KEY"),
-        reason="Requires EA credentials to be set",
+        not _ea_staging_configured(),
+        reason="Requires EA staging mode, credentials, and a valid certificate path",
     )
     def test_age_category_calculation(self):
         """Test that age category calculation works for returned athletes."""

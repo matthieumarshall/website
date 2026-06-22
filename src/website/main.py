@@ -723,18 +723,6 @@ def entries_create_batch(
                 amount_pence=amount,
             )
         )
-    # Check allocation before creating batch
-    if not entries_module.check_allocation(
-        season_id, club_manager.club_id, len(ea_urns), db
-    ):
-        allocation = repository.get_club_allocation(db, season_id, club_manager.club_id)
-        current_count = repository.get_club_athlete_count(
-            db, season_id, club_manager.club_id
-        )
-        raise HTTPException(
-            status_code=400,
-            detail=f"Club has exceeded allocation. Allocated: {allocation or 0}, Currently used: {current_count}, Requested: {len(ea_urns)}",
-        )
     batch = repository.create_entry_batch(
         db,
         season_id=season_id,
@@ -1023,6 +1011,54 @@ def standings_category_panel(
     )
 
 
+def _normalize_fixture_scores_for_standings(
+    rows: list[dict], fixtures: list
+) -> list[dict]:
+    fixture_ids = [str(f.id) for f in fixtures]
+    fixture_count = len(fixtures)
+
+    for row in rows:
+        scores_by_fixture: dict[str, int] = {}
+        fixture_scores_raw = row.get("fixture_scores") or {}
+
+        if isinstance(fixture_scores_raw, str):
+            try:
+                fixture_scores_raw = json.loads(fixture_scores_raw)
+            except json.JSONDecodeError:
+                fixture_scores_raw = {}
+
+        if isinstance(fixture_scores_raw, dict):
+            for raw_key, value in fixture_scores_raw.items():
+                if raw_key is None:
+                    continue
+                key = str(raw_key).strip()
+                if key in fixture_ids:
+                    scores_by_fixture[key] = value
+                    continue
+
+                normalized = key.lower()
+                if normalized.startswith("r") and normalized[1:].isdigit():
+                    index = int(normalized[1:]) - 1
+                    if 0 <= index < fixture_count:
+                        fixture_id = str(fixtures[index].id)
+                        if fixture_id not in scores_by_fixture:
+                            scores_by_fixture[fixture_id] = value
+                    continue
+
+                if key.isdigit():
+                    if key in fixture_ids:
+                        scores_by_fixture[key] = value
+                        continue
+                    index = int(key) - 1
+                    if 0 <= index < fixture_count:
+                        fixture_id = str(fixtures[index].id)
+                        if fixture_id not in scores_by_fixture:
+                            scores_by_fixture[fixture_id] = value
+
+        row["scores_by_fixture"] = scores_by_fixture
+    return rows
+
+
 @app.get("/standings/table", response_class=HTMLResponse)
 def standings_table(
     request: Request,
@@ -1040,6 +1076,9 @@ def standings_table(
         rows = repository.load_team_standings(db, season_id, category)
     else:
         rows = repository.load_individual_standings(db, season_id, category)
+
+    rows = _normalize_fixture_scores_for_standings(rows, fixtures)
+
     return templates.TemplateResponse(
         request,
         "_standings_table.html",
@@ -1956,6 +1995,20 @@ def privacy_policy(request: Request) -> HTMLResponse:
     )
 
 
+@app.get("/contact", response_class=HTMLResponse)
+def contact(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request, "contact.html", page_context(request, "contact")
+    )
+
+
+@app.get("/about", response_class=HTMLResponse)
+def about(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request, "about.html", page_context(request, "about")
+    )
+
+
 @app.get("/account", response_class=HTMLResponse)
 def account(
     request: Request,
@@ -2187,8 +2240,6 @@ def admin_entries_season_detail(
         raise HTTPException(status_code=404)
     config = repository.get_season_entry_config(season_id, db)
     batches = repository.list_entry_batches_for_season(db, season_id)
-    club_allocations = repository.list_club_allocations_for_season(db, season_id)
-    paid_athletes = repository.list_paid_athlete_entries_for_season(db, season_id)
     return templates.TemplateResponse(
         request,
         "admin/entries/season_detail.html",
@@ -2198,8 +2249,6 @@ def admin_entries_season_detail(
             season=season,
             config=config,
             batches=batches,
-            club_allocations=club_allocations,
-            paid_athletes=paid_athletes,
         ),
     )
 
@@ -2233,144 +2282,6 @@ def admin_entries_config_save(
         junior_pence_per_fixture=round(junior_pence_per_fixture_display * 100),
         adult_pence_per_fixture=round(adult_pence_per_fixture_display * 100),
     )
-    return RedirectResponse(f"/admin/entries/{season_id}", status_code=303)
-
-
-@app.get(
-    "/admin/entries/{season_id}/club/{club_id}/allocation-form",
-    response_class=HTMLResponse,
-)
-def admin_club_allocation_form(
-    request: Request,
-    season_id: int,
-    club_id: int,
-    db: duckdb.DuckDBPyConnection = Depends(get_db),
-    _: list = Permission("edit", _ADMIN_ACL),
-) -> HTMLResponse:
-    """Return inline allocation edit form."""
-    season = repository.get_season_by_id(db, season_id)
-    if season is None:
-        raise HTTPException(status_code=404)
-    club = repository.get_club_by_id(club_id, db)
-    if club is None:
-        raise HTTPException(status_code=404)
-    current_allocation = repository.get_club_allocation(db, season_id, club_id)
-    return HTMLResponse(
-        f"""
-        <td colspan="5">
-          <form method="post" action="/admin/entries/{season_id}/club/{club_id}/allocation"
-                class="d-flex gap-2 align-items-center">
-            <input type="hidden" name="csrf_token" value="{request.session.get("csrf_token", "")}">
-            <label for="alloc-{club_id}" class="mb-0">Allocated slots:</label>
-            <input type="number" id="alloc-{club_id}" name="allocated_slots" class="form-control form-control-sm"
-                   min="1" style="max-width: 100px;"
-                   value="{current_allocation or ""}" required>
-            <button type="submit" class="btn btn-sm btn-success">Save</button>
-            <button type="button" class="btn btn-sm btn-outline-secondary"
-                    hx-delete="#alloc-form-{club_id}">Cancel</button>
-          </form>
-        </td>
-        """
-    )
-
-
-@app.post("/admin/entries/{season_id}/club/{club_id}/allocation")
-def admin_set_club_allocation(
-    request: Request,
-    season_id: int,
-    club_id: int,
-    allocated_slots: int = Form(...),
-    csrf_token: str = Form(...),
-    db: duckdb.DuckDBPyConnection = Depends(get_db),
-    _: list = Permission("edit", _ADMIN_ACL),
-) -> Response:
-    """Update club's athlete allocation for a season."""
-    validate_csrf(request, csrf_token)
-    season = repository.get_season_by_id(db, season_id)
-    if season is None:
-        raise HTTPException(status_code=404)
-    club = repository.get_club_by_id(club_id, db)
-    if club is None:
-        raise HTTPException(status_code=404)
-    if allocated_slots <= 0:
-        raise HTTPException(status_code=422, detail="Allocation must be greater than 0")
-    repository.upsert_club_allocation(db, season_id, club_id, allocated_slots)
-    return RedirectResponse(f"/admin/entries/{season_id}", status_code=303)
-
-
-@app.get(
-    "/admin/entries/{season_id}/athlete/{athlete_id}/race-number-form",
-    response_class=HTMLResponse,
-)
-def admin_athlete_race_number_form(
-    request: Request,
-    season_id: int,
-    athlete_id: int,
-    db: duckdb.DuckDBPyConnection = Depends(get_db),
-    _: list = Permission("edit", _ADMIN_ACL),
-) -> HTMLResponse:
-    """Return inline race number edit form."""
-    season = repository.get_season_by_id(db, season_id)
-    if season is None:
-        raise HTTPException(status_code=404)
-    athlete = db.execute(
-        "SELECT id, race_number FROM athlete_entries WHERE id = ? AND season_id = ?",
-        [athlete_id, season_id],
-    ).fetchone()
-    if athlete is None:
-        raise HTTPException(status_code=404)
-    return HTMLResponse(
-        f"""
-        <td colspan="7">
-          <form method="post" action="/admin/entries/{season_id}/athlete/{athlete_id}/race-number"
-                class="d-flex gap-2 align-items-center">
-            <input type="hidden" name="csrf_token" value="{request.session.get("csrf_token", "")}">
-            <label for="race-{athlete_id}" class="mb-0">Race number:</label>
-            <input type="number" id="race-{athlete_id}" name="race_number" class="form-control form-control-sm"
-                   min="1" style="max-width: 100px;"
-                   value="{athlete[1] or ""}" required>
-            <button type="submit" class="btn btn-sm btn-success">Save</button>
-            <button type="button" class="btn btn-sm btn-outline-secondary"
-                    hx-delete="#race-form-{athlete_id}">Cancel</button>
-          </form>
-        </td>
-        """
-    )
-
-
-@app.post("/admin/entries/{season_id}/athlete/{athlete_id}/race-number")
-def admin_update_athlete_race_number(
-    request: Request,
-    season_id: int,
-    athlete_id: int,
-    race_number: int = Form(...),
-    csrf_token: str = Form(...),
-    db: duckdb.DuckDBPyConnection = Depends(get_db),
-    _: list = Permission("edit", _ADMIN_ACL),
-) -> Response:
-    """Update an athlete's race number."""
-    validate_csrf(request, csrf_token)
-    season = repository.get_season_by_id(db, season_id)
-    if season is None:
-        raise HTTPException(status_code=404)
-    if race_number <= 0:
-        raise HTTPException(
-            status_code=422, detail="Race number must be greater than 0"
-        )
-    # Check for duplicates in the same season
-    existing = db.execute(
-        """
-        SELECT COUNT(*) FROM athlete_entries
-        WHERE season_id = ? AND race_number = ? AND id != ?
-        """,
-        [season_id, race_number, athlete_id],
-    ).fetchone()
-    if existing and existing[0] > 0:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Race number {race_number} already assigned to another athlete",
-        )
-    repository.update_athlete_race_number(db, athlete_id, race_number)
     return RedirectResponse(f"/admin/entries/{season_id}", status_code=303)
 
 
