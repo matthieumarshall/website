@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Contact Us — Oxfordshire Cross Country League{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <h1 class="mb-4">Contact Us</h1>
+    <p class="lead">
+      Questions about fixtures, entries, or league administration? Please use the details below to get in touch.
+    </p>
+
+    <h2 class="h5 mt-4">General enquiries</h2>
+    <p>
+      For general league questions, race information, fixture updates, or technical help with this website, contact the league administrator.
+    </p>
+
+    <dl class="row">
+      <dt class="col-sm-4">Email</dt>
+      <dd class="col-sm-8"><a href="mailto:oxfordshirexcleague@example.com">oxfordshirexcleague@example.com</a></dd>
+
+      <dt class="col-sm-4">Website support</dt>
+      <dd class="col-sm-8">If you encounter an issue with entries or race results, please contact the league administrator using the email above.</dd>
+    </dl>
+
+    <h2 class="h5 mt-4">How to reach us</h2>
+    <ul>
+      <li>Include your club name and the season when asking about entries.</li>
+      <li>For payment queries, reference the club manager account and the fixture round.</li>
+      <li>For privacy or data queries, say whether you are a club manager or a competitor.</li>
+    </ul>
+
+    <div class="alert alert-secondary mt-4" role="alert">
+      This page is intentionally static and does not collect additional personal information.
+    </div>
+  </div>
+</div>
+{% endblock %}

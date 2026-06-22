@@ -993,6 +993,22 @@ class TestPrivacyPolicyRoute:
         assert resp.status_code == 200
 
 
+class TestContactRoute:
+    def test_contact_page_loads(self, test_client: TestClient) -> None:
+        resp = test_client.get("/contact")
+        assert resp.status_code == 200
+        assert "Contact Us" in resp.text
+        assert "oxfordshirexcleague@example.com" in resp.text
+
+
+class TestAboutRoute:
+    def test_about_page_loads(self, test_client: TestClient) -> None:
+        resp = test_client.get("/about")
+        assert resp.status_code == 200
+        assert "About Us" in resp.text
+        assert "Work in progress" in resp.text
+
+
 # ---------------------------------------------------------------------------
 # Dismiss cookie notice
 # ---------------------------------------------------------------------------

@@ -168,6 +168,7 @@ jobs:
     name: Unit Tests & Coverage
     needs: code-quality
     runs-on: ubuntu-latest
+    environment: testing
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -182,6 +183,18 @@ jobs:
 
       - name: Install dependencies
         run: uv sync --all-extras
+
+      - name: Restore EA certificate
+        run: |
+          echo "${{ secrets.EA_CERT_PFX_BASE64 }}" | base64 --decode > ea_test_cert.pfx
+
+      - name: Export EA environment variables
+        run: |
+          echo "EA_CERT_PATH=$(pwd)/ea_test_cert.pfx" >> $GITHUB_ENV
+          echo "EA_CERT_PASSWORD=${{ secrets.EA_CERT_PASSWORD }}" >> $GITHUB_ENV
+          echo "EA_CALL_KEY=${{ secrets.EA_CALL_KEY }}" >> $GITHUB_ENV
+          echo "EA_CALL_SECRET=${{ secrets.EA_CALL_SECRET }}" >> $GITHUB_ENV
+          echo "EA_STAGING=true" >> $GITHUB_ENV
 
       - name: Run pytest with coverage
         run: |
