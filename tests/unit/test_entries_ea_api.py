@@ -4,6 +4,7 @@ import os
 from datetime import date
 from unittest.mock import MagicMock, patch
 
+import pytest
 
 from website import entries
 
@@ -459,3 +460,102 @@ class TestEATestMode:
             assert category == expected_category, (
                 f"DOB {dob_str}: expected {expected_category}, got {category}"
             )
+
+
+class TestEAStagingIntegration:
+    """Integration tests against real England Athletics staging API.
+
+    These tests are skipped unless EA_STAGING=true and all credentials are configured.
+    They validate the actual API contract and help distinguish between:
+      - API connectivity/authentication issues
+      - API response format changes
+      - Code logic issues
+    """
+
+    @pytest.mark.skipif(
+        not _ea_staging_configured(),
+        reason=(
+            "Requires EA_STAGING=true, EA_CALL_KEY, EA_CALL_SECRET, "
+            "EA_CERT_PATH, EA_CERT_PASSWORD, and a valid cert file. "
+            "Set these if you have EA staging credentials and want to run integration tests."
+        ),
+    )
+    def test_fetch_club_athletes_integration(self):
+        """Test fetching athletes from the real staging API (happy path).
+
+        This test validates the actual API integration. If it fails:
+          - Check if the staging API is available (network/firewall issue)
+          - Verify credentials in EA_CALL_KEY, EA_CALL_SECRET, EA_CERT_PATH, EA_CERT_PASSWORD
+          - Confirm the certificate has not expired
+          - Check if club ID "1765" still exists in staging with athletes
+        """
+        try:
+            athletes = entries.fetch_club_athletes("1765")
+        except Exception as e:
+            pytest.fail(
+                f"Failed to fetch athletes from staging API. "
+                f"This indicates an API connectivity or authentication issue. "
+                f"Error: {type(e).__name__}: {e}"
+            )
+
+        assert isinstance(athletes, list), (
+            f"Expected list of athletes, got {type(athletes).__name__}. "
+            f"This indicates a response format issue."
+        )
+        assert len(athletes) > 0, (
+            "No athletes returned from club 1765. "
+            "The club may not exist, have no athletes, or the API response format changed. "
+            "Check the staging club data."
+        )
+
+    @pytest.mark.skipif(
+        not _ea_staging_configured(),
+        reason=(
+            "Requires EA_STAGING=true, EA_CALL_KEY, EA_CALL_SECRET, "
+            "EA_CERT_PATH, EA_CERT_PASSWORD, and a valid cert file."
+        ),
+    )
+    def test_fetch_club_athletes_response_schema_integration(self):
+        """Validate the staging API response schema matches expectations.
+
+        If this fails, the API response format may have changed. Check the EA TRAPI
+        documentation and update _normalize_ea_athlete() if the API schema changed.
+        """
+        try:
+            athletes = entries.fetch_club_athletes("1765")
+        except Exception as e:
+            pytest.fail(
+                f"Failed to fetch athletes from staging API: {type(e).__name__}: {e}"
+            )
+
+        assert len(athletes) > 0, "No athletes returned (see test above for details)"
+
+        # Validate required fields in the first athlete
+        athlete = athletes[0]
+        required_fields = [
+            "IndividualRef",
+            "FirstName",
+            "LastName",
+            "DateOfBirth",
+            "RegistrationStatus",
+        ]
+        for field in required_fields:
+            assert field in athlete, (
+                f"Missing required field '{field}'. "
+                f"The EA API response schema may have changed. "
+                f"Athlete record: {athlete}"
+            )
+
+        # Validate types
+        assert isinstance(athlete["IndividualRef"], (int, str)), (
+            f"IndividualRef should be int or str, got {type(athlete['IndividualRef']).__name__}"
+        )
+        assert isinstance(athlete["FirstName"], str), (
+            f"FirstName should be str, got {type(athlete['FirstName']).__name__}"
+        )
+        assert isinstance(athlete["LastName"], str), (
+            f"LastName should be str, got {type(athlete['LastName']).__name__}"
+        )
+        assert isinstance(athlete["RegistrationStatus"], str), (
+            f"RegistrationStatus should be str, got {type(athlete['RegistrationStatus']).__name__}"
+        )
