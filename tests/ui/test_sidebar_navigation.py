@@ -126,7 +126,7 @@ class TestSidebarNavigation:
         sidebar = browser.query_selector("nav[aria-label='Main navigation']")
         assert sidebar is not None
 
-    def test_only_one_active_link_per_page(self, browser, manager_browser):
+    def test_only_one_active_link_per_page(self, browser):
         """Exactly one sidebar link is active on any given page"""
         public_routes = [
             "/news",
@@ -144,8 +144,13 @@ class TestSidebarNavigation:
                 f"Expected exactly 1 active link on {route}, found {len(active_links)}"
             )
         # /entries requires auth
-        manager_browser.goto("http://localhost:8000/entries")
-        active_links = manager_browser.query_selector_all(
+        browser.goto("http://localhost:8000/login")
+        browser.fill("input[name='username']", "entries_manager")
+        browser.fill("input[name='password']", "ManagerPassword123!@#")
+        browser.click("button[type='submit']")
+        browser.wait_for_load_state("networkidle")
+        browser.goto("http://localhost:8000/entries")
+        active_links = browser.query_selector_all(
             "nav[aria-label='Main navigation'] a.active"
         )
         assert len(active_links) == 1, (
