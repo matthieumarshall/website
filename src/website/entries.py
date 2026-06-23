@@ -8,6 +8,12 @@ from pathlib import Path
 import duckdb
 import httpx
 from fastapi import HTTPException
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 try:
     from cryptography.hazmat.primitives.serialization import pkcs12
@@ -133,6 +139,58 @@ def _normalize_ea_athlete(raw: dict) -> dict:
     }
 
 
+class TemporaryAPIError(Exception):
+    """Raised when EA API returns a temporary error (5xx status code)."""
+
+    pass
+
+
+@retry(
+    retry=retry_if_exception_type((httpx.RequestError, TemporaryAPIError)),
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    reraise=True,
+)
+def _fetch_from_ea_api(
+    url: str,
+    headers: dict[str, str],
+    params: dict[str, str],
+    cert_file_path: str,
+    key_file_path: str,
+) -> httpx.Response:
+    """Make the actual API call with automatic retry on transient failures.
+
+    Args:
+        url: The API endpoint URL
+        headers: Request headers (auth headers)
+        params: Query parameters (eventdate)
+        cert_file_path: Path to certificate file
+        key_file_path: Path to key file
+
+    Returns:
+        httpx.Response object
+
+    Raises:
+        httpx.RequestError: On network errors (retried)
+        TemporaryAPIError: On 5xx errors (retried)
+        httpx.HTTPStatusError: On other HTTP errors
+    """
+    with httpx.Client(
+        cert=(cert_file_path, key_file_path),
+        http1=True,
+        timeout=10.0,
+    ) as client:
+        resp = client.get(url, headers=headers, params=params)
+
+        # Retry on server errors (5xx)
+        if 500 <= resp.status_code < 600:
+            raise TemporaryAPIError(
+                f"EA API returned temporary error: {resp.status_code} {resp.reason_phrase}"
+            )
+
+        return resp
+
+
 def fetch_club_athletes(ea_club_id: str) -> list[dict]:
     """Fetch all athletes for a club from the EA TRAPI API.
 
@@ -235,19 +293,27 @@ def fetch_club_athletes(ea_club_id: str) -> list[dict]:
     url = f"{_ea_base_url()}race-provider/clubs/{ea_club_id}/individuals"
     try:
         # http1=True required — EA API does not support HTTP/2 with client certs
-        with httpx.Client(
-            cert=(cert_file_path, key_file_path),
-            http1=True,
-            timeout=10.0,
-        ) as client:
-            resp = client.get(
-                url, headers=_ea_headers(), params={"eventdate": event_date}
-            )
+        # Automatic retries are applied on network errors and 5xx status codes
+        resp = _fetch_from_ea_api(
+            url=url,
+            headers=_ea_headers(),
+            params={"eventdate": event_date},
+            cert_file_path=cert_file_path,
+            key_file_path=key_file_path,
+        )
     except httpx.RequestError as exc:
         raise HTTPException(
             status_code=503,
             detail=(
                 "The England Athletics system is temporarily unavailable. "
+                "Please try again shortly."
+            ),
+        ) from exc
+    except TemporaryAPIError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "The England Athletics system is experiencing temporary issues. "
                 "Please try again shortly."
             ),
         ) from exc
