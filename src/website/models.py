@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, field_validator
 class UserRole(str, Enum):
     admin = "admin"
     content_creator = "content_creator"
+    club_manager = "club_manager"
 
 
 class User(BaseModel):
@@ -265,3 +266,57 @@ class StaticPage(BaseModel):
     content: str
     updated_at: datetime
     updated_by_id: int | None
+
+
+# ---------------------------------------------------------------------------
+# Team Entries
+# ---------------------------------------------------------------------------
+
+
+class Club(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    id: int
+    name: str
+    oxl_code: str
+    ea_club_id: str
+    is_active: bool
+
+
+class ClubManager(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    id: int
+    user_id: int
+    club_id: int
+    is_active: bool
+    club_name: str
+
+
+class AthleteEntryRow(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    ea_urn: int
+    athlete_name: str
+    date_of_birth: date
+    ea_age_category: str
+    is_junior: bool
+    amount_pence: int
+    race_number: int | None = None
+
+
+class EntryBatch(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    id: int
+    season_id: int
+    club_id: int
+    manager_user_id: int
+    status: str
+    fixtures_remaining_at_entry: int
+    total_pence: int
+    stripe_checkout_session_id: str | None
+    stripe_payment_intent_id: str | None
+    stripe_payment_method: str | None
+    paid_at: datetime | None
+    created_at: datetime

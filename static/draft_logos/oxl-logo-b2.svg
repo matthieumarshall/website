@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"
+     role="img" aria-label="Oxfordshire Cross Country League logo — variant B2">
+  <title>OXL — Oxfordshire Cross Country League</title>
+
+  <!-- Gold outer ring -->
+  <circle cx="100" cy="100" r="97" fill="#B09A50"/>
+  <!-- Navy field -->
+  <circle cx="100" cy="100" r="90" fill="#1F3A5F"/>
+  <!-- Gold inner accent ring -->
+  <circle cx="100" cy="100" r="86" fill="none" stroke="#B09A50" stroke-width="1.5"/>
+
+  <!--
+    OXL — stroke-based letters, stroke-width=14.
+
+    X — CENTRED HORIZONTAL SPREAD
+    ─────────────────────────────────────────────────────────────────
+    Logo B's two full-arm beziers bow so far apart that they only
+    meet at t ≈ 0.79 (y ≈ 119), well below badge centre.
+
+    Fix: draw the X as four HALF-arms radiating out from the exact
+    badge centre (100,100). The crossing is at (100,100) by design.
+    Each arm bows horizontally outward, preserving Logo B's
+    wide-spread character:
+
+      Upper-left  arm  Q  68, 83  → bows left   (mirrors Logo B \ upper)
+      Lower-right arm  Q 132,117  → bows right  (mirrors Logo B \ lower)
+      Upper-right arm  Q 132, 83  → bows right  (mirrors Logo B / upper)
+      Lower-left  arm  Q  68,117  → bows left   (mirrors Logo B / lower)
+
+    The four round end-caps meet at (100,100) forming a small pivot
+    dot — a natural design element at the X junction.
+    ─────────────────────────────────────────────────────────────────
+  -->
+  <g fill="none" stroke="#F7F5F2" stroke-width="14"
+     stroke-linecap="round" stroke-linejoin="round">
+
+    <!-- O -->
+    <ellipse cx="58" cy="100" rx="12" ry="28"/>
+
+    <!-- X: four half-arms from centre (100,100) -->
+    <!-- upper-left  --> <path d="M 100,100 Q  68, 83  82, 66"/>
+    <!-- upper-right --> <path d="M 100,100 Q 132, 83 122, 66"/>
+    <!-- lower-left  --> <path d="M 100,100 Q  68,117  82,134"/>
+    <!-- lower-right --> <path d="M 100,100 Q 132,117 122,134"/>
+
+    <!-- L -->
+    <polyline points="134,66 134,134 155,134"/>
+
+  </g>
+</svg>

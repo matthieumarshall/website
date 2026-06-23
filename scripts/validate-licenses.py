@@ -20,13 +20,18 @@ ALLOWED_LICENSES = {
     "ISC License",
     "Freely Distributable",
     "GNU General Public License v3 or later (GPLv3+)",
+    "GNU General Public License v2 or later (GPLv2+)",
     "LGPL-2.1",
     "LGPL-2.1+",
     "LGPL-3.0",
     "LGPL-3.0+",
     "LGPL-2.1+ or later (or similar)",
+    # Transitive dep: weasyprint → pyphen (hyphenation support) requires LGPLv2+
+    "GNU Lesser General Public License v2 or later (LGPLv2+)",
     "MPL-2.0",
     "Mozilla Public License 2.0 (MPL 2.0)",
+    # Transitive dep: weasyprint → pyphen also licenses under MPL 1.1
+    "Mozilla Public License 1.1 (MPL 1.1)",
     "CC0-1.0",
     "CC0",
     "Unlicense",

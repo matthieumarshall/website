@@ -37,7 +37,17 @@ uv run python scripts/migrate_results.py --dry-run          # Preview only (no D
 uv run python scripts/migrate_results.py --force            # Delete & re-import all results
 uv run python scripts/migrate_results.py --season 2021-2022 # Import only 2021-2022
 uv run python scripts/migrate_results.py --dry-run --force --season 2024-2025  # Combine options
+
+# Batch CSV import
+The `scripts/seed_results_batch.py` script can import all races from a folder tree of round CSVs.
+
+Example:
+```bash
+uv run python scripts/seed_results_batch.py "2025-2026" \
+    C:\Users\MatthieuMarshall\Documents\Admin\personal\course_a_pied\pyresults\input_data
 ```
+
+Each round folder should be named like `r1`, `r2`, or `Round 1`, and each CSV file in that folder is imported as a separate race.
 
 #### How It Works
 

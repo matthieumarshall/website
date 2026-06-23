@@ -81,3 +81,6 @@ scripts/download-fonts.ps1
 scripts/pdf_to_markdown.py
 data/original_website
 .github\skills\vps\SKILL.md
+
+# EA client certificate artifacts (staging/production)
+data/*ClientCert*.pfx*

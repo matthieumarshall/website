@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"
+     role="img" aria-label="Oxfordshire Cross Country League logo">
+  <title>OXL — Oxfordshire Cross Country League</title>
+
+  <!-- Gold outer ring (7 px visible band) -->
+  <circle cx="100" cy="100" r="97" fill="#B09A50"/>
+
+  <!-- Off-white inner field (swapped from navy) -->
+  <circle cx="100" cy="100" r="90" fill="#F7F5F2"/>
+
+  <!-- Thin brown inner accent ring -->
+  <circle cx="100" cy="100" r="86" fill="none" stroke="#6B4F3A" stroke-width="1.5"/>
+
+  <!-- ── Letters O · X · L ──────────────────────────────────────────
+       All drawn as stroked paths (fill="none") so the renderer applies
+       rounded end-caps and joins, giving a modern curved look.
+
+       stroke-width = 13   → ~13 px bar weight across all letters
+       stroke-linecap="round"  → rounded tips on X arms and L ends
+       stroke-linejoin="round" → rounded inner corner on L
+
+       Letter layout (stroke centre-lines, 200×200 canvas):
+         O  ellipse  cx=58  cy=100  rx=12  ry=28
+         X  lines    x 82–122,  y 66–134
+         L  polyline (134,66) → (134,134) → 155,134)
+  ──────────────────────────────────────────────────────────────── -->
+  <g fill="none" stroke="#1F3A5F" stroke-width="13"
+     stroke-linecap="round" stroke-linejoin="round">
+
+    <!-- O ───────────────────────────────────────────────────────────
+         Stroked ellipse: the renderer handles the ring shape itself.
+         Visual outer edge ≈ rx/ry + half-stroke = 18.5 / 34.5
+         Visual inner edge ≈ rx/ry − half-stroke =  5.5 / 21.5
+    ──────────────────────────────────────────────────────────────── -->
+    <ellipse cx="58" cy="100" rx="12" ry="28"/>
+
+    <!-- X ───────────────────────────────────────────────────────────
+         Two lines sharing the same diagonal box (82–122 × 66–134).
+         rounded caps give curved arrowhead-style tips on each arm.
+    ──────────────────────────────────────────────────────────────── -->
+    <line x1="82" y1="66" x2="122" y2="134"/>
+    <line x1="122" y1="66" x2="82" y2="134"/>
+
+    <!-- L ───────────────────────────────────────────────────────────
+         Single polyline: stem top → stem base → crossbar end.
+         linejoin="round" curves the inner corner of the L;
+         linecap="round" rounds the top of the stem and the right end.
+    ──────────────────────────────────────────────────────────────── -->
+    <polyline points="134,66 134,134 155,134"/>
+
+  </g>
+</svg>

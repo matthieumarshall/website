@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+{% block title %}Entries — {{ season.name }} — Oxfordshire Cross Country League{% endblock %}
+{% block content %}
+<div class="mb-4 d-flex flex-wrap align-items-center justify-content-between gap-2">
+  <div>
+    <a href="/admin/entries" class="btn btn-outline-secondary btn-sm mb-2">&larr; All seasons</a>
+    <h1 class="h3 mb-0">{{ season.name }} — Entries</h1>
+  </div>
+</div>
+
+{% if error %}
+  <div class="alert alert-danger" role="alert">{{ error }}</div>
+{% endif %}
+{% if success %}
+  <div class="alert alert-success" role="alert">{{ success }}</div>
+{% endif %}
+
+<div class="row g-4 mb-4">
+  {# Entry config panel #}
+  <div class="col-md-7">
+    <section class="card h-100" aria-labelledby="config-heading">
+      <div class="card-header">
+        <h2 id="config-heading" class="h6 mb-0">Entry configuration</h2>
+      </div>
+      <div class="card-body">
+        <form method="post" action="/admin/entries/{{ season.id }}/config" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <div class="mb-3">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" role="switch"
+                     id="entries_open" name="entries_open"
+                     {% if config and config.entries_open %}checked{% endif %}>
+              <label class="form-check-label" for="entries_open">Entries open</label>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label for="ea_reference_date" class="form-label">EA reference date</label>
+            <input type="date" id="ea_reference_date" name="ea_reference_date" class="form-control"
+                   value="{{ config.ea_reference_date if config else '' }}" required>
+            <div class="form-text">Age categories are calculated relative to this date.</div>
+          </div>
+          <div class="mb-3">
+            <label for="total_fixtures" class="form-label">Total fixtures in season</label>
+            <input type="number" id="total_fixtures" name="total_fixtures" class="form-control"
+                   min="1" max="20"
+                   value="{{ config.total_fixtures if config else '' }}" required>
+          </div>
+          <div class="mb-3">
+            <label for="junior_pence_per_fixture_display" class="form-label">Junior price per fixture</label>
+            <div class="input-group">
+              <span class="input-group-text">&pound;</span>
+              <input type="number" id="junior_pence_per_fixture_display" name="junior_pence_per_fixture_display"
+                     class="form-control" step="0.01" min="0"
+                     value="{{ '%.2f'|format((config.junior_pence_per_fixture or 0) / 100) if config else '0.00' }}" required>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label for="adult_pence_per_fixture_display" class="form-label">Adult price per fixture</label>
+            <div class="input-group">
+              <span class="input-group-text">&pound;</span>
+              <input type="number" id="adult_pence_per_fixture_display" name="adult_pence_per_fixture_display"
+                     class="form-control" step="0.01" min="0"
+                     value="{{ '%.2f'|format((config.adult_pence_per_fixture or 0) / 100) if config else '0.00' }}" required>
+            </div>
+            <div class="form-text">Total entry fee = price per fixture &times; fixtures remaining at time of entry.</div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm">Save config</button>
+        </form>
+      </div>
+    </section>
+  </div>
+
+</div>
+
+{# Entry batches for this season #}
+<section aria-labelledby="batches-heading">
+  <h2 id="batches-heading" class="h5 mb-3">Entry submissions</h2>
+  {% if batches %}
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead class="table-light">
+          <tr>
+            <th scope="col">Club</th>
+            <th scope="col">Manager</th>
+            <th scope="col">Status</th>
+            <th scope="col">Athletes</th>
+            <th scope="col">Total</th>
+            <th scope="col">Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for batch in batches %}
+            <tr>
+              <td>{{ batch.club_name }}</td>
+              <td>{{ batch.manager_username }}</td>
+              <td>
+                {% if batch.status == 'paid' %}
+                  <span class="badge text-bg-success">Paid</span>
+                {% elif batch.status == 'payment_initiated' %}
+                  <span class="badge text-bg-info">BACS pending</span>
+                {% elif batch.status == 'pending_payment' %}
+                  <span class="badge text-bg-warning">Awaiting payment</span>
+                {% else %}
+                  <span class="badge text-bg-danger">Failed</span>
+                {% endif %}
+              </td>
+              <td>{{ batch.athlete_count if batch.athlete_count is defined else '—' }}</td>
+              <td>£{{ "%.2f"|format(batch.total_pence / 100) }}</td>
+              <td>{{ batch.created_at.strftime('%d %b %Y') if batch.created_at else '—' }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="text-muted">No submissions yet for this season.</p>
+  {% endif %}
+</section>
+
+{# Club Allocations #}
+<section aria-labelledby="allocations-heading" class="mt-5">
+  <h2 id="allocations-heading" class="h5 mb-3">Club allocations</h2>
+  {% if club_allocations %}
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead class="table-light">
+          <tr>
+            <th scope="col">Club</th>
+            <th scope="col">Allocated</th>
+            <th scope="col">Currently used</th>
+            <th scope="col">Remaining</th>
+            <th scope="col" style="width: 120px;">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for alloc in club_allocations %}
+            <tr>
+              <td>{{ alloc.club_name }}</td>
+              <td>
+                {% if alloc.allocated_slots > 0 %}
+                  {{ alloc.allocated_slots }}
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+              <td>{{ alloc.current_used }}</td>
+              <td>
+                {% if alloc.allocated_slots > 0 %}
+                  <span class="{% if alloc.remaining < 5 %}text-warning{% endif %}">
+                    {{ alloc.remaining }}
+                  </span>
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+              <td>
+                <button class="btn btn-sm btn-outline-secondary"
+                        hx-get="/admin/entries/{{ season.id }}/club/{{ alloc.club_id }}/allocation-form"
+                        hx-target="#alloc-form-{{ alloc.club_id }}"
+                        hx-swap="innerHTML">Edit</button>
+              </td>
+            </tr>
+            <tr style="display: none;" id="alloc-form-{{ alloc.club_id }}"></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="text-muted">No clubs with entries for this season.</p>
+  {% endif %}
+</section>
+
+{# Paid Athlete Entries #}
+<section aria-labelledby="athletes-heading" class="mt-5">
+  <h2 id="athletes-heading" class="h5 mb-3">Paid athlete entries</h2>
+  {% if paid_athletes %}
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead class="table-light">
+          <tr>
+            <th scope="col">Club</th>
+            <th scope="col">Athlete name</th>
+            <th scope="col">Age category</th>
+            <th scope="col">DOB</th>
+            <th scope="col">EA URN</th>
+            <th scope="col">Race number</th>
+            <th scope="col" style="width: 120px;">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for athlete in paid_athletes %}
+            <tr>
+              <td>{{ athlete.club_name }}</td>
+              <td>{{ athlete.athlete_name }}</td>
+              <td>{{ athlete.age_category }}</td>
+              <td>{{ athlete.date_of_birth.strftime('%d %b %Y') if athlete.date_of_birth else '—' }}</td>
+              <td>{{ athlete.ea_urn }}</td>
+              <td>
+                {% if athlete.race_number %}
+                  {{ athlete.race_number }}
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+              <td>
+                <button class="btn btn-sm btn-outline-secondary"
+                        hx-get="/admin/entries/{{ season.id }}/athlete/{{ athlete.athlete_id }}/race-number-form"
+                        hx-target="#race-form-{{ athlete.athlete_id }}"
+                        hx-swap="innerHTML">Edit</button>
+              </td>
+            </tr>
+            <tr style="display: none;" id="race-form-{{ athlete.athlete_id }}"></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="text-muted">No paid athlete entries for this season yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

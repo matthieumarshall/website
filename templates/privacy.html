@@ -34,7 +34,48 @@
       data, or any tracking or analytics data.
     </p>
 
-    <h2 class="h5 mt-4">Cookies</h2>
+    <h2 class="h5 mt-4">Team entry data</h2>
+    <p>
+      When a club manager submits team entries, we store athlete data retrieved
+      from the England Athletics registration system:
+    </p>
+    <table class="table table-bordered table-sm">
+      <thead class="table-light">
+        <tr>
+          <th>Data</th>
+          <th>Purpose</th>
+          <th>Retention</th>
+          <th>Legal basis</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>EA URN, athlete name, date of birth, age category</td>
+          <td>Verifying EA registration and calculating entry fees; assigning race numbers for league fixtures</td>
+          <td>Duration of season plus one year</td>
+          <td>Contractual necessity (league participation agreement); legitimate interest (league administration)</td>
+        </tr>
+        <tr>
+          <td>Stripe payment reference (payment intent ID, payment method type)</td>
+          <td>Reconciling payments; issuing receipts</td>
+          <td>Seven years (financial record-keeping obligation)</td>
+          <td>Legal obligation (financial records); contractual necessity</td>
+        </tr>
+        <tr>
+          <td>Club manager email address (optional)</td>
+          <td>Sending payment confirmation via Stripe; contact for entry queries</td>
+          <td>Until the manager account is deleted</td>
+          <td>Consent (provided voluntarily during account setup)</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      Athlete data is obtained via the England Athletics TRAPI API on behalf of
+      the club manager. The manager's club must already hold this data under
+      their own EA registration. We do not store date of birth beyond the
+      season in which it is used for age-category calculation.
+    </p>
+
     <p>This site uses two cookies:</p>
     <table class="table table-bordered table-sm">
       <thead class="table-light">

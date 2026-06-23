@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Manage Club Managers — Oxfordshire Cross Country League{% endblock %}
+{% block content %}
+<div class="mb-4 d-flex flex-wrap align-items-center justify-content-between gap-2">
+  <div>
+    <h1 class="h3 mb-1">Club Managers</h1>
+    <p class="text-muted mb-0">Create and manage club manager accounts.</p>
+  </div>
+</div>
+
+{% if error %}
+  <div class="alert alert-danger" role="alert">{{ error }}</div>
+{% endif %}
+{% if success %}
+  <div class="alert alert-success" role="alert">{{ success }}</div>
+{% endif %}
+
+<div class="row g-4">
+  <div class="col-lg-8">
+    {% if managers %}
+      <div class="table-responsive">
+        <table class="table table-hover align-middle">
+          <thead class="table-light">
+            <tr>
+              <th scope="col">Username</th>
+              <th scope="col">Club</th>
+              <th scope="col">Status</th>
+              <th scope="col"><span class="visually-hidden">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in managers %}
+              <tr>
+                <td class="fw-semibold">{{ item.username }}</td>
+                <td>{{ item.club_name }}</td>
+                <td>
+                  {% if item.is_active %}
+                    <span class="badge text-bg-success">Active</span>
+                  {% else %}
+                    <span class="badge text-bg-secondary">Inactive</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <form method="post" action="/admin/club-managers/{{ item.manager_id }}/toggle">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="btn btn-outline-secondary btn-sm">
+                      {% if item.is_active %}Deactivate{% else %}Activate{% endif %}
+                    </button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="text-muted">No club managers have been created yet.</p>
+    {% endif %}
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header">
+        <h2 class="h6 mb-0">Add club manager account</h2>
+      </div>
+      <div class="card-body">
+        <form method="post" action="/admin/club-managers" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+          <div class="mb-3">
+            <label for="username" class="form-label">Username</label>
+            <input type="text" id="username" name="username" class="form-control" required
+                   autocomplete="off" placeholder="e.g. manager_oxrc">
+          </div>
+
+          <div class="mb-3">
+            <label for="email" class="form-label">Email address</label>
+            <input type="email" id="email" name="email" class="form-control"
+                   placeholder="manager@example.com">
+            <div class="form-text">Used for Stripe payment receipts (optional).</div>
+          </div>
+
+          <div class="mb-3">
+            <label for="password" class="form-label">Initial password</label>
+            <input type="password" id="password" name="password" class="form-control" required
+                   autocomplete="new-password" minlength="12">
+            <div class="form-text">Minimum 12 characters. The manager should change this on first login.</div>
+          </div>
+
+          <div class="mb-3">
+            <label for="club_id" class="form-label">Club</label>
+            <select id="club_id" name="club_id" class="form-select" required>
+              <option value="" disabled selected>Select a club…</option>
+              {% for club in clubs %}
+                <option value="{{ club.id }}">{{ club.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <button type="submit" class="btn btn-primary w-100">Create manager</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

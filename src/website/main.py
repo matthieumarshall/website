@@ -5,8 +5,10 @@ import os
 import re
 import uuid
 from contextlib import asynccontextmanager
+from datetime import date, datetime
 from pathlib import Path
-from typing import Any
+from urllib.parse import quote
+from typing import Any, cast
 
 import duckdb
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -34,7 +36,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
-from website.auth import verify_password
+from website.auth import hash_password, verify_password
 from website.database import get_db, run_migrations
 from website.helpers import (
     geocode_address,
@@ -44,13 +46,14 @@ from website.helpers import (
     sanitise_html,
     validate_csrf,
 )
-from website.identity import get_active_principals, get_current_user
 from website.models import (
+    AthleteEntryRow,
     FixtureCreate,
     FixtureUpdate,
     PostCreate,
     PostResource,
     SeasonCreate,
+    UserRole,
     _MAX_FIXTURES_PER_SEASON,
 )
 from website import repository
@@ -60,6 +63,13 @@ from website.export import (
     build_rules_pdf,
     filter_results as filter_race_results,
 )
+from website.identity import (
+    get_active_principals,
+    get_current_user,
+    require_club_manager,
+)
+from website import payments as _payments
+from website import entries as entries_module
 
 # Ensure .js/.css files are served with correct MIME types regardless of the OS
 # registry. Python's mimetypes module reads from the Windows registry and can
@@ -155,7 +165,12 @@ def _rate_limit_if_prod(rate_limit: str):
 async def _http_exception_handler(request: Request, exc: HTTPException) -> Response:
     """Redirect unauthenticated 403s to login; fall back to default handling."""
     if exc.status_code == 403 and not get_current_user(request):
-        return RedirectResponse(url="/login", status_code=302)
+        next_path = request.url.path
+        if request.url.query:
+            next_path = f"{next_path}?{request.url.query}"
+        return RedirectResponse(
+            url=f"/login?next={quote(next_path, safe='/')}", status_code=302
+        )
     return await http_exception_handler(request, exc)
 
 
@@ -197,6 +212,9 @@ app.mount(
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 templates.env.filters["fromjson"] = json.loads
+cast(dict[str, object], templates.env.globals)["STRIPE_PUBLISHABLE_KEY"] = (
+    os.environ.get("STRIPE_PUBLISHABLE_KEY", "")
+)
 
 # ---------------------------------------------------------------------------
 # Permissions
@@ -485,9 +503,475 @@ def results_source_pdf(
 
 
 @app.get("/entries", response_class=HTMLResponse)
-def entries(request: Request) -> HTMLResponse:
+def entries(
+    request: Request,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    user: dict[str, Any] | None = Depends(get_current_user),
+) -> Response:
+    """Team manager landing page: list open seasons and past batches."""
+    if user and user.get("role") == "admin":
+        return RedirectResponse(url="/admin/entries", status_code=303)
+
+    ctx: dict = require_club_manager(request, db)
+    club_manager = ctx["club_manager"]
+    seasons = repository.list_seasons(db)
+    open_seasons = []
+    for season in seasons:
+        config = repository.get_season_entry_config(season.id, db)
+        if config and config["entries_open"]:
+            fixtures_remaining = entries_module.compute_fixtures_remaining(
+                season.id, db
+            )
+            if fixtures_remaining > 0:
+                # Find next fixture date
+                next_row = db.execute(
+                    "SELECT MIN(date) FROM fixtures WHERE season_id = ? AND date >= current_date",
+                    [season.id],
+                ).fetchone()
+                next_fixture_date = next_row[0] if next_row and next_row[0] else None
+                open_seasons.append(
+                    {
+                        "season": season,
+                        "fixtures_remaining": fixtures_remaining,
+                        "next_fixture_date": next_fixture_date,
+                    }
+                )
+    # Past batches for this manager's club across all seasons
+    my_batches: list[dict] = []
+    season_map = {s.id: s.name for s in seasons}
+    for season in seasons:
+        for b in repository.list_entry_batches_for_season(
+            db, season_id=season.id, club_id=club_manager.club_id
+        ):
+            b["season_name"] = season_map.get(season.id, "?")
+            my_batches.append(b)
+    my_batches.sort(key=lambda x: x["created_at"] or datetime(2000, 1, 1), reverse=True)
     return templates.TemplateResponse(
-        request, "entries.html", page_context(request, "entries")
+        request,
+        "entries/season_select.html",
+        page_context(
+            request,
+            "entries",
+            club_manager=club_manager,
+            open_seasons=open_seasons,
+            my_batches=my_batches,
+        ),
+    )
+
+
+@app.get("/entries/{season_id}/add", response_class=HTMLResponse)
+def entries_add_athletes(
+    request: Request,
+    season_id: int,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    ctx: dict = Depends(require_club_manager),
+) -> HTMLResponse:
+    """Show athlete selection form for a season."""
+    club_manager = ctx["club_manager"]
+    season = repository.get_season_by_id(db, season_id)
+    if season is None:
+        raise HTTPException(status_code=404)
+    config = repository.get_season_entry_config(season_id, db)
+    if not config or not config["entries_open"]:
+        raise HTTPException(
+            status_code=403, detail="Entries are not open for this season."
+        )
+    fixtures_remaining = entries_module.compute_fixtures_remaining(season_id, db)
+    if fixtures_remaining < 1:
+        raise HTTPException(
+            status_code=403, detail="No fixtures remaining for this season."
+        )
+    junior_pence_per_fixture: int = config.get("junior_pence_per_fixture") or 0
+    adult_pence_per_fixture: int = config.get("adult_pence_per_fixture") or 0
+    if not junior_pence_per_fixture and not adult_pence_per_fixture:
+        raise HTTPException(
+            status_code=503,
+            detail="Entry prices have not been configured for this season. Please contact the league administrator.",
+        )
+    junior_total_pence = junior_pence_per_fixture * fixtures_remaining
+    adult_total_pence = adult_pence_per_fixture * fixtures_remaining
+    # Fetch athletes from EA
+    # Coerce to string (EA club ID stored in clubs.ea_club_id as string)
+    ea_club_id_str = _get_ea_club_id(club_manager.club_id, db)
+    ea_athletes_fetched = entries_module.fetch_club_athletes(ea_club_id_str)
+    reference_date_str: str = config["ea_reference_date"]
+    reference_date = date.fromisoformat(str(reference_date_str))
+    entered_urns = repository.get_entered_ea_urns(season_id, club_manager.club_id, db)
+    athletes = []
+    for a in ea_athletes_fetched:
+        ea_urn: int = int(a.get("IndividualRef", 0))
+        first = a.get("FirstName", "")
+        last = a.get("LastName", "")
+        dob_raw = a.get("DateOfBirth", None)
+        dob: date | None = None
+        if dob_raw:
+            try:
+                dob = date.fromisoformat(str(dob_raw)[:10])
+            except ValueError:
+                pass
+        is_registered: bool = a.get("RegistrationStatus", "") == "Registered"
+        age_cat = (
+            entries_module.get_oxl_age_category(dob, reference_date)
+            if dob
+            else "Unknown"
+        )
+        athletes.append(
+            {
+                "ea_urn": ea_urn,
+                "athlete_name": f"{first} {last}".strip(),
+                "date_of_birth": dob,
+                "ea_age_category": age_cat,
+                "is_junior": entries_module.is_junior(age_cat),
+                "is_registered": is_registered,
+                "already_entered": ea_urn in entered_urns,
+            }
+        )
+    athletes.sort(key=lambda x: (x["already_entered"], x["athlete_name"]))
+    return templates.TemplateResponse(
+        request,
+        "entries/athlete_select.html",
+        page_context(
+            request,
+            "entries",
+            season=season,
+            club_manager=club_manager,
+            athletes=athletes,
+            junior_pence_per_fixture=junior_pence_per_fixture,
+            adult_pence_per_fixture=adult_pence_per_fixture,
+            junior_total_pence=junior_total_pence,
+            adult_total_pence=adult_total_pence,
+            fixtures_remaining=fixtures_remaining,
+            deadline_warning=None,
+        ),
+    )
+
+
+@app.post("/entries/{season_id}/batch", response_class=HTMLResponse)
+def entries_create_batch(
+    request: Request,
+    season_id: int,
+    ea_urns: list[int] = Form(default=[]),
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    ctx: dict = Depends(require_club_manager),
+) -> Response:
+    """Create a pending_payment entry batch from selected athlete URNs."""
+    validate_csrf(request, csrf_token)
+    club_manager = ctx["club_manager"]
+    season = repository.get_season_by_id(db, season_id)
+    if season is None:
+        raise HTTPException(status_code=404)
+    config = repository.get_season_entry_config(season_id, db)
+    if not config or not config["entries_open"]:
+        raise HTTPException(
+            status_code=403, detail="Entries are not open for this season."
+        )
+    if not ea_urns:
+        raise HTTPException(status_code=422, detail="No athletes selected.")
+    fixtures_remaining = entries_module.compute_fixtures_remaining(season_id, db)
+    junior_pence_per_fixture: int = config.get("junior_pence_per_fixture") or 0
+    adult_pence_per_fixture: int = config.get("adult_pence_per_fixture") or 0
+    # Re-validate server-side
+    ea_club_id_str = _get_ea_club_id(club_manager.club_id, db)
+    ea_athletes_fetched = entries_module.fetch_club_athletes(ea_club_id_str)
+    athlete_by_urn = {int(a.get("IndividualRef", 0)): a for a in ea_athletes_fetched}
+    entered_urns = repository.get_entered_ea_urns(season_id, club_manager.club_id, db)
+    reference_date_str: str = config["ea_reference_date"]
+    reference_date = date.fromisoformat(str(reference_date_str))
+    athlete_rows = []
+    total_pence = 0
+    for urn in ea_urns:
+        a = athlete_by_urn.get(urn)
+        if a is None:
+            raise HTTPException(
+                status_code=422, detail=f"Athlete URN {urn} not found in EA."
+            )
+        if a.get("RegistrationStatus", "") != "Registered":
+            raise HTTPException(
+                status_code=422, detail=f"Athlete {urn} is not registered."
+            )
+        if urn in entered_urns:
+            raise HTTPException(
+                status_code=409, detail=f"Athlete {urn} already entered."
+            )
+        dob_raw = a.get("DateOfBirth", None)
+        dob: date | None = None
+        if dob_raw:
+            try:
+                dob = date.fromisoformat(str(dob_raw)[:10])
+            except ValueError:
+                raise HTTPException(
+                    status_code=422, detail=f"Invalid DOB for athlete {urn}."
+                )
+        if dob is None:
+            raise HTTPException(
+                status_code=422, detail=f"Missing DOB for athlete {urn}."
+            )
+        age_cat = entries_module.get_oxl_age_category(dob, reference_date)
+        junior = entries_module.is_junior(age_cat)
+        amount = (
+            junior_pence_per_fixture if junior else adult_pence_per_fixture
+        ) * fixtures_remaining
+        total_pence += amount
+        athlete_rows.append(
+            AthleteEntryRow(
+                ea_urn=urn,
+                athlete_name=f"{a.get('FirstName', '')} {a.get('LastName', '')}".strip(),
+                date_of_birth=dob,
+                ea_age_category=age_cat,
+                is_junior=junior,
+                amount_pence=amount,
+            )
+        )
+    if not entries_module.check_allocation(
+        season_id=season_id,
+        club_id=club_manager.club_id,
+        count_to_add=len(athlete_rows),
+        db=db,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Your club does not have enough allocation slots for this entry. "
+                "Please contact the league administrator."
+            ),
+        )
+    batch = repository.create_entry_batch(
+        db,
+        season_id=season_id,
+        club_id=club_manager.club_id,
+        manager_user_id=ctx["user"]["id"],
+        fixtures_remaining_at_entry=fixtures_remaining,
+        total_pence=total_pence,
+    )
+    repository.create_athlete_entries(
+        db,
+        batch_id=batch.id,
+        season_id=season_id,
+        club_id=club_manager.club_id,
+        athletes=athlete_rows,
+    )
+    return RedirectResponse(
+        f"/entries/{season_id}/batch/{batch.id}/preview", status_code=303
+    )
+
+
+@app.get("/entries/{season_id}/batch/{batch_id}/preview", response_class=HTMLResponse)
+def entries_batch_preview(
+    request: Request,
+    season_id: int,
+    batch_id: int,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    ctx: dict = Depends(require_club_manager),
+) -> HTMLResponse:
+    club_manager = ctx["club_manager"]
+    season = repository.get_season_by_id(db, season_id)
+    if season is None:
+        raise HTTPException(status_code=404)
+    batch = repository.get_entry_batch(batch_id, db)
+    if (
+        batch is None
+        or batch.club_id != club_manager.club_id
+        or batch.season_id != season_id
+    ):
+        raise HTTPException(status_code=404)
+    athletes = repository.get_athlete_entries_for_batch(batch_id, db)
+    junior_count = sum(1 for a in athletes if a.is_junior)
+    adult_count = len(athletes) - junior_count
+    junior_total = sum(a.amount_pence for a in athletes if a.is_junior)
+    adult_total = sum(a.amount_pence for a in athletes if not a.is_junior)
+    return templates.TemplateResponse(
+        request,
+        "entries/batch_preview.html",
+        page_context(
+            request,
+            "entries",
+            season=season,
+            batch=batch,
+            athletes=athletes,
+            club_name=club_manager.club_name,
+            junior_count=junior_count,
+            adult_count=adult_count,
+            junior_total=junior_total,
+            adult_total=adult_total,
+            total_pence=batch.total_pence,
+        ),
+    )
+
+
+@app.post("/entries/{season_id}/batch/{batch_id}/checkout", response_class=HTMLResponse)
+async def entries_batch_checkout(
+    request: Request,
+    season_id: int,
+    batch_id: int,
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    ctx: dict = Depends(require_club_manager),
+) -> Response:
+    validate_csrf(request, csrf_token)
+    club_manager = ctx["club_manager"]
+    season = repository.get_season_by_id(db, season_id)
+    if season is None:
+        raise HTTPException(status_code=404)
+    batch = repository.get_entry_batch(batch_id, db)
+    if (
+        batch is None
+        or batch.club_id != club_manager.club_id
+        or batch.season_id != season_id
+    ):
+        raise HTTPException(status_code=404)
+    if batch.status not in ("pending_payment", "payment_failed"):
+        return RedirectResponse(
+            f"/entries/{season_id}/batch/{batch_id}/success", status_code=303
+        )
+    athletes = repository.get_athlete_entries_for_batch(batch_id, db)
+    junior_athletes = [a for a in athletes if a.is_junior]
+    adult_athletes = [a for a in athletes if not a.is_junior]
+    manager_email = repository.get_club_manager_email(ctx["user"]["id"], db)
+    base_url = str(request.base_url).rstrip("/")
+    success_url = f"{base_url}/entries/{season_id}/batch/{batch_id}/success"
+    cancel_url = f"{base_url}/entries/{season_id}/batch/{batch_id}/preview"
+    junior_unit = junior_athletes[0].amount_pence if junior_athletes else 0
+    adult_unit = adult_athletes[0].amount_pence if adult_athletes else 0
+    checkout = _payments.create_checkout_session(
+        batch_id=batch_id,
+        junior_count=len(junior_athletes),
+        junior_unit_pence=junior_unit,
+        adult_count=len(adult_athletes),
+        adult_unit_pence=adult_unit,
+        club_name=club_manager.club_name,
+        season_name=season.name,
+        manager_email=manager_email,
+        success_url=success_url,
+        cancel_url=cancel_url,
+    )
+    repository.set_batch_stripe_session(
+        db, batch_id=batch_id, session_id=checkout.session_id
+    )
+    return RedirectResponse(checkout.url, status_code=302)
+
+
+@app.get("/entries/{season_id}/batch/{batch_id}/success", response_class=HTMLResponse)
+def entries_batch_success(
+    request: Request,
+    season_id: int,
+    batch_id: int,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    ctx: dict = Depends(require_club_manager),
+) -> HTMLResponse:
+    club_manager = ctx["club_manager"]
+    season = repository.get_season_by_id(db, season_id)
+    if season is None:
+        raise HTTPException(status_code=404)
+    batch = repository.get_entry_batch(batch_id, db)
+    if (
+        batch is None
+        or batch.club_id != club_manager.club_id
+        or batch.season_id != season_id
+    ):
+        raise HTTPException(status_code=404)
+    return templates.TemplateResponse(
+        request,
+        "entries/batch_success.html",
+        page_context(
+            request,
+            "entries",
+            season=season,
+            batch=batch,
+            club_name=club_manager.club_name,
+        ),
+    )
+
+
+@app.get("/entries/{season_id}/batch/{batch_id}/receipt", response_class=HTMLResponse)
+def entries_batch_receipt_html(
+    request: Request,
+    season_id: int,
+    batch_id: int,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    ctx: dict = Depends(require_club_manager),
+) -> HTMLResponse:
+    from website import receipts as _receipts_module
+
+    club_manager = ctx["club_manager"]
+    batch = repository.get_entry_batch(batch_id, db)
+    if (
+        batch is None
+        or batch.club_id != club_manager.club_id
+        or batch.season_id != season_id
+    ):
+        raise HTTPException(status_code=404)
+    if batch.status not in ("paid", "payment_initiated"):
+        raise HTTPException(
+            status_code=403, detail="Receipt is only available after payment."
+        )
+    return HTMLResponse(content=_receipts_module.generate_html_receipt(batch_id, db))
+
+
+@app.get("/entries/{season_id}/batch/{batch_id}/receipt.pdf")
+def entries_batch_receipt_pdf(
+    request: Request,
+    season_id: int,
+    batch_id: int,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    ctx: dict = Depends(require_club_manager),
+) -> Response:
+    from website import receipts as _receipts_module
+
+    club_manager = ctx["club_manager"]
+    batch = repository.get_entry_batch(batch_id, db)
+    if (
+        batch is None
+        or batch.club_id != club_manager.club_id
+        or batch.season_id != season_id
+    ):
+        raise HTTPException(status_code=404)
+    if batch.status not in ("paid", "payment_initiated"):
+        raise HTTPException(
+            status_code=403, detail="Receipt is only available after payment."
+        )
+    pdf_bytes = _receipts_module.generate_pdf_receipt(batch_id, db)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=receipt-{batch_id}.pdf"},
+    )
+
+
+@app.get("/entries/{season_id}", response_class=HTMLResponse)
+def entries_season_overview(
+    request: Request,
+    season_id: int,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    ctx: dict = Depends(require_club_manager),
+) -> HTMLResponse:
+    """Read-only view of all entered athletes for a season (all clubs)."""
+    club_manager = ctx["club_manager"]
+    season = repository.get_season_by_id(db, season_id)
+    if season is None:
+        raise HTTPException(status_code=404)
+    entries_flat = repository.list_athlete_entries_for_season(season_id, db)
+    entries_by_club: dict[str, list] = {}
+    for entry in entries_flat:
+        club_name = entry["club_name"]
+        entries_by_club.setdefault(club_name, []).append(entry)
+    config = repository.get_season_entry_config(season_id, db)
+    entries_open = bool(config and config["entries_open"])
+    fixtures_remaining = (
+        entries_module.compute_fixtures_remaining(season_id, db) if entries_open else 0
+    )
+    can_add_more = entries_open and fixtures_remaining > 0
+    return templates.TemplateResponse(
+        request,
+        "entries/season_overview.html",
+        page_context(
+            request,
+            "entries",
+            season=season,
+            entries_by_club=entries_by_club,
+            can_add_more=can_add_more,
+            club_manager=club_manager,
+        ),
     )
 
 
@@ -552,6 +1036,54 @@ def standings_category_panel(
     )
 
 
+def _normalize_fixture_scores_for_standings(
+    rows: list[dict], fixtures: list
+) -> list[dict]:
+    fixture_ids = [str(f.id) for f in fixtures]
+    fixture_count = len(fixtures)
+
+    for row in rows:
+        scores_by_fixture: dict[str, int] = {}
+        fixture_scores_raw = row.get("fixture_scores") or {}
+
+        if isinstance(fixture_scores_raw, str):
+            try:
+                fixture_scores_raw = json.loads(fixture_scores_raw)
+            except json.JSONDecodeError:
+                fixture_scores_raw = {}
+
+        if isinstance(fixture_scores_raw, dict):
+            for raw_key, value in fixture_scores_raw.items():
+                if raw_key is None:
+                    continue
+                key = str(raw_key).strip()
+                if key in fixture_ids:
+                    scores_by_fixture[key] = value
+                    continue
+
+                normalized = key.lower()
+                if normalized.startswith("r") and normalized[1:].isdigit():
+                    index = int(normalized[1:]) - 1
+                    if 0 <= index < fixture_count:
+                        fixture_id = str(fixtures[index].id)
+                        if fixture_id not in scores_by_fixture:
+                            scores_by_fixture[fixture_id] = value
+                    continue
+
+                if key.isdigit():
+                    if key in fixture_ids:
+                        scores_by_fixture[key] = value
+                        continue
+                    index = int(key) - 1
+                    if 0 <= index < fixture_count:
+                        fixture_id = str(fixtures[index].id)
+                        if fixture_id not in scores_by_fixture:
+                            scores_by_fixture[fixture_id] = value
+
+        row["scores_by_fixture"] = scores_by_fixture
+    return rows
+
+
 @app.get("/standings/table", response_class=HTMLResponse)
 def standings_table(
     request: Request,
@@ -569,6 +1101,9 @@ def standings_table(
         rows = repository.load_team_standings(db, season_id, category)
     else:
         rows = repository.load_individual_standings(db, season_id, category)
+
+    rows = _normalize_fixture_scores_for_standings(rows, fixtures)
+
     return templates.TemplateResponse(
         request,
         "_standings_table.html",
@@ -1411,10 +1946,15 @@ async def fixture_delete_image(
 
 @app.get("/login", response_class=HTMLResponse)
 def login_page(request: Request) -> Response:
+    next_path = request.query_params.get("next", "/news")
+    if not next_path.startswith("/"):
+        next_path = "/news"
     if get_current_user(request):
-        return RedirectResponse(url="/news", status_code=302)
+        return RedirectResponse(url=next_path, status_code=302)
     return templates.TemplateResponse(
-        request, "login.html", page_context(request, "login", error=None)
+        request,
+        "login.html",
+        page_context(request, "login", error=None, next_path=next_path),
     )
 
 
@@ -1424,6 +1964,7 @@ def login_submit(
     request: Request,
     username: str = Form(...),
     password: str = Form(...),
+    next_path: str = Form("/news"),
     csrf_token: str = Form(...),
     db: duckdb.DuckDBPyConnection = Depends(get_db),
 ) -> Response:
@@ -1442,7 +1983,9 @@ def login_submit(
     request.session["user_id"] = user.id
     request.session["username"] = user.username
     request.session["role"] = user.role.value
-    return RedirectResponse(url="/news", status_code=302)
+    if not next_path.startswith("/"):
+        next_path = "/news"
+    return RedirectResponse(url=next_path, status_code=302)
 
 
 @app.post("/logout")
@@ -1474,6 +2017,20 @@ def dismiss_cookie_notice(
 def privacy_policy(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
         request, "privacy.html", page_context(request, "privacy")
+    )
+
+
+@app.get("/contact", response_class=HTMLResponse)
+def contact(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request, "contact.html", page_context(request, "contact")
+    )
+
+
+@app.get("/about", response_class=HTMLResponse)
+def about(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request, "about.html", page_context(request, "about")
     )
 
 
@@ -1622,3 +2179,431 @@ async def upload_image(
     _UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
     (Path(_UPLOADS_DIR) / filename).write_bytes(data)
     return JSONResponse({"url": f"/uploads/{filename}"})
+
+
+# ---------------------------------------------------------------------------
+# Helper: look up EA club ID from club PK
+# ---------------------------------------------------------------------------
+
+
+def _get_ea_club_id(club_id: int, db: duckdb.DuckDBPyConnection) -> str:
+    """Return the ea_club_id string for a given clubs.id."""
+    club = repository.get_club_by_id(club_id, db)
+    if club is None:
+        raise HTTPException(status_code=500, detail="Club configuration error.")
+    return club.ea_club_id
+
+
+# ---------------------------------------------------------------------------
+# Admin — Entries overview & pricing config
+# ---------------------------------------------------------------------------
+
+
+@app.get("/admin/entries", response_class=HTMLResponse)
+def admin_entries_overview(
+    request: Request,
+    season_id: int | None = None,
+    status: str | None = None,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _ADMIN_ACL),
+) -> HTMLResponse:
+    seasons = repository.list_seasons(db)
+    if season_id is not None:
+        batches = _enrich_batches(
+            repository.list_entry_batches_for_season(db, season_id, status=status), db
+        )
+    elif status is not None:
+        # Search across all seasons
+        all_batches: list[dict] = []
+        for season in seasons:
+            all_batches.extend(
+                repository.list_entry_batches_for_season(db, season.id, status=status)
+            )
+        batches = _enrich_batches(all_batches, db)
+    else:
+        all_batches = []
+        for season in seasons:
+            all_batches.extend(repository.list_entry_batches_for_season(db, season.id))
+        batches = _enrich_batches(all_batches, db)
+
+    # Add season name to each batch
+    season_map = {s.id: s.name for s in seasons}
+    for b in batches:
+        b["season_name"] = season_map.get(b.get("season_id") or 0, "?")  # type: ignore[index]
+
+    ctx = page_context(
+        request,
+        "admin",
+        seasons=seasons,
+        batches=batches,
+        filter_season_id=season_id,
+        filter_status=status,
+    )
+    if "HX-Request" in request.headers:
+        return templates.TemplateResponse(
+            request,
+            "admin/entries/_batches_table_body.html",
+            ctx,
+        )
+    return templates.TemplateResponse(request, "admin/entries/overview.html", ctx)
+
+
+def _enrich_batches(batches: list[dict], db: duckdb.DuckDBPyConnection) -> list[dict]:
+    """Attach batch_id and season_id to batch dicts returned by list_entry_batches_for_season."""
+    return batches  # already has these keys from the query
+
+
+@app.get("/admin/entries/{season_id}", response_class=HTMLResponse)
+def admin_entries_season_detail(
+    request: Request,
+    season_id: int,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _ADMIN_ACL),
+) -> HTMLResponse:
+    season = repository.get_season_by_id(db, season_id)
+    if season is None:
+        raise HTTPException(status_code=404)
+    config = repository.get_season_entry_config(season_id, db)
+    batches = repository.list_entry_batches_for_season(db, season_id)
+    return templates.TemplateResponse(
+        request,
+        "admin/entries/season_detail.html",
+        page_context(
+            request,
+            "admin",
+            season=season,
+            config=config,
+            batches=batches,
+        ),
+    )
+
+
+@app.post("/admin/entries/{season_id}/config", response_class=HTMLResponse)
+def admin_entries_config_save(
+    request: Request,
+    season_id: int,
+    entries_open: str = Form("off"),
+    ea_reference_date: str = Form(...),
+    total_fixtures: int = Form(...),
+    junior_pence_per_fixture_display: float = Form(0.0),
+    adult_pence_per_fixture_display: float = Form(0.0),
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _ADMIN_ACL),
+) -> Response:
+    validate_csrf(request, csrf_token)
+    season = repository.get_season_by_id(db, season_id)
+    if season is None:
+        raise HTTPException(status_code=404)
+    if junior_pence_per_fixture_display < 0 or adult_pence_per_fixture_display < 0:
+        raise HTTPException(status_code=422, detail="Prices cannot be negative")
+    open_flag = entries_open == "on"
+    repository.upsert_season_entry_config(
+        db,
+        season_id=season_id,
+        entries_open=open_flag,
+        ea_reference_date=ea_reference_date,
+        total_fixtures=total_fixtures,
+        junior_pence_per_fixture=round(junior_pence_per_fixture_display * 100),
+        adult_pence_per_fixture=round(adult_pence_per_fixture_display * 100),
+    )
+    return RedirectResponse(f"/admin/entries/{season_id}", status_code=303)
+
+
+# ---------------------------------------------------------------------------
+# Admin — Clubs
+# ---------------------------------------------------------------------------
+
+
+@app.get("/admin/clubs", response_class=HTMLResponse)
+def admin_clubs_list(
+    request: Request,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _ADMIN_ACL),
+) -> HTMLResponse:
+    clubs = repository.list_clubs(db)
+    return templates.TemplateResponse(
+        request,
+        "admin/clubs/list.html",
+        page_context(request, "admin", clubs=clubs),
+    )
+
+
+@app.get("/admin/clubs/new", response_class=HTMLResponse)
+def admin_clubs_new(
+    request: Request,
+    _: list = Permission("edit", _ADMIN_ACL),
+) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request,
+        "admin/clubs/form.html",
+        page_context(request, "admin", club=None),
+    )
+
+
+@app.post("/admin/clubs", response_class=HTMLResponse)
+def admin_clubs_create(
+    request: Request,
+    name: str = Form(...),
+    oxl_code: str = Form(...),
+    ea_club_id: str = Form(...),
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _ADMIN_ACL),
+) -> Response:
+    validate_csrf(request, csrf_token)
+    name = name.strip()
+    oxl_code = oxl_code.strip().upper()
+    ea_club_id = ea_club_id.strip()
+    if not name or not oxl_code or not ea_club_id:
+        return templates.TemplateResponse(
+            request,
+            "admin/clubs/form.html",
+            page_context(request, "admin", club=None, error="All fields are required."),
+            status_code=422,
+        )
+    try:
+        repository.create_club(db, name=name, oxl_code=oxl_code, ea_club_id=ea_club_id)
+    except Exception:
+        return templates.TemplateResponse(
+            request,
+            "admin/clubs/form.html",
+            page_context(
+                request,
+                "admin",
+                club=None,
+                error="A club with that OXL code already exists.",
+            ),
+            status_code=409,
+        )
+    return RedirectResponse("/admin/clubs", status_code=303)
+
+
+@app.get("/admin/clubs/{club_id}", response_class=HTMLResponse)
+def admin_clubs_edit(
+    request: Request,
+    club_id: int,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _ADMIN_ACL),
+) -> HTMLResponse:
+    club = repository.get_club_by_id(club_id, db)
+    if club is None:
+        raise HTTPException(status_code=404)
+    return templates.TemplateResponse(
+        request,
+        "admin/clubs/form.html",
+        page_context(request, "admin", club=club),
+    )
+
+
+@app.post("/admin/clubs/{club_id}", response_class=HTMLResponse)
+def admin_clubs_update(
+    request: Request,
+    club_id: int,
+    name: str = Form(...),
+    oxl_code: str = Form(...),
+    ea_club_id: str = Form(...),
+    is_active: str = Form("off"),
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _ADMIN_ACL),
+) -> Response:
+    validate_csrf(request, csrf_token)
+    club = repository.get_club_by_id(club_id, db)
+    if club is None:
+        raise HTTPException(status_code=404)
+    name = name.strip()
+    oxl_code = oxl_code.strip().upper()
+    ea_club_id = ea_club_id.strip()
+    active = is_active == "on"
+    if not name or not oxl_code or not ea_club_id:
+        return templates.TemplateResponse(
+            request,
+            "admin/clubs/form.html",
+            page_context(request, "admin", club=club, error="All fields are required."),
+            status_code=422,
+        )
+    repository.update_club(
+        db,
+        club_id=club_id,
+        name=name,
+        oxl_code=oxl_code,
+        ea_club_id=ea_club_id,
+        is_active=active,
+    )
+    return RedirectResponse("/admin/clubs", status_code=303)
+
+
+# ---------------------------------------------------------------------------
+# Admin — Club Managers
+# ---------------------------------------------------------------------------
+
+
+@app.get("/admin/club-managers", response_class=HTMLResponse)
+def admin_club_managers_list(
+    request: Request,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _ADMIN_ACL),
+) -> HTMLResponse:
+    managers = repository.list_club_managers(db)
+    clubs = repository.list_clubs(db)
+    return templates.TemplateResponse(
+        request,
+        "admin/club-managers/list.html",
+        page_context(request, "admin", managers=managers, clubs=clubs),
+    )
+
+
+@app.post("/admin/club-managers", response_class=HTMLResponse)
+def admin_club_managers_create(
+    request: Request,
+    username: str = Form(...),
+    email: str = Form(""),
+    password: str = Form(...),
+    club_id: int = Form(...),
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _ADMIN_ACL),
+) -> Response:
+    validate_csrf(request, csrf_token)
+    username = username.strip()
+    email_clean: str | None = email.strip() or None
+    managers = repository.list_club_managers(db)
+    clubs = repository.list_clubs(db)
+
+    if not username or not password or not club_id:
+        return templates.TemplateResponse(
+            request,
+            "admin/club-managers/list.html",
+            page_context(
+                request,
+                "admin",
+                managers=managers,
+                clubs=clubs,
+                error="Username, password, and club are required.",
+            ),
+            status_code=422,
+        )
+    if len(password) < 12:
+        return templates.TemplateResponse(
+            request,
+            "admin/club-managers/list.html",
+            page_context(
+                request,
+                "admin",
+                managers=managers,
+                clubs=clubs,
+                error="Password must be at least 12 characters.",
+            ),
+            status_code=422,
+        )
+    if repository.get_club_by_id(club_id, db) is None:
+        raise HTTPException(status_code=422, detail="Invalid club selected")
+    try:
+        new_user = repository.create_user(
+            db,
+            username=username,
+            hashed_password=hash_password(password),
+            role=UserRole.club_manager,
+        )
+        repository.create_club_manager(
+            db, user_id=new_user.id, club_id=club_id, email=email_clean
+        )
+    except Exception:
+        managers = repository.list_club_managers(db)
+        return templates.TemplateResponse(
+            request,
+            "admin/club-managers/list.html",
+            page_context(
+                request,
+                "admin",
+                managers=managers,
+                clubs=clubs,
+                error=f"Could not create manager. Username '{username}' may already be taken.",
+            ),
+            status_code=409,
+        )
+    return RedirectResponse("/admin/club-managers", status_code=303)
+
+
+@app.post("/admin/club-managers/{manager_id}/toggle", response_class=HTMLResponse)
+def admin_club_managers_toggle(
+    request: Request,
+    manager_id: int,
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _ADMIN_ACL),
+) -> RedirectResponse:
+    validate_csrf(request, csrf_token)
+    repository.toggle_club_manager_active(db, manager_id=manager_id)
+    return RedirectResponse("/admin/club-managers", status_code=303)
+
+
+# ---------------------------------------------------------------------------
+# Stripe webhook (no CSRF — raw body signature verification instead)
+# ---------------------------------------------------------------------------
+
+
+@app.post("/webhooks/stripe", include_in_schema=False)
+async def stripe_webhook(
+    request: Request,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+) -> Response:
+    try:
+        event = await _payments.verify_webhook(request)
+    except HTTPException:
+        raise
+
+    event_type: str = event["type"]
+    data_obj = event["data"]["object"]
+
+    if event_type == "checkout.session.completed":
+        session_id: str = data_obj["id"]
+        payment_intent_id: str | None = data_obj.get("payment_intent")
+        payment_method_types: list[str] = data_obj.get("payment_method_types", [])
+        payment_method: str = (
+            payment_method_types[0] if payment_method_types else "card"
+        )
+
+        batch = repository.get_entry_batch_by_stripe_session(session_id, db)
+        if batch is None:
+            _logger.warning("Stripe webhook: unknown session %s", session_id)
+            return Response(status_code=200)
+
+        if batch.status not in ("paid", "payment_initiated"):
+            new_status = (
+                "paid"
+                if data_obj.get("payment_status") == "paid"
+                else "payment_initiated"
+            )
+            repository.update_batch_status(
+                db,
+                batch.id,
+                new_status,
+                stripe_payment_intent_id=payment_intent_id,
+                stripe_payment_method=payment_method,
+            )
+            if new_status == "paid":
+                repository.assign_race_numbers(batch.id, db)
+
+    elif event_type == "checkout.session.async_payment_succeeded":
+        # BACS debit — payment arrived after initial checkout
+        session_id = data_obj["id"]
+        payment_intent_id = data_obj.get("payment_intent")
+        batch = repository.get_entry_batch_by_stripe_session(session_id, db)
+        if batch and batch.status != "paid":
+            repository.update_batch_status(
+                db,
+                batch.id,
+                "paid",
+                stripe_payment_intent_id=payment_intent_id,
+            )
+            repository.assign_race_numbers(batch.id, db)
+
+    elif event_type == "checkout.session.async_payment_failed":
+        session_id = data_obj["id"]
+        batch = repository.get_entry_batch_by_stripe_session(session_id, db)
+        if batch:
+            repository.update_batch_status(db, batch.id, "payment_failed")
+
+    return Response(status_code=200)

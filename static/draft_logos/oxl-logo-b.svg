@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"
+     role="img" aria-label="Oxfordshire Cross Country League logo — variant B">
+  <title>OXL — Oxfordshire Cross Country League</title>
+
+  <!-- Gold outer ring -->
+  <circle cx="100" cy="100" r="97" fill="#B09A50"/>
+  <!-- Navy field -->
+  <circle cx="100" cy="100" r="90" fill="#1F3A5F"/>
+  <!-- Gold inner accent ring -->
+  <circle cx="100" cy="100" r="86" fill="none" stroke="#B09A50" stroke-width="1.5"/>
+
+  <!--
+    OXL — stroke-based letters; stroke-linecap/linejoin="round" for curves.
+    stroke-width=14 (heavier than A — punchier on the dark background).
+
+    X curve style — HORIZONTAL SPREAD (bold / expansive):
+      Each arm bows out to the side, away from the other arm.
+      Control points sit to the left or right of the straight-line midpoint (102,100):
+        \  arm  Q  68,100  → midpoint of curve ≈ ( 85, 100)  [bows left]
+        /  arm  Q 136,100  → midpoint of curve ≈ (117, 100)  [bows right]
+      The arms part at the crossing and fan outward — a wide, open X.
+  -->
+  <g fill="none" stroke="#F7F5F2" stroke-width="14"
+     stroke-linecap="round" stroke-linejoin="round">
+
+    <!-- O -->
+    <ellipse cx="58" cy="100" rx="12" ry="28"/>
+
+    <!-- X: horizontal-spread arcs -->
+    <path d="M 82,66 Q  68,100 122,134"/>
+    <path d="M 122,66 Q 136,100  82,134"/>
+
+    <!-- L -->
+    <polyline points="134,66 134,134 155,134"/>
+
+  </g>
+</svg>
