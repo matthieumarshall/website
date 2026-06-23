@@ -59,10 +59,10 @@ class TestSidebarNavigation:
         browser.wait_for_url("**/entries")
         assert "/entries" in browser.url
 
-    def test_entries_link_is_active_on_entries_page(self, browser):
+    def test_entries_link_is_active_on_entries_page(self, manager_browser):
         """The Entries link has the active class on /entries"""
-        browser.goto("http://localhost:8000/entries")
-        active_link = browser.query_selector(
+        manager_browser.goto("http://localhost:8000/entries")
+        active_link = manager_browser.query_selector(
             "nav[aria-label='Main navigation'] a.active"
         )
         assert active_link is not None
@@ -126,16 +126,16 @@ class TestSidebarNavigation:
         sidebar = browser.query_selector("nav[aria-label='Main navigation']")
         assert sidebar is not None
 
-    def test_only_one_active_link_per_page(self, browser):
+    def test_only_one_active_link_per_page(self, browser, manager_browser):
         """Exactly one sidebar link is active on any given page"""
-        for route in [
+        public_routes = [
             "/news",
             "/results",
-            "/entries",
             "/rules-and-constitution",
             "/administration",
             "/fixtures",
-        ]:
+        ]
+        for route in public_routes:
             browser.goto(f"http://localhost:8000{route}")
             active_links = browser.query_selector_all(
                 "nav[aria-label='Main navigation'] a.active"
@@ -143,6 +143,14 @@ class TestSidebarNavigation:
             assert len(active_links) == 1, (
                 f"Expected exactly 1 active link on {route}, found {len(active_links)}"
             )
+        # /entries requires auth
+        manager_browser.goto("http://localhost:8000/entries")
+        active_links = manager_browser.query_selector_all(
+            "nav[aria-label='Main navigation'] a.active"
+        )
+        assert len(active_links) == 1, (
+            f"Expected exactly 1 active link on /entries, found {len(active_links)}"
+        )
 
     def test_sidebar_toggle_visible_on_mobile(self, browser):
         """The sidebar toggle button is visible at mobile viewport width"""
