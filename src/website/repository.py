@@ -5,6 +5,10 @@ import duckdb
 from website.models import (
     AdministrationDocument,
     AdministrationSection,
+    AthleteEntryRow,
+    Club,
+    ClubManager,
+    EntryBatch,
     Fixture,
     FixtureImage,
     PaginatedPosts,
@@ -901,3 +905,665 @@ def delete_administration_document(
     section_slug: str = row[1]
     db.execute("DELETE FROM administration_documents WHERE id = ?", [doc_id])
     return {"filename": filename, "section_slug": section_slug}
+
+
+# ---------------------------------------------------------------------------
+# Users (additional lookup)
+# ---------------------------------------------------------------------------
+
+
+def get_user_by_id(db: duckdb.DuckDBPyConnection, user_id: int) -> User | None:
+    row = db.execute(
+        "SELECT id, username, hashed_password, role FROM users WHERE id = ?",
+        [user_id],
+    ).fetchone()
+    if row is None:
+        return None
+    return User(id=row[0], username=row[1], hashed_password=row[2], role=row[3])
+
+
+# ---------------------------------------------------------------------------
+# Clubs
+# ---------------------------------------------------------------------------
+
+
+def list_clubs(db: duckdb.DuckDBPyConnection) -> list[Club]:
+    rows = db.execute(
+        "SELECT id, name, oxl_code, ea_club_id, is_active FROM clubs ORDER BY name"
+    ).fetchall()
+    return [
+        Club(id=r[0], name=r[1], oxl_code=r[2], ea_club_id=r[3], is_active=r[4])
+        for r in rows
+    ]
+
+
+def get_club_by_id(club_id: int, db: duckdb.DuckDBPyConnection) -> Club | None:
+    row = db.execute(
+        "SELECT id, name, oxl_code, ea_club_id, is_active FROM clubs WHERE id = ?",
+        [club_id],
+    ).fetchone()
+    if row is None:
+        return None
+    return Club(
+        id=row[0], name=row[1], oxl_code=row[2], ea_club_id=row[3], is_active=row[4]
+    )
+
+
+def create_club(
+    db: duckdb.DuckDBPyConnection,
+    name: str,
+    oxl_code: str,
+    ea_club_id: str,
+) -> Club:
+    db.execute(
+        "INSERT INTO clubs (name, oxl_code, ea_club_id) VALUES (?, ?, ?)",
+        [name, oxl_code, ea_club_id],
+    )
+    row = db.execute(
+        "SELECT id, name, oxl_code, ea_club_id, is_active FROM clubs WHERE oxl_code = ?",
+        [oxl_code],
+    ).fetchone()
+    assert row is not None  # noqa: S101
+    return Club(
+        id=row[0], name=row[1], oxl_code=row[2], ea_club_id=row[3], is_active=row[4]
+    )
+
+
+def update_club(
+    db: duckdb.DuckDBPyConnection,
+    club_id: int,
+    name: str,
+    oxl_code: str,
+    ea_club_id: str,
+    is_active: bool,
+) -> None:
+    db.execute(
+        "UPDATE clubs SET name = ?, oxl_code = ?, ea_club_id = ?, is_active = ? WHERE id = ?",
+        [name, oxl_code, ea_club_id, is_active, club_id],
+    )
+
+
+def club_has_active_batches(db: duckdb.DuckDBPyConnection, club_id: int) -> bool:
+    row = db.execute(
+        "SELECT COUNT(*) FROM entry_batches WHERE club_id = ? AND status IN ('pending_payment', 'payment_initiated', 'paid')",
+        [club_id],
+    ).fetchone()
+    return bool(row and row[0] > 0)
+
+
+# ---------------------------------------------------------------------------
+# Club Managers
+# ---------------------------------------------------------------------------
+
+
+def list_club_managers(db: duckdb.DuckDBPyConnection) -> list[dict]:
+    rows = db.execute(
+        """
+        SELECT cm.id, cm.user_id, cm.club_id, cm.is_active, c.name AS club_name,
+               u.username, cm.email
+        FROM club_managers cm
+        JOIN clubs c ON c.id = cm.club_id
+        JOIN users u ON u.id = cm.user_id
+        ORDER BY c.name, u.username
+        """
+    ).fetchall()
+    return [
+        {
+            "manager_id": r[0],
+            "user_id": r[1],
+            "club_id": r[2],
+            "is_active": r[3],
+            "club_name": r[4],
+            "username": r[5],
+            "email": r[6],
+        }
+        for r in rows
+    ]
+
+
+def get_club_for_manager(
+    user_id: int, db: duckdb.DuckDBPyConnection
+) -> ClubManager | None:
+    row = db.execute(
+        """
+        SELECT cm.id, cm.user_id, cm.club_id, cm.is_active, c.name
+        FROM club_managers cm
+        JOIN clubs c ON c.id = cm.club_id
+        WHERE cm.user_id = ?
+        """,
+        [user_id],
+    ).fetchone()
+    if row is None:
+        return None
+    return ClubManager(
+        id=row[0], user_id=row[1], club_id=row[2], is_active=row[3], club_name=row[4]
+    )
+
+
+def create_club_manager(
+    db: duckdb.DuckDBPyConnection,
+    user_id: int,
+    club_id: int,
+    email: str | None = None,
+) -> None:
+    db.execute(
+        "INSERT INTO club_managers (user_id, club_id, email) VALUES (?, ?, ?)",
+        [user_id, club_id, email],
+    )
+
+
+def get_club_manager_email(user_id: int, db: duckdb.DuckDBPyConnection) -> str | None:
+    row = db.execute(
+        "SELECT email FROM club_managers WHERE user_id = ?", [user_id]
+    ).fetchone()
+    if row is None:
+        return None
+    return row[0]
+
+
+def toggle_club_manager_active(db: duckdb.DuckDBPyConnection, manager_id: int) -> bool:
+    """Flip is_active for a club_managers row. Returns the new value."""
+    row = db.execute(
+        "SELECT is_active FROM club_managers WHERE id = ?", [manager_id]
+    ).fetchone()
+    if row is None:
+        return False
+    new_val = not row[0]
+    db.execute(
+        "UPDATE club_managers SET is_active = ? WHERE id = ?", [new_val, manager_id]
+    )
+    return new_val
+
+
+# ---------------------------------------------------------------------------
+# Season Entry Config & Price Tiers
+# ---------------------------------------------------------------------------
+
+
+def get_season_entry_config(
+    season_id: int, db: duckdb.DuckDBPyConnection
+) -> dict | None:
+    row = db.execute(
+        "SELECT season_id, entries_open, ea_reference_date, total_fixtures, junior_pence_per_fixture, adult_pence_per_fixture FROM season_entry_config WHERE season_id = ?",
+        [season_id],
+    ).fetchone()
+    if row is None:
+        return None
+    return {
+        "season_id": row[0],
+        "entries_open": row[1],
+        "ea_reference_date": row[2],
+        "total_fixtures": row[3],
+        "junior_pence_per_fixture": row[4],
+        "adult_pence_per_fixture": row[5],
+    }
+
+
+def upsert_season_entry_config(
+    db: duckdb.DuckDBPyConnection,
+    season_id: int,
+    entries_open: bool,
+    ea_reference_date: str,
+    total_fixtures: int,
+    junior_pence_per_fixture: int = 0,
+    adult_pence_per_fixture: int = 0,
+) -> None:
+    existing = db.execute(
+        "SELECT season_id FROM season_entry_config WHERE season_id = ?", [season_id]
+    ).fetchone()
+    if existing:
+        db.execute(
+            """
+            UPDATE season_entry_config
+            SET entries_open = ?, ea_reference_date = ?, total_fixtures = ?,
+                junior_pence_per_fixture = ?, adult_pence_per_fixture = ?
+            WHERE season_id = ?
+            """,
+            [
+                entries_open,
+                ea_reference_date,
+                total_fixtures,
+                junior_pence_per_fixture,
+                adult_pence_per_fixture,
+                season_id,
+            ],
+        )
+    else:
+        db.execute(
+            "INSERT INTO season_entry_config (season_id, entries_open, ea_reference_date, total_fixtures, junior_pence_per_fixture, adult_pence_per_fixture) VALUES (?, ?, ?, ?, ?, ?)",
+            [
+                season_id,
+                entries_open,
+                ea_reference_date,
+                total_fixtures,
+                junior_pence_per_fixture,
+                adult_pence_per_fixture,
+            ],
+        )
+
+
+# ---------------------------------------------------------------------------
+# Entry Batches
+# ---------------------------------------------------------------------------
+
+
+def create_entry_batch(
+    db: duckdb.DuckDBPyConnection,
+    season_id: int,
+    club_id: int,
+    manager_user_id: int,
+    fixtures_remaining_at_entry: int,
+    total_pence: int,
+) -> EntryBatch:
+    db.execute(
+        """
+        INSERT INTO entry_batches
+            (season_id, club_id, manager_user_id, fixtures_remaining_at_entry, total_pence)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        [season_id, club_id, manager_user_id, fixtures_remaining_at_entry, total_pence],
+    )
+    row = db.execute(
+        """
+        SELECT id, season_id, club_id, manager_user_id, status,
+               fixtures_remaining_at_entry, total_pence,
+               stripe_checkout_session_id, stripe_payment_intent_id,
+               stripe_payment_method, paid_at, created_at
+        FROM entry_batches
+        WHERE season_id = ? AND club_id = ? AND manager_user_id = ?
+        ORDER BY id DESC LIMIT 1
+        """,
+        [season_id, club_id, manager_user_id],
+    ).fetchone()
+    if row is None:
+        raise RuntimeError("Failed to load created entry batch")
+    return _row_to_entry_batch(row)
+
+
+def get_entry_batch(batch_id: int, db: duckdb.DuckDBPyConnection) -> EntryBatch | None:
+    row = db.execute(
+        """
+        SELECT id, season_id, club_id, manager_user_id, status,
+               fixtures_remaining_at_entry, total_pence,
+               stripe_checkout_session_id, stripe_payment_intent_id,
+               stripe_payment_method, paid_at, created_at
+        FROM entry_batches WHERE id = ?
+        """,
+        [batch_id],
+    ).fetchone()
+    return _row_to_entry_batch(row) if row else None
+
+
+def get_entry_batch_by_stripe_session(
+    session_id: str, db: duckdb.DuckDBPyConnection
+) -> EntryBatch | None:
+    row = db.execute(
+        """
+        SELECT id, season_id, club_id, manager_user_id, status,
+               fixtures_remaining_at_entry, total_pence,
+               stripe_checkout_session_id, stripe_payment_intent_id,
+               stripe_payment_method, paid_at, created_at
+        FROM entry_batches WHERE stripe_checkout_session_id = ?
+        """,
+        [session_id],
+    ).fetchone()
+    return _row_to_entry_batch(row) if row else None
+
+
+def _row_to_entry_batch(row: tuple) -> EntryBatch:
+    return EntryBatch(
+        id=row[0],
+        season_id=row[1],
+        club_id=row[2],
+        manager_user_id=row[3],
+        status=row[4],
+        fixtures_remaining_at_entry=row[5],
+        total_pence=row[6],
+        stripe_checkout_session_id=row[7],
+        stripe_payment_intent_id=row[8],
+        stripe_payment_method=row[9],
+        paid_at=row[10],
+        created_at=row[11],
+    )
+
+
+def update_batch_status(
+    db: duckdb.DuckDBPyConnection,
+    batch_id: int,
+    status: str,
+    stripe_payment_intent_id: str | None = None,
+    stripe_payment_method: str | None = None,
+) -> None:
+    if status == "paid":
+        db.execute(
+            """
+            UPDATE entry_batches
+            SET status = ?, paid_at = current_timestamp,
+                stripe_payment_intent_id = COALESCE(?, stripe_payment_intent_id),
+                stripe_payment_method = COALESCE(?, stripe_payment_method)
+            WHERE id = ?
+            """,
+            [status, stripe_payment_intent_id, stripe_payment_method, batch_id],
+        )
+    else:
+        db.execute(
+            """
+            UPDATE entry_batches
+            SET status = ?,
+                stripe_payment_intent_id = COALESCE(?, stripe_payment_intent_id),
+                stripe_payment_method = COALESCE(?, stripe_payment_method)
+            WHERE id = ?
+            """,
+            [status, stripe_payment_intent_id, stripe_payment_method, batch_id],
+        )
+
+
+def set_batch_stripe_session(
+    db: duckdb.DuckDBPyConnection, batch_id: int, session_id: str
+) -> None:
+    db.execute(
+        "UPDATE entry_batches SET stripe_checkout_session_id = ? WHERE id = ?",
+        [session_id, batch_id],
+    )
+
+
+def list_entry_batches_for_season(
+    db: duckdb.DuckDBPyConnection,
+    season_id: int,
+    club_id: int | None = None,
+    status: str | None = None,
+) -> list[dict]:
+    """Return batches with club name and manager username joined."""
+    where_parts = ["eb.season_id = ?"]
+    params: list = [season_id]
+    if club_id is not None:
+        where_parts.append("eb.club_id = ?")
+        params.append(club_id)
+    if status is not None:
+        where_parts.append("eb.status = ?")
+        params.append(status)
+    where = " AND ".join(where_parts)
+    rows = db.execute(
+        f"""
+        SELECT eb.id, eb.club_id, c.name AS club_name, u.username AS manager_username,
+               eb.status, eb.fixtures_remaining_at_entry, eb.total_pence,
+               eb.stripe_payment_method, eb.paid_at, eb.created_at, eb.season_id
+        FROM entry_batches eb
+        JOIN clubs c ON c.id = eb.club_id
+        JOIN users u ON u.id = eb.manager_user_id
+        WHERE {where}
+        ORDER BY eb.created_at DESC
+        """,  # noqa: S608  # nosec B608 — `where` is built from hardcoded clause strings only; user values go into `params`
+        params,
+    ).fetchall()
+    return [
+        {
+            "id": r[0],
+            "club_id": r[1],
+            "club_name": r[2],
+            "manager_username": r[3],
+            "status": r[4],
+            "fixtures_remaining_at_entry": r[5],
+            "total_pence": r[6],
+            "stripe_payment_method": r[7],
+            "paid_at": r[8],
+            "created_at": r[9],
+            "season_id": r[10],
+        }
+        for r in rows
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Athlete Entries
+# ---------------------------------------------------------------------------
+
+
+def get_entered_ea_urns(
+    season_id: int, club_id: int, db: duckdb.DuckDBPyConnection
+) -> set[int]:
+    """Return EA URNs already entered by this club this season (any batch status)."""
+    rows = db.execute(
+        "SELECT ea_urn FROM athlete_entries WHERE season_id = ? AND club_id = ?",
+        [season_id, club_id],
+    ).fetchall()
+    return {r[0] for r in rows}
+
+
+def create_athlete_entries(
+    db: duckdb.DuckDBPyConnection,
+    batch_id: int,
+    season_id: int,
+    club_id: int,
+    athletes: list[AthleteEntryRow],
+) -> None:
+    for athlete in athletes:
+        db.execute(
+            """
+            INSERT INTO athlete_entries
+                (batch_id, season_id, club_id, ea_urn, athlete_name, date_of_birth,
+                 ea_age_category, is_junior, amount_pence)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                batch_id,
+                season_id,
+                club_id,
+                athlete.ea_urn,
+                athlete.athlete_name,
+                athlete.date_of_birth,
+                athlete.ea_age_category,
+                athlete.is_junior,
+                athlete.amount_pence,
+            ],
+        )
+
+
+def get_athlete_entries_for_batch(
+    batch_id: int, db: duckdb.DuckDBPyConnection
+) -> list[AthleteEntryRow]:
+    rows = db.execute(
+        """
+        SELECT ea_urn, athlete_name, date_of_birth, ea_age_category,
+               is_junior, amount_pence, race_number
+        FROM athlete_entries WHERE batch_id = ? ORDER BY id
+        """,
+        [batch_id],
+    ).fetchall()
+    return [
+        AthleteEntryRow(
+            ea_urn=r[0],
+            athlete_name=r[1],
+            date_of_birth=r[2],
+            ea_age_category=r[3],
+            is_junior=r[4],
+            amount_pence=r[5],
+            race_number=r[6],
+        )
+        for r in rows
+    ]
+
+
+def list_athlete_entries_for_season(
+    season_id: int, db: duckdb.DuckDBPyConnection
+) -> list[dict]:
+    """Return all paid/payment_initiated entries for a season, with club name."""
+    rows = db.execute(
+        """
+        SELECT ae.ea_urn, ae.athlete_name, ae.ea_age_category, ae.race_number,
+               c.name AS club_name, c.id AS club_id
+        FROM athlete_entries ae
+        JOIN entry_batches eb ON eb.id = ae.batch_id
+        JOIN clubs c ON c.id = ae.club_id
+        WHERE ae.season_id = ? AND eb.status IN ('paid', 'payment_initiated')
+        ORDER BY c.name, ae.ea_age_category, ae.athlete_name
+        """,
+        [season_id],
+    ).fetchall()
+    return [
+        {
+            "ea_urn": r[0],
+            "athlete_name": r[1],
+            "ea_age_category": r[2],
+            "race_number": r[3],
+            "club_name": r[4],
+            "club_id": r[5],
+        }
+        for r in rows
+    ]
+
+
+def assign_race_numbers(batch_id: int, db: duckdb.DuckDBPyConnection) -> None:
+    """Assign sequential race numbers to all athletes in a batch that lack one."""
+    # Find the season for this batch
+    row = db.execute(
+        "SELECT season_id FROM entry_batches WHERE id = ?", [batch_id]
+    ).fetchone()
+    if row is None:
+        return
+    season_id = row[0]
+
+    # Find current max race number in the season
+    max_row = db.execute(
+        "SELECT COALESCE(MAX(race_number), 0) FROM athlete_entries WHERE season_id = ?",
+        [season_id],
+    ).fetchone()
+    next_number = (max_row[0] if max_row else 0) + 1
+
+    # Assign to this batch's athletes in insertion order
+    athlete_ids = db.execute(
+        "SELECT id FROM athlete_entries WHERE batch_id = ? AND race_number IS NULL ORDER BY id",
+        [batch_id],
+    ).fetchall()
+    for (ae_id,) in athlete_ids:
+        db.execute(
+            "UPDATE athlete_entries SET race_number = ? WHERE id = ?",
+            [next_number, ae_id],
+        )
+        next_number += 1
+
+
+# ---------------------------------------------------------------------------
+# Club Allocations
+# ---------------------------------------------------------------------------
+
+
+def upsert_club_allocation(
+    db: duckdb.DuckDBPyConnection,
+    season_id: int,
+    club_id: int,
+    allocated_slots: int,
+) -> None:
+    """Insert or update club's athlete entry allocation for a season."""
+    if allocated_slots <= 0:
+        raise ValueError("allocated_slots must be greater than 0")
+    db.execute(
+        """
+        INSERT INTO club_allocations (season_id, club_id, allocated_slots, created_at, updated_at)
+        VALUES (?, ?, ?, now(), now())
+        ON CONFLICT(season_id, club_id) DO UPDATE SET
+            allocated_slots = excluded.allocated_slots,
+            updated_at = now()
+        """,
+        [season_id, club_id, allocated_slots],
+    )
+
+
+def get_club_allocation(
+    db: duckdb.DuckDBPyConnection, season_id: int, club_id: int
+) -> int | None:
+    """Return allocated slots for a club in a season, or None if not set."""
+    row = db.execute(
+        "SELECT allocated_slots FROM club_allocations WHERE season_id = ? AND club_id = ?",
+        [season_id, club_id],
+    ).fetchone()
+    return row[0] if row else None
+
+
+def get_club_athlete_count(
+    db: duckdb.DuckDBPyConnection, season_id: int, club_id: int
+) -> int:
+    """Count paid athlete entries for a club in a season."""
+    row = db.execute(
+        """
+        SELECT COUNT(ae.id)
+        FROM athlete_entries ae
+        JOIN entry_batches eb ON eb.id = ae.batch_id
+        WHERE ae.season_id = ? AND ae.club_id = ? AND eb.status = 'paid'
+        """,
+        [season_id, club_id],
+    ).fetchone()
+    return row[0] if row else 0
+
+
+def update_athlete_race_number(
+    db: duckdb.DuckDBPyConnection, athlete_id: int, race_number: int
+) -> None:
+    """Update an athlete's race number."""
+    if race_number <= 0:
+        raise ValueError("race_number must be greater than 0")
+    db.execute(
+        "UPDATE athlete_entries SET race_number = ? WHERE id = ?",
+        [race_number, athlete_id],
+    )
+
+
+def list_club_allocations_for_season(
+    db: duckdb.DuckDBPyConnection, season_id: int
+) -> list[dict]:
+    """Return all clubs with their allocations and current usage for a season."""
+    rows = db.execute(
+        """
+        SELECT c.id, c.name,
+               COALESCE(ca.allocated_slots, 0) AS allocated_slots,
+               COUNT(CASE WHEN eb.status = 'paid' THEN ae.id END) AS current_used
+        FROM clubs c
+        LEFT JOIN club_allocations ca ON ca.club_id = c.id AND ca.season_id = ?
+        LEFT JOIN entry_batches eb ON eb.club_id = c.id AND eb.season_id = ?
+        LEFT JOIN athlete_entries ae ON ae.batch_id = eb.id
+        WHERE eb.id IS NOT NULL OR ca.season_id IS NOT NULL
+        GROUP BY c.id, c.name, ca.allocated_slots
+        ORDER BY c.name
+        """,
+        [season_id, season_id],
+    ).fetchall()
+    return [
+        {
+            "club_id": r[0],
+            "club_name": r[1],
+            "allocated_slots": r[2],
+            "current_used": r[3],
+            "remaining": max(0, r[2] - r[3]) if r[2] > 0 else 0,
+        }
+        for r in rows
+    ]
+
+
+def list_paid_athlete_entries_for_season(
+    db: duckdb.DuckDBPyConnection, season_id: int
+) -> list[dict]:
+    """Return all paid athlete entries for a season, sorted by club and name."""
+    rows = db.execute(
+        """
+        SELECT ae.id, c.name AS club_name, ae.athlete_name, ae.ea_age_category,
+               ae.date_of_birth, ae.ea_urn, ae.race_number
+        FROM athlete_entries ae
+        JOIN clubs c ON c.id = ae.club_id
+        JOIN entry_batches eb ON eb.id = ae.batch_id
+        WHERE ae.season_id = ? AND eb.status = 'paid'
+        ORDER BY c.name, ae.athlete_name
+        """,
+        [season_id],
+    ).fetchall()
+    return [
+        {
+            "athlete_id": r[0],
+            "club_name": r[1],
+            "athlete_name": r[2],
+            "age_category": r[3],
+            "date_of_birth": r[4],
+            "ea_urn": r[5],
+            "race_number": r[6],
+        }
+        for r in rows
+    ]

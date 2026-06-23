@@ -85,10 +85,10 @@ In most cases the date of the event is passed to the API, which returns whether 
 
 | Field | Value |
 |---|---|
-| User | `eventprov2` |
-| Password | `$33#(sport2` |
-| Certificate | `TrApiStagingEVENT2ClientCert.pfx` |
-| Certificate password | `EvSTg@561760v2` |
+| User | Managed as a secret (do not commit) |
+| Password | Managed as a secret (do not commit) |
+| Certificate | Local certificate file configured via `EA_CERT_PATH` |
+| Certificate password | Managed as a secret (do not commit) |
 
 ## Method Calls
 
@@ -209,3 +209,7 @@ Response:
   ]
 }
 ```
+
+# Test credentials
+Credentials are stored in secure secret storage and must not be committed to git.
+Use the environment variables `EA_CALL_KEY`, `EA_CALL_SECRET`, `EA_CERT_PATH`, and `EA_CERT_PASSWORD` to supply them at runtime.

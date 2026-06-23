@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Season Entries — {{ season.name }} — Oxfordshire Cross Country League{% endblock %}
+{% block content %}
+<div class="mb-4 d-flex flex-wrap align-items-center justify-content-between gap-2">
+  <div>
+    <a href="/entries" class="btn btn-outline-secondary btn-sm mb-2">&larr; Back to seasons</a>
+    <h1 class="h3 mb-0">{{ season.name }} — Entered Athletes</h1>
+  </div>
+  {% if can_add_more %}
+    <a href="/entries/{{ season.id }}/add" class="btn btn-primary btn-sm">Add more athletes</a>
+  {% endif %}
+</div>
+
+{% if not entries_by_club %}
+  <p class="text-muted">No athletes have been entered for this season yet.</p>
+{% else %}
+  {% for club_name, athletes in entries_by_club.items() %}
+    <section class="mb-4" aria-labelledby="club-{{ loop.index }}-heading">
+      <h2 id="club-{{ loop.index }}-heading" class="h5 border-bottom pb-2">{{ club_name }}</h2>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead class="table-light">
+            <tr>
+              <th scope="col">Athlete</th>
+              <th scope="col">Age category</th>
+              <th scope="col">Race number</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for athlete in athletes %}
+              <tr>
+                <td>{{ athlete.athlete_name }}</td>
+                <td>
+                  <span class="badge {% if athlete.ea_age_category.startswith('U') %}text-bg-info{% else %}text-bg-secondary{% endif %}">
+                    {{ athlete.ea_age_category }}
+                  </span>
+                </td>
+                <td>{% if athlete.race_number %}{{ athlete.race_number }}{% else %}<span class="text-muted">TBC</span>{% endif %}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endfor %}
+{% endif %}
+{% endblock %}

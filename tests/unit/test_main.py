@@ -1,6 +1,7 @@
 """Tests for FastAPI routes and main application"""
 
 import re
+from datetime import date, timedelta
 from pathlib import Path
 
 import duckdb
@@ -8,7 +9,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from website import repository
+from website.auth import hash_password
 from website.helpers import SIDEBAR_ITEMS
+from website.models import UserRole
 
 
 class TestHomeRoute:
@@ -51,6 +54,11 @@ class TestHomeRoute:
 class TestLoginPageRoute:
     def test_login_page_loads(self, test_client: TestClient) -> None:
         assert test_client.get("/login").status_code == 200
+
+    def test_login_page_preserves_next_path(self, test_client: TestClient) -> None:
+        response = test_client.get("/login?next=/entries")
+        assert response.status_code == 200
+        assert 'name="next_path" value="/entries"' in response.text
 
 
 class TestSidebarItems:
@@ -103,7 +111,6 @@ class TestPublicPageRoutes:
     _pages = [
         ("news", "/news"),
         ("results", "/results"),
-        ("entries", "/entries"),
         ("rules_and_constitution", "/rules-and-constitution"),
         ("fixtures", "/fixtures"),
     ]
@@ -115,7 +122,50 @@ class TestPublicPageRoutes:
         assert test_client.get("/results").status_code == 200
 
     def test_entries_page_loads(self, test_client: TestClient) -> None:
-        assert test_client.get("/entries").status_code == 200
+        # /entries requires club_manager auth — unauthenticated request redirects to login
+        # (TestClient follows redirects, so we check the login page title is in the response)
+        response = test_client.get("/entries", follow_redirects=False)
+        assert response.status_code == 302
+        assert response.headers["location"] == "/login?next=/entries"
+
+    def test_entries_page_redirects_admin_to_admin_entries(
+        self, admin_client: TestClient
+    ) -> None:
+        response = admin_client.get("/entries", follow_redirects=False)
+        assert response.status_code == 303
+        assert response.headers["location"] == "/admin/entries"
+
+    def test_admin_entries_empty_state_links_to_fixtures(
+        self, admin_client: TestClient
+    ) -> None:
+        response = admin_client.get("/admin/entries")
+        assert response.status_code == 200
+        assert 'href="/fixtures"' in response.text
+
+    def test_login_redirects_back_to_entries_after_success(
+        self, test_client: TestClient, test_db: duckdb.DuckDBPyConnection
+    ) -> None:
+        repository.create_user(
+            test_db,
+            "admin_login_test",
+            hash_password("AdminPassword123!@#"),
+            UserRole.admin,
+        )
+        login_page = test_client.get("/login?next=/entries")
+        match = re.search(r'name="csrf_token"\s+value="([^"]+)"', login_page.text)
+        assert match
+        response = test_client.post(
+            "/login",
+            data={
+                "username": "admin_login_test",
+                "password": "AdminPassword123!@#",
+                "csrf_token": match.group(1),
+                "next_path": "/entries",
+            },
+            follow_redirects=False,
+        )
+        assert response.status_code == 302
+        assert response.headers["location"] == "/entries"
 
     def test_rules_and_constitution_page_loads(self, test_client: TestClient) -> None:
         assert test_client.get("/rules-and-constitution").status_code == 200
@@ -176,6 +226,206 @@ class TestPublicPageRoutes:
                 re.DOTALL,
             )
             assert match is not None, f"No active link for {route}"
+
+
+class TestEntryBatchGuardsAndAllocation:
+    def _seed_manager_entries_domain(
+        self, test_db: duckdb.DuckDBPyConnection
+    ) -> dict[str, int | str]:
+        season = repository.create_season(test_db, "Entries Guard Season")
+        other_season = repository.create_season(test_db, "Entries Other Season")
+        club = repository.create_club(
+            test_db,
+            name="Guard Test Club",
+            oxl_code="GTC",
+            ea_club_id="55555",
+        )
+        manager = repository.create_user(
+            test_db,
+            "guard_manager",
+            hash_password("GuardPassword123!@#"),
+            UserRole.club_manager,
+        )
+        repository.create_club_manager(
+            test_db,
+            user_id=manager.id,
+            club_id=club.id,
+            email="guard@example.com",
+        )
+        repository.upsert_season_entry_config(
+            test_db,
+            season_id=season.id,
+            entries_open=True,
+            ea_reference_date="2025-08-31",
+            total_fixtures=5,
+            junior_pence_per_fixture=200,
+            adult_pence_per_fixture=300,
+        )
+        repository.create_fixture(
+            test_db,
+            season_id=season.id,
+            title="Guard Fixture",
+            date=(date.today() + timedelta(days=14)).isoformat(),
+            location_name="Venue",
+            address="Address",
+            timetable=[],
+            travel_instructions="",
+        )
+        return {
+            "season_id": season.id,
+            "other_season_id": other_season.id,
+            "club_id": club.id,
+            "manager_id": manager.id,
+            "manager_username": "guard_manager",
+            "manager_password": "GuardPassword123!@#",
+        }
+
+    def _login_manager(
+        self,
+        test_client: TestClient,
+        username: str,
+        password: str,
+    ) -> None:
+        login_page = test_client.get("/login")
+        match = re.search(r'name="csrf_token"\s+value="([^"]+)"', login_page.text)
+        assert match
+        resp = test_client.post(
+            "/login",
+            data={
+                "username": username,
+                "password": password,
+                "csrf_token": match.group(1),
+            },
+            follow_redirects=False,
+        )
+        assert resp.status_code in (302, 303)
+
+    def test_entries_create_batch_rejects_when_allocation_insufficient(
+        self,
+        test_client: TestClient,
+        test_db: duckdb.DuckDBPyConnection,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        seeded = self._seed_manager_entries_domain(test_db)
+        season_id = int(seeded["season_id"])
+        club_id = int(seeded["club_id"])
+        self._login_manager(
+            test_client,
+            str(seeded["manager_username"]),
+            str(seeded["manager_password"]),
+        )
+
+        # Only one slot allocated, but two athletes will be submitted.
+        repository.upsert_club_allocation(
+            test_db, season_id, club_id, allocated_slots=1
+        )
+
+        monkeypatch.setattr(
+            "website.main.entries_module.fetch_club_athletes",
+            lambda _ea_club_id: [
+                {
+                    "IndividualRef": 20001,
+                    "FirstName": "Alice",
+                    "LastName": "Runner",
+                    "DateOfBirth": "2012-04-01",
+                    "RegistrationStatus": "Registered",
+                },
+                {
+                    "IndividualRef": 20002,
+                    "FirstName": "Bob",
+                    "LastName": "Runner",
+                    "DateOfBirth": "2010-07-15",
+                    "RegistrationStatus": "Registered",
+                },
+            ],
+        )
+
+        add_page = test_client.get(f"/entries/{season_id}/add")
+        csrf_match = re.search(r'name="csrf_token"\s+value="([^"]+)"', add_page.text)
+        assert csrf_match
+
+        response = test_client.post(
+            f"/entries/{season_id}/batch",
+            data={
+                "ea_urns": ["20001", "20002"],
+                "csrf_token": csrf_match.group(1),
+            },
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 403
+        count = test_db.execute("SELECT COUNT(*) FROM entry_batches").fetchone()
+        assert count
+        assert count[0] == 0
+
+    def test_batch_preview_404s_when_season_mismatch(
+        self,
+        test_client: TestClient,
+        test_db: duckdb.DuckDBPyConnection,
+    ) -> None:
+        seeded = self._seed_manager_entries_domain(test_db)
+        season_id = int(seeded["season_id"])
+        other_season_id = int(seeded["other_season_id"])
+        club_id = int(seeded["club_id"])
+        manager_id = int(seeded["manager_id"])
+        self._login_manager(
+            test_client,
+            str(seeded["manager_username"]),
+            str(seeded["manager_password"]),
+        )
+
+        batch = repository.create_entry_batch(
+            test_db,
+            season_id=season_id,
+            club_id=club_id,
+            manager_user_id=manager_id,
+            fixtures_remaining_at_entry=2,
+            total_pence=1000,
+        )
+
+        response = test_client.get(
+            f"/entries/{other_season_id}/batch/{batch.id}/preview",
+            follow_redirects=False,
+        )
+        assert response.status_code == 404
+
+    def test_batch_checkout_404s_when_season_mismatch(
+        self,
+        test_client: TestClient,
+        test_db: duckdb.DuckDBPyConnection,
+    ) -> None:
+        seeded = self._seed_manager_entries_domain(test_db)
+        season_id = int(seeded["season_id"])
+        other_season_id = int(seeded["other_season_id"])
+        club_id = int(seeded["club_id"])
+        manager_id = int(seeded["manager_id"])
+        self._login_manager(
+            test_client,
+            str(seeded["manager_username"]),
+            str(seeded["manager_password"]),
+        )
+
+        batch = repository.create_entry_batch(
+            test_db,
+            season_id=season_id,
+            club_id=club_id,
+            manager_user_id=manager_id,
+            fixtures_remaining_at_entry=2,
+            total_pence=1000,
+        )
+
+        entries_page = test_client.get("/entries")
+        csrf_match = re.search(
+            r'name="csrf_token"\s+value="([^"]+)"', entries_page.text
+        )
+        assert csrf_match
+
+        response = test_client.post(
+            f"/entries/{other_season_id}/batch/{batch.id}/checkout",
+            data={"csrf_token": csrf_match.group(1)},
+            follow_redirects=False,
+        )
+        assert response.status_code == 404
 
 
 class TestAdministrationAccess:
@@ -426,7 +676,7 @@ class TestNewsCrud:
     def test_create_form_requires_auth(self, test_client: TestClient) -> None:
         response = test_client.get("/news/create", follow_redirects=False)
         assert response.status_code == 302
-        assert response.headers["location"] == "/login"
+        assert response.headers["location"].startswith("/login")
 
     def test_create_form_available_to_content_creator(
         self, content_creator_client: TestClient
@@ -537,7 +787,7 @@ class TestAccountPage:
     ) -> None:
         response = test_client.get("/account", follow_redirects=False)
         assert response.status_code == 302
-        assert response.headers["location"] == "/login"
+        assert response.headers["location"].startswith("/login")
 
     def test_account_accessible_when_logged_in_as_admin(
         self, admin_client: TestClient
@@ -612,7 +862,7 @@ class TestFixturesSeasonCrud:
         )
         assert response.status_code in (302, 403)
         if response.status_code == 302:
-            assert response.headers["location"] == "/login"
+            assert response.headers["location"].startswith("/login")
 
     def test_create_season_as_admin(
         self,
@@ -795,13 +1045,13 @@ class TestFixturesFixtureCrud:
         )
         assert resp.status_code in (302, 403)
         if resp.status_code == 302:
-            assert resp.headers["location"] == "/login"
+            assert resp.headers["location"].startswith("/login")
 
     def test_new_season_form_requires_auth(self, test_client: TestClient) -> None:
         resp = test_client.get("/fixtures/seasons/new", follow_redirects=False)
         assert resp.status_code in (302, 403)
         if resp.status_code == 302:
-            assert resp.headers["location"] == "/login"
+            assert resp.headers["location"].startswith("/login")
 
 
 class TestFixturesCopy:
@@ -828,7 +1078,7 @@ class TestFixturesCopy:
         )
         assert resp.status_code in (302, 403)
         if resp.status_code == 302:
-            assert resp.headers["location"] == "/login"
+            assert resp.headers["location"].startswith("/login")
 
     def test_copy_form_loads_as_admin(
         self, admin_client: TestClient, test_db: duckdb.DuckDBPyConnection
@@ -923,7 +1173,7 @@ class TestLogout:
         # After logout, account page should redirect to login
         resp = admin_client.get("/account", follow_redirects=False)
         assert resp.status_code == 302
-        assert resp.headers["location"] == "/login"
+        assert resp.headers["location"].startswith("/login")
 
 
 # ---------------------------------------------------------------------------
@@ -942,6 +1192,22 @@ class TestPrivacyPolicyRoute:
     ) -> None:
         resp = test_client.get("/privacy-policy")
         assert resp.status_code == 200
+
+
+class TestContactRoute:
+    def test_contact_page_loads(self, test_client: TestClient) -> None:
+        resp = test_client.get("/contact")
+        assert resp.status_code == 200
+        assert "Contact Us" in resp.text
+        assert "oxfordshirexcleague@example.com" in resp.text
+
+
+class TestAboutRoute:
+    def test_about_page_loads(self, test_client: TestClient) -> None:
+        resp = test_client.get("/about")
+        assert resp.status_code == 200
+        assert "About Us" in resp.text
+        assert "Work in progress" in resp.text
 
 
 # ---------------------------------------------------------------------------
@@ -1549,4 +1815,4 @@ class TestFixturesUpdateFixture:
         )
         assert resp.status_code in (302, 403)
         if resp.status_code == 302:
-            assert resp.headers["location"] == "/login"
+            assert resp.headers["location"].startswith("/login")
