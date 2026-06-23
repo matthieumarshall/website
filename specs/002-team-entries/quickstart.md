@@ -9,7 +9,7 @@
 - Python 3.11+ with `uv` installed
 - Node.js 18+ (for Playwright)
 - A Stripe account (free) with test API keys
-- The EA staging certificate (`data/TrApiStagingEVENT2ClientCert.pfx`) — rename from `.pfx.txt` extension
+- The EA staging certificate file (configure with `EA_CERT_PATH`) — rename from `.pfx.txt` extension
 
 ---
 
@@ -40,10 +40,10 @@ STRIPE_PUBLISHABLE_KEY=pk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...   # from: stripe listen --forward-to localhost:8000/webhooks/stripe
 
 # England Athletics TRAPI (staging)
-EA_CALL_KEY=eventprov2
-EA_CALL_SECRET=$33#(sport2
-EA_CERT_PATH=data/TrApiStagingEVENT2ClientCert.pfx
-EA_CERT_PASSWORD=EvSTg@561760v2
+EA_CALL_KEY=<staging EA call key>
+EA_CALL_SECRET=<staging EA call secret>
+EA_CERT_PATH=data/<staging-cert>.pfx
+EA_CERT_PASSWORD=<staging cert password>
 EA_STAGING=true   # set to false in production
 
 # Existing app vars

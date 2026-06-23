@@ -24,7 +24,7 @@ description: "Task list for Team Entries feature implementation"
 
 - [X] T001 Add `stripe`, `weasyprint`, `httpx` to project deps via `uv add stripe weasyprint httpx`
 - [X] T002 [P] Add `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET`, `EA_CALL_KEY`, `EA_CALL_SECRET`, `EA_CERT_PATH`, `EA_CERT_PASSWORD`, `EA_STAGING` to `.env.example` with placeholder values
-- [X] T003 [P] Add `.env` to `.gitignore` if not already present; confirm `data/TrApiStagingEVENT2ClientCert.pfx` is also gitignored
+- [X] T003 [P] Add `.env` to `.gitignore` if not already present; confirm EA certificate files under `data/` are also gitignored
 
 ---
 

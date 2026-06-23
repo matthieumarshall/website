@@ -17,7 +17,7 @@ The API doc lists 5 methods. The four documented endpoints follow a consistent R
 - `race-provider/clubs` (all clubs)
 - (Method 5) "Returns all athletes within a given club" — logically: `race-provider/clubs/{clubId}/athletes`
 
-All calls use the same three mandatory headers (`X-TRAPI-CALLKEY`, `X-TRAPI-CALLSECRET`, `X-TRAPI-CALLDATETIME`) plus a client certificate. The league-level credential (`eventprov2`) is used for all calls on behalf of any club.
+All calls use the same three mandatory headers (`X-TRAPI-CALLKEY`, `X-TRAPI-CALLSECRET`, `X-TRAPI-CALLDATETIME`) plus a client certificate. League-level credentials are used for all calls on behalf of any club.
 
 **Alternative considered**: `race-provider/clubs/{clubId}/individuals` — less likely given "athletes" is used in the API context. If Method 5 returns a 404, fall back to batch-searching athletes by URN from a local cache or prompt the manager to add athletes manually by EA URN.
 
@@ -57,7 +57,7 @@ def fetch_club_athletes(
     return resp.json().get("Athletes", [])
 ```
 
-**Certificate handling**: The staging cert is at `data/TrApiStagingEVENT2ClientCert.pfx`. In production, path is configured via `EA_CERT_PATH` env var. The file must not be committed for production (use a secrets manager or VPS file path).
+**Certificate handling**: The certificate path is configured via `EA_CERT_PATH` env var. The file must not be committed for production (use a secrets manager or VPS file path).
 
 **Caching**: EA API responses are cached in the user session (FastAPI `Request.session`) for the duration of the request flow (athlete selection → preview → payment). No persistent caching — freshness on each new entry flow.
 
