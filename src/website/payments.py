@@ -1,15 +1,32 @@
 """Stripe Checkout Session creation and webhook signature verification."""
 
 import os
+from functools import lru_cache
 from typing import Any, NamedTuple, cast
 
 import stripe
 from fastapi import HTTPException, Request
 
 
-def _get_stripe_client() -> stripe.StripeClient:
-    secret_key = os.environ.get("STRIPE_SECRET_KEY", "")
+def _get_stripe_secret_key() -> str:
+    secret_key = os.environ.get("STRIPE_SECRET_KEY", "").strip()
+    if not secret_key:
+        raise HTTPException(
+            status_code=503,
+            detail="Stripe is not configured. Contact the league administrator.",
+        )
+    return secret_key
+
+
+@lru_cache(maxsize=4)
+def _build_stripe_client(secret_key: str) -> stripe.StripeClient:
+    """Return a memoized Stripe client for the given secret key."""
     return stripe.StripeClient(secret_key)
+
+
+def _get_stripe_client() -> stripe.StripeClient:
+    """Return a cached Stripe client and rebuild only when the key changes."""
+    return _build_stripe_client(_get_stripe_secret_key())
 
 
 class CheckoutSession(NamedTuple):

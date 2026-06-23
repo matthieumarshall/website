@@ -1,10 +1,12 @@
 """Unit tests for website.payments — webhook verification and CheckoutSession."""
 
+import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import stripe
 
+from website import payments
 from website.payments import CheckoutSession, verify_webhook
 
 
@@ -89,3 +91,45 @@ class TestCheckoutSession:
         assert isinstance(cs, tuple)
         assert cs[0] == "https://x.com"
         assert cs[1] == "y"
+
+
+class TestStripeClientCaching:
+    def teardown_method(self):
+        # Isolate tests from one another by clearing the LRU cache.
+        payments._build_stripe_client.cache_clear()
+
+    def test_get_stripe_client_reuses_cached_client(self):
+        with (
+            patch.dict(os.environ, {"STRIPE_SECRET_KEY": "sk_test_cached"}),
+            patch("website.payments.stripe.StripeClient") as mock_ctor,
+        ):
+            client_1 = payments._get_stripe_client()
+            client_2 = payments._get_stripe_client()
+
+        assert mock_ctor.call_count == 1
+        assert client_1 is client_2
+
+    def test_get_stripe_client_rebuilds_when_key_changes(self):
+        first_client = MagicMock(name="first_client")
+        second_client = MagicMock(name="second_client")
+        with patch(
+            "website.payments.stripe.StripeClient",
+            side_effect=[first_client, second_client],
+        ) as mock_ctor:
+            with patch.dict(os.environ, {"STRIPE_SECRET_KEY": "sk_test_first"}):
+                client_1 = payments._get_stripe_client()
+
+            with patch.dict(os.environ, {"STRIPE_SECRET_KEY": "sk_test_second"}):
+                client_2 = payments._get_stripe_client()
+
+        assert mock_ctor.call_count == 2
+        assert client_1 is not client_2
+
+    def test_get_stripe_client_raises_503_when_key_missing(self):
+        from fastapi import HTTPException
+
+        with patch.dict(os.environ, {"STRIPE_SECRET_KEY": ""}):
+            with pytest.raises(HTTPException) as exc_info:
+                payments._get_stripe_client()
+
+        assert exc_info.value.status_code == 503
