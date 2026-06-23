@@ -723,6 +723,19 @@ def entries_create_batch(
                 amount_pence=amount,
             )
         )
+    if not entries_module.check_allocation(
+        season_id=season_id,
+        club_id=club_manager.club_id,
+        count_to_add=len(athlete_rows),
+        db=db,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Your club does not have enough allocation slots for this entry. "
+                "Please contact the league administrator."
+            ),
+        )
     batch = repository.create_entry_batch(
         db,
         season_id=season_id,
@@ -756,7 +769,11 @@ def entries_batch_preview(
     if season is None:
         raise HTTPException(status_code=404)
     batch = repository.get_entry_batch(batch_id, db)
-    if batch is None or batch.club_id != club_manager.club_id:
+    if (
+        batch is None
+        or batch.club_id != club_manager.club_id
+        or batch.season_id != season_id
+    ):
         raise HTTPException(status_code=404)
     athletes = repository.get_athlete_entries_for_batch(batch_id, db)
     junior_count = sum(1 for a in athletes if a.is_junior)
@@ -797,7 +814,11 @@ async def entries_batch_checkout(
     if season is None:
         raise HTTPException(status_code=404)
     batch = repository.get_entry_batch(batch_id, db)
-    if batch is None or batch.club_id != club_manager.club_id:
+    if (
+        batch is None
+        or batch.club_id != club_manager.club_id
+        or batch.season_id != season_id
+    ):
         raise HTTPException(status_code=404)
     if batch.status not in ("pending_payment", "payment_failed"):
         return RedirectResponse(
@@ -843,7 +864,11 @@ def entries_batch_success(
     if season is None:
         raise HTTPException(status_code=404)
     batch = repository.get_entry_batch(batch_id, db)
-    if batch is None or batch.club_id != club_manager.club_id:
+    if (
+        batch is None
+        or batch.club_id != club_manager.club_id
+        or batch.season_id != season_id
+    ):
         raise HTTPException(status_code=404)
     return templates.TemplateResponse(
         request,
