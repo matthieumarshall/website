@@ -1175,7 +1175,8 @@ def create_entry_batch(
         """,
         [season_id, club_id, manager_user_id],
     ).fetchone()
-    assert row is not None  # noqa: S101
+    if row is None:
+        raise RuntimeError("Failed to load created entry batch")
     return _row_to_entry_batch(row)
 
 

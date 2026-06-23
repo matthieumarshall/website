@@ -1,5 +1,7 @@
 """Tests for club athlete allocation management."""
 
+from unittest.mock import MagicMock
+
 import pytest
 
 from website import repository
@@ -75,6 +77,26 @@ class TestClubAllocation:
         """Verify None is returned for unset allocation."""
         allocation = repository.get_club_allocation(test_db, season_id=1, club_id=999)
         assert allocation is None
+
+
+class TestEntryBatchCreation:
+    def test_create_entry_batch_raises_when_inserted_row_cannot_be_loaded(self):
+        """Verify explicit runtime error when batch SELECT returns no row."""
+        db = MagicMock()
+        insert_cursor = MagicMock()
+        select_cursor = MagicMock()
+        select_cursor.fetchone.return_value = None
+        db.execute.side_effect = [insert_cursor, select_cursor]
+
+        with pytest.raises(RuntimeError, match="Failed to load created entry batch"):
+            repository.create_entry_batch(
+                db,
+                season_id=1,
+                club_id=1,
+                manager_user_id=1,
+                fixtures_remaining_at_entry=3,
+                total_pence=1500,
+            )
 
     def test_get_club_athlete_count_counts_only_paid(self, test_db):
         """Verify only paid entries count toward allocation."""
