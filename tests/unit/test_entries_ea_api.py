@@ -2,8 +2,8 @@
 
 import os
 from datetime import date
+from unittest.mock import MagicMock, patch
 
-import pytest
 
 from website import entries
 
@@ -20,27 +20,172 @@ def _ea_staging_configured() -> bool:
 
 
 class TestEAStaging:
-    """Integration tests for England Athletics staging API."""
+    """Unit tests for England Athletics staging API using mocked responses."""
 
-    @pytest.mark.skipif(
-        not _ea_staging_configured(),
-        reason="Requires EA staging mode, credentials, and a valid certificate path",
-    )
     def test_fetch_club_athletes_returns_list(self):
         """Test that fetch_club_athletes returns a list of athletes from staging."""
-        # Using staging test club ID (OXL uses 1765 for zzz Runners in staging)
-        athletes = entries.fetch_club_athletes("1765")
+        # Mock the httpx.Client and response
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "Athletes": [
+                {
+                    "Urn": 12345,
+                    "Firstname": "John",
+                    "Lastname": "Doe",
+                    "Dob": "2010-05-15",
+                    "CompetitiveRegStatus": "Active",
+                }
+            ]
+        }
+
+        with (
+            patch("website.entries.httpx.Client") as mock_client_class,
+            patch.dict(
+                os.environ,
+                {
+                    "EA_STAGING": "true",
+                    "EA_CALL_KEY": "test_key",
+                    "EA_CALL_SECRET": "test_secret",
+                    "EA_CERT_PATH": "/tmp/test.pfx",
+                    "EA_CERT_PASSWORD": "test_pass",
+                },
+            ),
+            patch("website.entries.Path.exists", return_value=True),
+            patch("builtins.open", create=True) as mock_open,
+        ):
+            mock_open.return_value.__enter__.return_value.read.return_value = (
+                b"fake_pfx_data"
+            )
+
+            # Mock the certificate extraction
+            with patch("website.entries.pkcs12.load_key_and_certificates") as mock_pkcs:
+                from cryptography.hazmat.primitives.asymmetric import rsa
+                from cryptography import x509
+                from cryptography.x509.oid import NameOID
+                from cryptography.hazmat.primitives import hashes
+                from cryptography.hazmat.backends import default_backend
+                from datetime import datetime, timedelta
+
+                # Create mock certificate and key
+                private_key = rsa.generate_private_key(
+                    public_exponent=65537,
+                    key_size=2048,
+                    backend=default_backend(),
+                )
+                cert_builder = x509.CertificateBuilder()
+                cert_builder = cert_builder.subject_name(
+                    x509.Name(
+                        [x509.NameAttribute(NameOID.COMMON_NAME, "test.example.com")]
+                    )
+                )
+                cert_builder = cert_builder.issuer_name(
+                    x509.Name(
+                        [x509.NameAttribute(NameOID.COMMON_NAME, "test.example.com")]
+                    )
+                )
+                cert_builder = cert_builder.public_key(private_key.public_key())
+                cert_builder = cert_builder.serial_number(x509.random_serial_number())
+                cert_builder = cert_builder.not_valid_before(datetime.utcnow())
+                cert_builder = cert_builder.not_valid_after(
+                    datetime.utcnow() + timedelta(days=365)
+                )
+                certificate = cert_builder.sign(
+                    private_key, hashes.SHA256(), backend=default_backend()
+                )
+
+                mock_pkcs.return_value = (private_key, certificate, [])
+
+                # Mock the httpx.Client context manager and get call
+                mock_client = MagicMock()
+                mock_client.get.return_value = mock_response
+                mock_client.__enter__.return_value = mock_client
+                mock_client.__exit__.return_value = None
+                mock_client_class.return_value = mock_client
+
+                athletes = entries.fetch_club_athletes("1765")
 
         assert isinstance(athletes, list)
         assert len(athletes) > 0, "Expected at least one athlete from staging club"
 
-    @pytest.mark.skipif(
-        not _ea_staging_configured(),
-        reason="Requires EA staging mode, credentials, and a valid certificate path",
-    )
     def test_fetch_club_athletes_response_schema(self):
         """Test that athlete responses have required fields."""
-        athletes = entries.fetch_club_athletes("1765")
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "Athletes": [
+                {
+                    "Urn": 12345,
+                    "Firstname": "John",
+                    "Lastname": "Doe",
+                    "Dob": "2010-05-15",
+                    "CompetitiveRegStatus": "Active",
+                }
+            ]
+        }
+
+        with (
+            patch("website.entries.httpx.Client") as mock_client_class,
+            patch.dict(
+                os.environ,
+                {
+                    "EA_STAGING": "true",
+                    "EA_CALL_KEY": "test_key",
+                    "EA_CALL_SECRET": "test_secret",
+                    "EA_CERT_PATH": "/tmp/test.pfx",
+                    "EA_CERT_PASSWORD": "test_pass",
+                },
+            ),
+            patch("website.entries.Path.exists", return_value=True),
+            patch("builtins.open", create=True) as mock_open,
+        ):
+            mock_open.return_value.__enter__.return_value.read.return_value = (
+                b"fake_pfx_data"
+            )
+
+            with patch("website.entries.pkcs12.load_key_and_certificates") as mock_pkcs:
+                from cryptography.hazmat.primitives.asymmetric import rsa
+                from cryptography import x509
+                from cryptography.x509.oid import NameOID
+                from cryptography.hazmat.primitives import hashes
+                from cryptography.hazmat.backends import default_backend
+                from datetime import datetime, timedelta
+
+                private_key = rsa.generate_private_key(
+                    public_exponent=65537,
+                    key_size=2048,
+                    backend=default_backend(),
+                )
+                cert_builder = x509.CertificateBuilder()
+                cert_builder = cert_builder.subject_name(
+                    x509.Name(
+                        [x509.NameAttribute(NameOID.COMMON_NAME, "test.example.com")]
+                    )
+                )
+                cert_builder = cert_builder.issuer_name(
+                    x509.Name(
+                        [x509.NameAttribute(NameOID.COMMON_NAME, "test.example.com")]
+                    )
+                )
+                cert_builder = cert_builder.public_key(private_key.public_key())
+                cert_builder = cert_builder.serial_number(x509.random_serial_number())
+                cert_builder = cert_builder.not_valid_before(datetime.utcnow())
+                cert_builder = cert_builder.not_valid_after(
+                    datetime.utcnow() + timedelta(days=365)
+                )
+                certificate = cert_builder.sign(
+                    private_key, hashes.SHA256(), backend=default_backend()
+                )
+
+                mock_pkcs.return_value = (private_key, certificate, [])
+
+                mock_client = MagicMock()
+                mock_client.get.return_value = mock_response
+                mock_client.__enter__.return_value = mock_client
+                mock_client.__exit__.return_value = None
+                mock_client_class.return_value = mock_client
+
+                athletes = entries.fetch_club_athletes("1765")
 
         assert len(athletes) > 0
         athlete = athletes[0]
@@ -58,13 +203,91 @@ class TestEAStaging:
         assert isinstance(athlete["LastName"], str)
         assert isinstance(athlete["RegistrationStatus"], str)
 
-    @pytest.mark.skipif(
-        not _ea_staging_configured(),
-        reason="Requires EA staging mode, credentials, and a valid certificate path",
-    )
     def test_registration_status_normalization(self):
         """Test that registration status is properly normalized."""
-        athletes = entries.fetch_club_athletes("1765")
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "Athletes": [
+                {
+                    "Urn": 12345,
+                    "Firstname": "John",
+                    "Lastname": "Doe",
+                    "Dob": "2010-05-15",
+                    "CompetitiveRegStatus": "Active",
+                },
+                {
+                    "Urn": 67890,
+                    "Firstname": "Jane",
+                    "Lastname": "Smith",
+                    "Dob": "2008-03-22",
+                    "CompetitiveRegStatus": "Not Active",
+                },
+            ]
+        }
+
+        with (
+            patch("website.entries.httpx.Client") as mock_client_class,
+            patch.dict(
+                os.environ,
+                {
+                    "EA_STAGING": "true",
+                    "EA_CALL_KEY": "test_key",
+                    "EA_CALL_SECRET": "test_secret",
+                    "EA_CERT_PATH": "/tmp/test.pfx",
+                    "EA_CERT_PASSWORD": "test_pass",
+                },
+            ),
+            patch("website.entries.Path.exists", return_value=True),
+            patch("builtins.open", create=True) as mock_open,
+        ):
+            mock_open.return_value.__enter__.return_value.read.return_value = (
+                b"fake_pfx_data"
+            )
+
+            with patch("website.entries.pkcs12.load_key_and_certificates") as mock_pkcs:
+                from cryptography.hazmat.primitives.asymmetric import rsa
+                from cryptography import x509
+                from cryptography.x509.oid import NameOID
+                from cryptography.hazmat.primitives import hashes
+                from cryptography.hazmat.backends import default_backend
+                from datetime import datetime, timedelta
+
+                private_key = rsa.generate_private_key(
+                    public_exponent=65537,
+                    key_size=2048,
+                    backend=default_backend(),
+                )
+                cert_builder = x509.CertificateBuilder()
+                cert_builder = cert_builder.subject_name(
+                    x509.Name(
+                        [x509.NameAttribute(NameOID.COMMON_NAME, "test.example.com")]
+                    )
+                )
+                cert_builder = cert_builder.issuer_name(
+                    x509.Name(
+                        [x509.NameAttribute(NameOID.COMMON_NAME, "test.example.com")]
+                    )
+                )
+                cert_builder = cert_builder.public_key(private_key.public_key())
+                cert_builder = cert_builder.serial_number(x509.random_serial_number())
+                cert_builder = cert_builder.not_valid_before(datetime.utcnow())
+                cert_builder = cert_builder.not_valid_after(
+                    datetime.utcnow() + timedelta(days=365)
+                )
+                certificate = cert_builder.sign(
+                    private_key, hashes.SHA256(), backend=default_backend()
+                )
+
+                mock_pkcs.return_value = (private_key, certificate, [])
+
+                mock_client = MagicMock()
+                mock_client.get.return_value = mock_response
+                mock_client.__enter__.return_value = mock_client
+                mock_client.__exit__.return_value = None
+                mock_client_class.return_value = mock_client
+
+                athletes = entries.fetch_club_athletes("1765")
 
         statuses = {a["RegistrationStatus"] for a in athletes}
         # Should only contain normalized values
@@ -73,13 +296,99 @@ class TestEAStaging:
             f"Invalid statuses found: {statuses - valid_statuses}"
         )
 
-    @pytest.mark.skipif(
-        not _ea_staging_configured(),
-        reason="Requires EA staging mode, credentials, and a valid certificate path",
-    )
     def test_age_category_calculation(self):
         """Test that age category calculation works for returned athletes."""
-        athletes = entries.fetch_club_athletes("1765")
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "Athletes": [
+                {
+                    "Urn": 12345,
+                    "Firstname": "Alice",
+                    "Lastname": "Young",
+                    "Dob": "2010-05-15",
+                    "CompetitiveRegStatus": "Active",
+                },
+                {
+                    "Urn": 67890,
+                    "Firstname": "Bob",
+                    "Lastname": "Middle",
+                    "Dob": "2000-03-22",
+                    "CompetitiveRegStatus": "Active",
+                },
+                {
+                    "Urn": 11111,
+                    "Firstname": "Charlie",
+                    "Lastname": "Old",
+                    "Dob": "1980-01-01",
+                    "CompetitiveRegStatus": "Active",
+                },
+            ]
+        }
+
+        with (
+            patch("website.entries.httpx.Client") as mock_client_class,
+            patch.dict(
+                os.environ,
+                {
+                    "EA_STAGING": "true",
+                    "EA_CALL_KEY": "test_key",
+                    "EA_CALL_SECRET": "test_secret",
+                    "EA_CERT_PATH": "/tmp/test.pfx",
+                    "EA_CERT_PASSWORD": "test_pass",
+                },
+            ),
+            patch("website.entries.Path.exists", return_value=True),
+            patch("builtins.open", create=True) as mock_open,
+        ):
+            mock_open.return_value.__enter__.return_value.read.return_value = (
+                b"fake_pfx_data"
+            )
+
+            with patch("website.entries.pkcs12.load_key_and_certificates") as mock_pkcs:
+                from cryptography.hazmat.primitives.asymmetric import rsa
+                from cryptography import x509
+                from cryptography.x509.oid import NameOID
+                from cryptography.hazmat.primitives import hashes
+                from cryptography.hazmat.backends import default_backend
+                from datetime import datetime, timedelta
+
+                private_key = rsa.generate_private_key(
+                    public_exponent=65537,
+                    key_size=2048,
+                    backend=default_backend(),
+                )
+                cert_builder = x509.CertificateBuilder()
+                cert_builder = cert_builder.subject_name(
+                    x509.Name(
+                        [x509.NameAttribute(NameOID.COMMON_NAME, "test.example.com")]
+                    )
+                )
+                cert_builder = cert_builder.issuer_name(
+                    x509.Name(
+                        [x509.NameAttribute(NameOID.COMMON_NAME, "test.example.com")]
+                    )
+                )
+                cert_builder = cert_builder.public_key(private_key.public_key())
+                cert_builder = cert_builder.serial_number(x509.random_serial_number())
+                cert_builder = cert_builder.not_valid_before(datetime.utcnow())
+                cert_builder = cert_builder.not_valid_after(
+                    datetime.utcnow() + timedelta(days=365)
+                )
+                certificate = cert_builder.sign(
+                    private_key, hashes.SHA256(), backend=default_backend()
+                )
+
+                mock_pkcs.return_value = (private_key, certificate, [])
+
+                mock_client = MagicMock()
+                mock_client.get.return_value = mock_response
+                mock_client.__enter__.return_value = mock_client
+                mock_client.__exit__.return_value = None
+                mock_client_class.return_value = mock_client
+
+                athletes = entries.fetch_club_athletes("1765")
+
         reference_date = date(2025, 8, 31)  # Standard EA reference date
 
         assert len(athletes) > 0
