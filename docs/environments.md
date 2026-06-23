@@ -98,10 +98,10 @@ No `.env` file is needed for unit tests. Set these only if you want to run the l
 ```env
 # Only required for tests/unit/test_entries_ea_api.py live integration test
 EA_STAGING=true
-EA_CALL_KEY=eventprov2
-EA_CALL_SECRET=$33#(sport2
-EA_CERT_PATH=data/TrApiStagingEVENT2ClientCert.pfx
-EA_CERT_PASSWORD=EvSTg@561760v2
+EA_CALL_KEY=<staging EA call key>
+EA_CALL_SECRET=<staging EA call secret>
+EA_CERT_PATH=data/<staging-cert>.pfx
+EA_CERT_PASSWORD=<staging cert password>
 ```
 
 For Playwright UI tests only:
@@ -117,9 +117,9 @@ PRODUCTION=false
 | Secret name | Value |
 |---|---|
 | `EA_CERT_PFX_BASE64` | Base64-encoded staging `.pfx` file |
-| `EA_CERT_PASSWORD` | `EvSTg@561760v2` |
-| `EA_CALL_KEY` | `eventprov2` |
-| `EA_CALL_SECRET` | `$33#(sport2` |
+| `EA_CERT_PASSWORD` | Stored in GitHub environment secret |
+| `EA_CALL_KEY` | Stored in GitHub environment secret |
+| `EA_CALL_SECRET` | Stored in GitHub environment secret |
 
 These are loaded by the `unit-tests` job and written to `$GITHUB_ENV`. They point at the **staging** EA endpoint only (`EA_STAGING=true`). No production credentials are stored in CI.
 
@@ -127,13 +127,13 @@ These are loaded by the `unit-tests` job and written to `$GITHUB_ENV`. They poin
 
 | Field | Value |
 |---|---|
-| Call key | `eventprov2` |
-| Call secret | `$33#(sport2` |
-| Certificate | `data/TrApiStagingEVENT2ClientCert.pfx` |
-| Certificate password | `EvSTg@561760v2` |
-| Base URL | `https://staging.myathletics.uk/TrinityAPIstaging/TrinityAPIService.svc/` |
+| Call key | Managed as a secret (do not commit) |
+| Call secret | Managed as a secret (do not commit) |
+| Certificate | Local file referenced by `EA_CERT_PATH` |
+| Certificate password | Managed as a secret (do not commit) |
+| Base URL | Set by `EA_STAGING=true` (staging endpoint) |
 
-The staging cert is checked into `data/` as `TrApiStagingEVENT2ClientCert.pfx.txt` (rename to `.pfx` before use). It contains no production data.
+The staging cert is stored under `data/` as a `.pfx.txt` file (rename to `.pfx` before use). It contains no production data.
 
 ### Running tests locally
 
@@ -236,10 +236,10 @@ Copy the signing secret (`whsec_…`) into `.env` as `STRIPE_WEBHOOK_SECRET`.
 | `DATABASE_URL` | unset (`data/app.duckdb`) | unset (`:memory:` / temp file) | unset (`data/app.duckdb`) |
 | `EA_STAGING` | `false` | `true` | `false` |
 | `EA_TEST_MODE` | unset | unset | unset |
-| `EA_CALL_KEY` | Production key | `eventprov2` | Production key |
-| `EA_CALL_SECRET` | Production secret | `$33#(sport2` | Production secret |
+| `EA_CALL_KEY` | Production key | Staging key (secret) | Production key |
+| `EA_CALL_SECRET` | Production secret | Staging secret (secret) | Production secret |
 | `EA_CERT_PATH` | Path to prod cert | Path to staging cert | Path to prod cert |
-| `EA_CERT_PASSWORD` | Prod cert password | `EvSTg@561760v2` | Prod cert password |
+| `EA_CERT_PASSWORD` | Prod cert password | Staging cert password (secret) | Prod cert password |
 | `STRIPE_SECRET_KEY` | `sk_test_…` | `sk_test_…` (mocked in unit tests) | `sk_live_…` |
 | `STRIPE_PUBLISHABLE_KEY` | `pk_test_…` | `pk_test_…` | `pk_live_…` |
 | `STRIPE_WEBHOOK_SECRET` | Stripe CLI `whsec_…` | mocked in unit tests | Dashboard `whsec_…` |

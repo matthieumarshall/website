@@ -82,6 +82,5 @@ scripts/pdf_to_markdown.py
 data/original_website
 .github\skills\vps\SKILL.md
 
-# test certificate for EA API staging environment, not for production use
-data/TrApiStagingEVENT2ClientCert.pfx.txt
-data/TrApiStagingEVENT2ClientCert.pfx.txt.clean
+# EA client certificate artifacts (staging/production)
+data/*ClientCert*.pfx*
