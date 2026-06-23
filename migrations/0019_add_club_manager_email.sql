@@ -1,0 +1,1 @@
+ALTER TABLE club_managers ADD COLUMN IF NOT EXISTS email VARCHAR;

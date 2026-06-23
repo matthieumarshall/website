@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Entries Overview — Oxfordshire Cross Country League{% endblock %}
+{% block content %}
+<div class="mb-4 d-flex flex-wrap align-items-center justify-content-between gap-2">
+  <div>
+    <h1 class="h3 mb-1">Team Entries</h1>
+    <p class="text-muted mb-0">Overview of all team entries across seasons.</p>
+  </div>
+</div>
+
+{# Season filter #}
+<form class="row g-2 align-items-end mb-4" method="get" action="/admin/entries">
+  <div class="col-auto">
+    <label for="filter-season" class="form-label">Season</label>
+    <select id="filter-season" name="season_id" class="form-select form-select-sm"
+            hx-get="/admin/entries" hx-target="#entries-table-body" hx-swap="innerHTML"
+            hx-include="[name='club_id'],[name='status']">
+      <option value="">All seasons</option>
+      {% for season in seasons %}
+        <option value="{{ season.id }}" {% if filter_season_id == season.id %}selected{% endif %}>
+          {{ season.name }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <label for="filter-status" class="form-label">Status</label>
+    <select id="filter-status" name="status" class="form-select form-select-sm"
+            hx-get="/admin/entries" hx-target="#entries-table-body" hx-swap="innerHTML"
+            hx-include="[name='season_id'],[name='club_id']">
+      <option value="">All statuses</option>
+      <option value="pending_payment" {% if filter_status == 'pending_payment' %}selected{% endif %}>Pending payment</option>
+      <option value="payment_initiated" {% if filter_status == 'payment_initiated' %}selected{% endif %}>Payment initiated (BACS)</option>
+      <option value="paid" {% if filter_status == 'paid' %}selected{% endif %}>Paid</option>
+      <option value="payment_failed" {% if filter_status == 'payment_failed' %}selected{% endif %}>Payment failed</option>
+    </select>
+  </div>
+  <div class="col-auto">
+    <button type="submit" class="btn btn-outline-secondary btn-sm">Filter</button>
+  </div>
+</form>
+
+<div class="table-responsive">
+  <table class="table table-hover align-middle">
+    <thead class="table-light">
+      <tr>
+        <th scope="col">Season</th>
+        <th scope="col">Club</th>
+        <th scope="col">Manager</th>
+        <th scope="col">Status</th>
+        <th scope="col">Fixtures remaining</th>
+        <th scope="col">Total</th>
+        <th scope="col">Date</th>
+        <th scope="col"><span class="visually-hidden">Actions</span></th>
+      </tr>
+    </thead>
+    <tbody id="entries-table-body">
+      {% if batches %}
+        {% for batch in batches %}
+          <tr>
+            <td>{{ batch.season_name }}</td>
+            <td>{{ batch.club_name }}</td>
+            <td>{{ batch.manager_username }}</td>
+            <td>
+              {% if batch.status == 'paid' %}
+                <span class="badge text-bg-success">Paid</span>
+              {% elif batch.status == 'payment_initiated' %}
+                <span class="badge text-bg-info">BACS pending</span>
+              {% elif batch.status == 'pending_payment' %}
+                <span class="badge text-bg-warning">Awaiting payment</span>
+              {% else %}
+                <span class="badge text-bg-danger">Failed</span>
+              {% endif %}
+            </td>
+            <td>{{ batch.fixtures_remaining_at_entry }}</td>
+            <td>£{{ "%.2f"|format(batch.total_pence / 100) }}</td>
+            <td>{{ batch.created_at.strftime('%d %b %Y') if batch.created_at else '—' }}</td>
+            <td>
+              <a href="/admin/entries/{{ batch.season_id }}" class="btn btn-outline-secondary btn-sm">View season</a>
+            </td>
+          </tr>
+        {% endfor %}
+      {% else %}
+        <tr>
+          <td colspan="8" class="text-muted text-center py-4">No entries found.</td>
+        </tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+
+<hr class="my-4">
+<h2 class="h5 mb-3">Season configuration</h2>
+<div class="list-group">
+  {% for season in seasons %}
+    <a href="/admin/entries/{{ season.id }}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+      {{ season.name }}
+      <span class="badge text-bg-secondary rounded-pill">Configure &rarr;</span>
+    </a>
+  {% endfor %}
+  {% if not seasons %}
+    <p class="text-muted">No seasons exist yet. <a href="/fixtures">Create a season first.</a></p>
+  {% endif %}
+</div>
+{% endblock %}

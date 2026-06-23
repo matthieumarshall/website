@@ -22,7 +22,7 @@
     </thead>
     <tbody>
       {% for row in rows %}
-      {% set scores = row.fixture_scores | fromjson if row.fixture_scores else {} %}
+      {% set scores = row.scores_by_fixture if row.scores_by_fixture is defined else (row.fixture_scores | fromjson if row.fixture_scores else {}) %}
       <tr>
         <td>{{ row.position }}</td>
         {% if standings_type == "team" %}
@@ -33,7 +33,7 @@
         <td>{{ row.club if row.club else '—' }}</td>
         {% for fixture in fixtures %}
         {% set fid_str = fixture.id | string %}
-        {% if scores and fid_str in scores %}
+        {% if fid_str in scores %}
         <td class="text-center">{{ scores[fid_str] }}</td>
         {% else %}
         <td class="text-center text-muted">—</td>

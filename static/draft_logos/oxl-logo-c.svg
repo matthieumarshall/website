@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"
+     role="img" aria-label="Oxfordshire Cross Country League logo — variant C">
+  <title>OXL — Oxfordshire Cross Country League</title>
+
+  <!-- Gold outer ring -->
+  <circle cx="100" cy="100" r="97" fill="#B09A50"/>
+  <!-- Off-white field -->
+  <circle cx="100" cy="100" r="90" fill="#F7F5F2"/>
+  <!-- Brown inner accent ring -->
+  <circle cx="100" cy="100" r="86" fill="none" stroke="#6B4F3A" stroke-width="1.5"/>
+
+  <!--
+    OXL — stroke-based letters; stroke-linecap/linejoin="round" for curves.
+
+    O and L in navy blue; X in gold — the X visually represents
+    the "cross" in Cross Country.
+
+    X curve style — CLOCKWISE SWIRL (dynamic / athletic):
+      Each arm curves in the same clockwise rotational direction,
+      giving the X a sense of motion and speed.
+      Control points are placed at right-angle corners of the X box:
+        \  arm  Q 122, 66  → midpoint ≈ (112,  83)  [sweeps upper-right]
+        /  arm  Q 122,134  → midpoint ≈ (112, 117)  [sweeps lower-right]
+      Both arms arc toward the right side of the badge — a spinning, energetic X.
+  -->
+  <g fill="none" stroke-width="12"
+     stroke-linecap="round" stroke-linejoin="round">
+
+    <!-- O — navy blue -->
+    <ellipse cx="58" cy="100" rx="12" ry="28" stroke="#1F3A5F"/>
+
+    <!-- X — gold, clockwise-swirl arcs -->
+    <path d="M  82,66  Q 122, 66 122,134" stroke="#B09A50"/>
+    <path d="M 122,66  Q 122,134  82,134" stroke="#B09A50"/>
+
+    <!-- L — navy blue -->
+    <polyline points="134,66 134,134 155,134" stroke="#1F3A5F"/>
+
+  </g>
+</svg>

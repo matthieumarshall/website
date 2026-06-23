@@ -73,4 +73,21 @@
       requestAnimationFrame(balanceAll);
     }, 100);
   });
+
+  // Standings category active state: highlight the clicked button in the
+  // category tab group while HTMX loads the new table content.
+  document.addEventListener('click', function (evt) {
+    var categoryBtn = evt.target.closest('nav.standings-tab-nav [role="group"] button');
+    if (!categoryBtn) return;
+
+    var group = categoryBtn.closest('[role="group"]');
+    if (!group) return;
+
+    group.querySelectorAll('button').forEach(function (b) {
+      b.classList.remove('active');
+      b.setAttribute('aria-pressed', 'false');
+    });
+    categoryBtn.classList.add('active');
+    categoryBtn.setAttribute('aria-pressed', 'true');
+  });
 }());
