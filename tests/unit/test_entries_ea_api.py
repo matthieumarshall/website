@@ -472,6 +472,7 @@ class TestEAStagingIntegration:
       - Code logic issues
     """
 
+    @pytest.mark.integration
     @pytest.mark.skipif(
         not _ea_staging_configured(),
         reason=(
@@ -508,6 +509,7 @@ class TestEAStagingIntegration:
             "Check the staging club data."
         )
 
+    @pytest.mark.integration
     @pytest.mark.skipif(
         not _ea_staging_configured(),
         reason=(
