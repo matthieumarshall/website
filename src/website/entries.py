@@ -2,6 +2,7 @@
 
 import os
 import tempfile
+import logging
 from datetime import date, datetime, time, timezone
 from pathlib import Path
 
@@ -28,6 +29,30 @@ _EA_STAGING_BASE = (
 _EA_LIVE_BASE = "https://TrinityAPI.myathletics.uk/TrinityAPIService.svc/"
 
 _JUNIOR_CATEGORIES = frozenset({"U9", "U11", "U13", "U15", "U17"})
+
+logger = logging.getLogger(__name__)
+
+
+def _is_supported_cert_path(cert_path: str) -> bool:
+    return cert_path.endswith(".pfx") or cert_path.endswith(".pfx.txt")
+
+
+def validate_ea_cert_path_for_startup() -> None:
+    """Fail fast on invalid EA certificate path extension at app startup."""
+    if os.environ.get("EA_TEST_MODE", "").lower() == "true":
+        logger.warning("EA startup cert validation skipped because EA_TEST_MODE=true")
+        return
+
+    cert_path = os.environ.get("EA_CERT_PATH", "")
+    if not cert_path:
+        return
+
+    if not _is_supported_cert_path(cert_path):
+        raise RuntimeError(
+            "Invalid EA_CERT_PATH. Expected a path ending with '.pfx' or '.pfx.txt' "
+            f"but got: {cert_path}. "
+            "Example: data/TrApiLiveOxfordXCLClientCert.pfx.txt"
+        )
 
 
 def _get_test_athletes() -> list[dict]:
@@ -142,8 +167,6 @@ def _normalize_ea_athlete(raw: dict) -> dict:
 class TemporaryAPIError(Exception):
     """Raised when EA API returns a temporary error (5xx status code)."""
 
-    pass
-
 
 @retry(
     retry=retry_if_exception_type((httpx.RequestError, TemporaryAPIError)),
@@ -208,9 +231,26 @@ def fetch_club_athletes(ea_club_id: str) -> list[dict]:
     cert_password = os.environ.get("EA_CERT_PASSWORD", "")
     call_key = os.environ.get("EA_CALL_KEY", "")
     call_secret = os.environ.get("EA_CALL_SECRET", "")
+    ea_staging = os.environ.get("EA_STAGING", "true").lower() == "true"
+
+    cert_name = Path(cert_path).name if cert_path else "<unset>"
+    logger.warning(
+        "EA fetch start: club_id=%s, staging=%s, cert_name=%s",
+        ea_club_id,
+        ea_staging,
+        cert_name,
+    )
 
     # Validate required credentials
     if not cert_path or not cert_password or not call_key or not call_secret:
+        logger.error(
+            "EA fetch configuration missing: has_cert_path=%s has_cert_password=%s "
+            "has_call_key=%s has_call_secret=%s",
+            bool(cert_path),
+            bool(cert_password),
+            bool(call_key),
+            bool(call_secret),
+        )
         raise HTTPException(
             status_code=503,
             detail=(
@@ -223,14 +263,22 @@ def fetch_club_athletes(ea_club_id: str) -> list[dict]:
     cert_file_path = None
     key_file_path = None
     try:
-        if cert_path.endswith(".pfx") or cert_path.endswith(".pfx.txt"):
+        logger.warning("EA certificate path raw value: %s", cert_path)
+        if _is_supported_cert_path(cert_path):
             if not Path(cert_path).exists():
+                logger.error("EA certificate file does not exist: %s", cert_path)
                 raise HTTPException(
                     status_code=503,
                     detail="EA certificate file not found.",
                 )
+            logger.warning("EA certificate file found at path: %s", cert_path)
             with open(cert_path, "rb") as f:
                 pfx_data = f.read()
+            logger.warning(
+                "EA certificate file loaded: bytes=%s path=%s",
+                len(pfx_data),
+                cert_path,
+            )
             # Extract certificate and key from PFX
             try:
                 private_key, certificate, _additional_certs = (
@@ -269,12 +317,21 @@ def fetch_club_athletes(ea_club_id: str) -> list[dict]:
                 key_temp.close()
                 key_file_path = key_temp.name
 
+                logger.warning(
+                    "EA certificate extracted to temporary PEM files successfully"
+                )
+
             except Exception as e:
+                logger.error("EA certificate parse failed: %s", e, exc_info=True)
                 raise HTTPException(
                     status_code=503,
                     detail=f"Failed to load EA certificate: {e}",
                 ) from e
         else:
+            logger.error(
+                "EA certificate path rejected due to unsupported extension: %s",
+                cert_path,
+            )
             raise HTTPException(
                 status_code=503,
                 detail="Invalid EA certificate path.",
@@ -282,6 +339,7 @@ def fetch_club_athletes(ea_club_id: str) -> list[dict]:
     except HTTPException:
         raise
     except Exception as e:
+        logger.error("EA certificate loading error: %s", e, exc_info=True)
         raise HTTPException(
             status_code=503,
             detail=f"Error loading EA certificate: {e}",
@@ -301,7 +359,13 @@ def fetch_club_athletes(ea_club_id: str) -> list[dict]:
             cert_file_path=cert_file_path,
             key_file_path=key_file_path,
         )
+        logger.warning(
+            "EA API response received: status=%s reason=%s",
+            resp.status_code,
+            resp.reason_phrase,
+        )
     except httpx.RequestError as exc:
+        logger.error("EA API request error: %s", exc, exc_info=True)
         raise HTTPException(
             status_code=503,
             detail=(
@@ -310,6 +374,7 @@ def fetch_club_athletes(ea_club_id: str) -> list[dict]:
             ),
         ) from exc
     except TemporaryAPIError as exc:
+        logger.error("EA API temporary server error: %s", exc, exc_info=True)
         raise HTTPException(
             status_code=503,
             detail=(
@@ -348,6 +413,9 @@ def fetch_club_athletes(ea_club_id: str) -> list[dict]:
         )
     data = resp.json()
     athletes = data.get("Athletes") or []
+    logger.warning(
+        "EA fetch successful: club_id=%s athletes=%s", ea_club_id, len(athletes)
+    )
     return [_normalize_ea_athlete(a) for a in athletes]
 
 
