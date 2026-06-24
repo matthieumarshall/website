@@ -58,6 +58,14 @@ Planned islands:
 - HTML sanitisation with `nh3` before DB write — **DONE**
 - Export rules & constitution to PDF — **DONE**
 
+### 2.3 Other pages
+- Divisions
+- Past individual winners
+- Links
+  - to national athletics organisations, local clubs, other cross country leagues
+- Info somewhere about member clubs
+-
+
 ---
 
 ## Phase 3: Fixtures

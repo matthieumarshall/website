@@ -83,4 +83,4 @@ data/original_website
 .github\skills\vps\SKILL.md
 
 # EA client certificate artifacts (staging/production)
-data/*ClientCert*.pfx*
+data/*ClientCert*pfx*
