@@ -129,6 +129,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 async def _lifespan(app: FastAPI):  # noqa: ARG001
     from website.database import _get_db_path
 
+    entries_module.validate_ea_cert_path_for_startup()
+
     _UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
     _FIXTURE_MAPS_DIR.mkdir(parents=True, exist_ok=True)
     _ADMIN_DOCS_DIR.mkdir(parents=True, exist_ok=True)
