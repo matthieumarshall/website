@@ -328,12 +328,7 @@ def fetch_club_athletes(ea_club_id: str) -> list[dict]:
     # Validate required credentials
     if not cert_path or not cert_password or not call_key or not call_secret:
         logger.error(
-            "EA fetch configuration missing: has_cert_path=%s has_cert_password=%s "
-            "has_call_key=%s has_call_secret=%s",
-            bool(cert_path),
-            bool(cert_password),
-            bool(call_key),
-            bool(call_secret),
+            "EA fetch configuration missing: required England Athletics credentials or certificate details are not configured"
         )
         raise HTTPException(
             status_code=503,
