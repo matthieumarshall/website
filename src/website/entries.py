@@ -369,10 +369,10 @@ def fetch_club_athletes(ea_club_id: str) -> list[dict]:
             logger.warning("EA certificate file found at path: %s", resolved_cert_path)
             with open(resolved_cert_path, "rb") as f:
                 pfx_data = f.read()
-            logger.warning(
-                "EA certificate file loaded: bytes=%s path=%s",
+            logger.debug(
+                "EA certificate file loaded: bytes=%s name=%s",
                 len(pfx_data),
-                resolved_cert_path,
+                resolved_cert_path.name,
             )
             # Extract certificate and key from PFX
             try:
