@@ -84,3 +84,4 @@ data/original_website
 
 # EA client certificate artifacts (staging/production)
 data/*ClientCert*pfx*
+data/stripe*
