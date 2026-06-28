@@ -20,9 +20,24 @@
     table.athletes tfoot td { font-weight: bold; background: #f9f9f9; }
     .total-row { font-size: 11pt; }
     .footer { margin-top: 2em; font-size: 9pt; color: #888; border-top: 0.5pt solid #ccc; padding-top: 0.5em; }
+    .wip-banner { display: none; }
+    @media screen {
+      .wip-banner {
+        display: block;
+        margin-bottom: 1em;
+        padding: 0.75em 1em;
+        border: 1px solid #f0ad4e;
+        background: #fff3cd;
+        color: #664d03;
+        border-radius: 4px;
+      }
+    }
   </style>
 </head>
 <body>
+  <div class="wip-banner" role="status" aria-live="polite">
+    Team entries are still a work in progress.
+  </div>
   <div class="header">
     <h1>Oxfordshire Cross Country League</h1>
     <p>Team Entry Receipt</p>
