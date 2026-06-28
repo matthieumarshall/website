@@ -4,7 +4,7 @@ import pytest
 from website import repository
 from website.database import run_migrations
 from website.models import Fixture, Season
-from cli.seed_results import _import_results
+from cli.seed_results import _import_results, _normalise_category
 
 _VALID_CSV = (
     "position,athlete_name,time,category,gender\n"
@@ -163,3 +163,16 @@ class TestImportResults:
         # No race should have been committed
         races = repository.list_races_for_fixture(db, fixture.id)
         assert races == []
+
+
+class TestNormaliseCategory:
+    def test_normalises_u17_boys_and_girls(self) -> None:
+        assert _normalise_category("U17 Boys", "Male") == "U17M"
+        assert _normalise_category("U17 Girls", "Female") == "U17W"
+
+    def test_normalises_v70_plus_by_gender(self) -> None:
+        assert _normalise_category("V70+", "Male") == "MV70"
+        assert _normalise_category("V70+", "Female") == "WV70"
+
+    def test_normalises_v70_plus_with_space(self) -> None:
+        assert _normalise_category("V70 +", "Male") == "MV70"
