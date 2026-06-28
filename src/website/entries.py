@@ -1,8 +1,8 @@
 """England Athletics TRAPI API client, age category logic, and entry eligibility."""
 
+import logging
 import os
 import tempfile
-import logging
 from datetime import date, datetime, time, timezone
 from pathlib import Path
 
