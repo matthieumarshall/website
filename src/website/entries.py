@@ -318,7 +318,7 @@ def fetch_club_athletes(ea_club_id: str) -> list[dict]:
     ea_staging = os.environ.get("EA_STAGING", "true").lower() == "true"
 
     cert_name = Path(cert_path).name if cert_path else "<unset>"
-    logger.warning(
+    logger.info(
         "EA fetch start: club_id=%s, staging=%s, cert_name=%s",
         ea_club_id,
         ea_staging,
