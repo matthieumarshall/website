@@ -5,3 +5,6 @@ python-multipart
 sqlalchemy
 passlib[bcrypt]
 itsdangerous
+matplotlib
+pandas
+seaborn

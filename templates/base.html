@@ -69,6 +69,11 @@
 
       <!-- Main content column -->
       <main class="col-md-9 col-xl-10 py-4 px-4">
+        {% if current_page == "entries" %}
+        <div class="alert alert-warning" role="alert">
+          Team entries are still a work in progress.
+        </div>
+        {% endif %}
         {% block content %}{% endblock %}
       </main>
 

@@ -59,6 +59,8 @@ _CATEGORY_NAME_MAP: dict[str, str] = {
     "u13 girls": "U13G",
     "u15 boys": "U15B",
     "u15 girls": "U15G",
+    "u17 boys": "U17M",
+    "u17 girls": "U17W",
     "u17 men": "U17M",
     "u17 women": "U17W",
 }
@@ -74,6 +76,8 @@ _GENDER_CATEGORY_MAP: dict[tuple[str, str], str] = {
     ("female", "v60"): "WV60",
     ("male", "v70"): "MV70",
     ("female", "v70"): "WV70",
+    ("male", "v70+"): "MV70",
+    ("female", "v70+"): "WV70",
 }
 
 
@@ -98,10 +102,13 @@ def _normalise_category(raw_category: str, gender: str) -> str:
             return code
 
     cat_lower = stripped.lower()
+    cat_compact = cat_lower.replace(" ", "")
 
     # Gender-dependent mapping (e.g. "V40" + "male" → "MV40")
     gender_lower = gender.strip().lower()
-    gender_mapped = _GENDER_CATEGORY_MAP.get((gender_lower, cat_lower))
+    gender_mapped = _GENDER_CATEGORY_MAP.get(
+        (gender_lower, cat_lower)
+    ) or _GENDER_CATEGORY_MAP.get((gender_lower, cat_compact))
     if gender_mapped:
         return gender_mapped
 
