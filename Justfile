@@ -22,7 +22,7 @@ audit:
 
 # Start the development server with auto-reload.
 serve:
-    uv run uvicorn website.main:app --reload --env-file .env
+    uv run uvicorn website.main:app --reload --reload-dir src --reload-dir templates --reload-dir static --env-file .env
 
 test-ui:
     uv run pytest tests/ui -v
