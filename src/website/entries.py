@@ -1,5 +1,6 @@
 """England Athletics TRAPI API client, age category logic, and entry eligibility."""
 
+import logging
 import os
 import tempfile
 from datetime import date, datetime, time, timezone
@@ -28,6 +29,101 @@ _EA_STAGING_BASE = (
 _EA_LIVE_BASE = "https://TrinityAPI.myathletics.uk/TrinityAPIService.svc/"
 
 _JUNIOR_CATEGORIES = frozenset({"U9", "U11", "U13", "U15", "U17"})
+
+logger = logging.getLogger(__name__)
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+_DOTENV_PATH = _PROJECT_ROOT / ".env"
+
+
+def _clean_env_path(path_value: str) -> str:
+    return path_value.strip().strip('"').strip("'")
+
+
+def _read_dotenv_value(key: str) -> str | None:
+    if not _DOTENV_PATH.exists():
+        return None
+    try:
+        for raw_line in _DOTENV_PATH.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            lhs, rhs = line.split("=", 1)
+            if lhs.strip() == key:
+                return _clean_env_path(rhs)
+    except OSError:
+        return None
+    return None
+
+
+def _path_candidates(path_value: str) -> list[Path]:
+    candidate = Path(path_value)
+    if candidate.is_absolute():
+        return [candidate]
+    return [Path.cwd() / candidate, _PROJECT_ROOT / candidate]
+
+
+def _resolve_existing_cert_path(cert_path: str) -> Path | None:
+    cleaned = _clean_env_path(cert_path)
+    for path in _path_candidates(cleaned):
+        if path.exists():
+            return path
+
+    dotenv_cert_path = _read_dotenv_value("EA_CERT_PATH")
+    if dotenv_cert_path and dotenv_cert_path != cleaned:
+        for path in _path_candidates(dotenv_cert_path):
+            if path.exists():
+                logger.warning(
+                    "EA_CERT_PATH from shell env was not found; using .env value instead"
+                )
+                return path
+    return None
+
+
+def _is_supported_cert_path(cert_path: str) -> bool:
+    normalized = _clean_env_path(cert_path).replace("\\", "/").lower()
+    return normalized.endswith(".pfx") or normalized.endswith("pfx.txt")
+
+
+def _is_ascii(value: str) -> bool:
+    try:
+        value.encode("ascii")
+        return True
+    except UnicodeEncodeError:
+        return False
+
+
+def validate_ea_header_values_for_startup() -> None:
+    """Fail fast when EA header values contain non-ASCII characters."""
+    if os.environ.get("EA_TEST_MODE", "").lower() == "true":
+        return
+
+    call_key = os.environ.get("EA_CALL_KEY", "")
+    call_secret = os.environ.get("EA_CALL_SECRET", "")
+    for name, value in (("EA_CALL_KEY", call_key), ("EA_CALL_SECRET", call_secret)):
+        if value and not _is_ascii(value):
+            raise RuntimeError(
+                f"Invalid {name}. Value contains non-ASCII characters, but HTTP "
+                "headers must be ASCII. Check for characters like '£' and replace "
+                "with the exact API secret value."
+            )
+
+
+def validate_ea_cert_path_for_startup() -> None:
+    """Fail fast on invalid EA certificate path extension at app startup."""
+    if os.environ.get("EA_TEST_MODE", "").lower() == "true":
+        logger.warning("EA startup cert validation skipped because EA_TEST_MODE=true")
+        return
+
+    cert_path = _clean_env_path(os.environ.get("EA_CERT_PATH", ""))
+    if not cert_path:
+        return
+
+    if not _is_supported_cert_path(cert_path):
+        raise RuntimeError(
+            "Invalid EA_CERT_PATH. Expected a path ending with '.pfx' or '.pfx.txt' "
+            f"but got: {cert_path}. "
+            "Example: data/TrApiLiveOxfordXCLClientCert.pfx.txt"
+        )
 
 
 def _get_test_athletes() -> list[dict]:
@@ -104,6 +200,19 @@ def _ea_base_url() -> str:
 def _ea_headers() -> dict[str, str]:
     call_key = os.environ.get("EA_CALL_KEY", "")
     call_secret = os.environ.get("EA_CALL_SECRET", "")
+    for name, value in (
+        ("EA_CALL_KEY", call_key),
+        ("EA_CALL_SECRET", call_secret),
+    ):
+        if value and not _is_ascii(value):
+            logger.error("EA header value contains non-ASCII characters: %s", name)
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    f"Invalid {name}. Value contains non-ASCII characters. "
+                    "HTTP headers must be ASCII."
+                ),
+            )
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
     return {
         "X-TRAPI-CALLKEY": call_key,
@@ -141,8 +250,6 @@ def _normalize_ea_athlete(raw: dict) -> dict:
 
 class TemporaryAPIError(Exception):
     """Raised when EA API returns a temporary error (5xx status code)."""
-
-    pass
 
 
 @retry(
@@ -208,9 +315,21 @@ def fetch_club_athletes(ea_club_id: str) -> list[dict]:
     cert_password = os.environ.get("EA_CERT_PASSWORD", "")
     call_key = os.environ.get("EA_CALL_KEY", "")
     call_secret = os.environ.get("EA_CALL_SECRET", "")
+    ea_staging = os.environ.get("EA_STAGING", "true").lower() == "true"
+
+    cert_name = Path(cert_path).name if cert_path else "<unset>"
+    logger.info(
+        "EA fetch start: club_id=%s, staging=%s, cert_name=%s",
+        ea_club_id,
+        ea_staging,
+        cert_name,
+    )
 
     # Validate required credentials
     if not cert_path or not cert_password or not call_key or not call_secret:
+        logger.error(
+            "EA fetch configuration missing: required England Athletics credentials or certificate details are not configured"
+        )
         raise HTTPException(
             status_code=503,
             detail=(
@@ -223,14 +342,33 @@ def fetch_club_athletes(ea_club_id: str) -> list[dict]:
     cert_file_path = None
     key_file_path = None
     try:
-        if cert_path.endswith(".pfx") or cert_path.endswith(".pfx.txt"):
-            if not Path(cert_path).exists():
+        logger.warning("EA certificate path raw value: %s", cert_path)
+        if _is_supported_cert_path(cert_path):
+            resolved_cert_path = _resolve_existing_cert_path(cert_path)
+            if resolved_cert_path is None:
+                logger.error(
+                    "EA certificate file does not exist: path=%s cwd=%s "
+                    "project_root=%s dotenv_ea_cert_path=%s",
+                    cert_path,
+                    Path.cwd(),
+                    _PROJECT_ROOT,
+                    _read_dotenv_value("EA_CERT_PATH"),
+                )
                 raise HTTPException(
                     status_code=503,
-                    detail="EA certificate file not found.",
+                    detail=(
+                        "EA certificate file not found. Check EA_CERT_PATH and ensure "
+                        "your shell environment is not overriding .env."
+                    ),
                 )
-            with open(cert_path, "rb") as f:
+            logger.warning("EA certificate file found at path: %s", resolved_cert_path)
+            with open(resolved_cert_path, "rb") as f:
                 pfx_data = f.read()
+            logger.debug(
+                "EA certificate file loaded: bytes=%s name=%s",
+                len(pfx_data),
+                resolved_cert_path.name,
+            )
             # Extract certificate and key from PFX
             try:
                 private_key, certificate, _additional_certs = (
@@ -269,12 +407,21 @@ def fetch_club_athletes(ea_club_id: str) -> list[dict]:
                 key_temp.close()
                 key_file_path = key_temp.name
 
+                logger.warning(
+                    "EA certificate extracted to temporary PEM files successfully"
+                )
+
             except Exception as e:
+                logger.error("EA certificate parse failed: %s", e, exc_info=True)
                 raise HTTPException(
                     status_code=503,
                     detail=f"Failed to load EA certificate: {e}",
                 ) from e
         else:
+            logger.error(
+                "EA certificate path rejected due to unsupported extension: %s",
+                cert_path,
+            )
             raise HTTPException(
                 status_code=503,
                 detail="Invalid EA certificate path.",
@@ -282,6 +429,7 @@ def fetch_club_athletes(ea_club_id: str) -> list[dict]:
     except HTTPException:
         raise
     except Exception as e:
+        logger.error("EA certificate loading error: %s", e, exc_info=True)
         raise HTTPException(
             status_code=503,
             detail=f"Error loading EA certificate: {e}",
@@ -301,7 +449,13 @@ def fetch_club_athletes(ea_club_id: str) -> list[dict]:
             cert_file_path=cert_file_path,
             key_file_path=key_file_path,
         )
+        logger.warning(
+            "EA API response received: status=%s reason=%s",
+            resp.status_code,
+            resp.reason_phrase,
+        )
     except httpx.RequestError as exc:
+        logger.error("EA API request error: %s", exc, exc_info=True)
         raise HTTPException(
             status_code=503,
             detail=(
@@ -310,6 +464,7 @@ def fetch_club_athletes(ea_club_id: str) -> list[dict]:
             ),
         ) from exc
     except TemporaryAPIError as exc:
+        logger.error("EA API temporary server error: %s", exc, exc_info=True)
         raise HTTPException(
             status_code=503,
             detail=(
@@ -348,6 +503,9 @@ def fetch_club_athletes(ea_club_id: str) -> list[dict]:
         )
     data = resp.json()
     athletes = data.get("Athletes") or []
+    logger.warning(
+        "EA fetch successful: club_id=%s athletes=%s", ea_club_id, len(athletes)
+    )
     return [_normalize_ea_athlete(a) for a in athletes]
 
 
