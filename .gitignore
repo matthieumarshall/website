@@ -85,3 +85,7 @@ data/original_website
 # EA client certificate artifacts (staging/production)
 data/*ClientCert*pfx*
 data/stripe*
+data/generated/*
+scripts/convert_round_xls_to_seed*
+scripts/list_original_results*
+scripts/standardize_original*
