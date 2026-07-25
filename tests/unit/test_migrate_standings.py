@@ -28,6 +28,7 @@ from _import_logger import ImportLogger  # type: ignore  # noqa: E402
 from _migration_helpers import (  # type: ignore  # noqa: E402
     create_season_if_missing,
 )
+import migrate_standings  # type: ignore  # noqa: E402
 
 
 # Test data helpers
@@ -143,6 +144,52 @@ def count_standings(con: duckdb.DuckDBPyConnection, table: str, **where_clause) 
 # ============================================================================
 # PHASE 4 TESTS
 # ============================================================================
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "raw_header,expected",
+    [
+        ("R1", "round_1"),
+        ("r1", "round_1"),
+        ("R 1", "round_1"),
+        ("r 5", "round_5"),
+        ("Round 1", "round_1"),
+        ("Round1", "round_1"),
+        ("ROUND 12", "round_12"),
+    ],
+)
+def test_normalise_standings_header_recognises_round_columns(
+    raw_header: str, expected: str
+) -> None:
+    """Round-column headers in various PDF formats normalise to round_N.
+
+    Regression test: some standings PDFs (e.g. the 2025-26 season export)
+    use a space between "R" and the round digit ("R 1" rather than "R1").
+    The header regex must match both forms.
+    """
+    assert migrate_standings._normalise_standings_header(raw_header) == expected
+
+
+@pytest.mark.unit
+def test_extract_round_scores_handles_spaced_round_headers() -> None:
+    """_extract_round_scores maps spaced round headers to fixture IDs."""
+    row_data = {
+        "position": "1",
+        "athlete_name": "Megan Rose",
+        "club": "Swindon Harriers",
+        "round_1": "1",
+        "round_2": "1",
+        "round_3": "1",
+        "round_4": "1",
+        "round_5": "1",
+        "total_score": "4",
+    }
+    fixture_order = [(1, date(2025, 11, 2)), (2, date(2025, 11, 9))]
+
+    scores = migrate_standings._extract_round_scores(row_data, fixture_order)
+
+    assert scores == {"1": 1, "2": 1}
 
 
 @pytest.mark.unit
