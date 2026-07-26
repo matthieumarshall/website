@@ -8,7 +8,9 @@ from website.models import (
     AthleteEntryRow,
     Club,
     ClubManager,
+    DivisionAssignment,
     EntryBatch,
+    ExternalLink,
     Fixture,
     FixtureImage,
     PaginatedPosts,
@@ -20,6 +22,7 @@ from website.models import (
     TimetableEntry,
     User,
     UserRole,
+    WinnerOverride,
     _MAX_FIXTURES_PER_SEASON,
 )
 
@@ -929,23 +932,46 @@ def get_user_by_id(db: duckdb.DuckDBPyConnection, user_id: int) -> User | None:
 
 def list_clubs(db: duckdb.DuckDBPyConnection) -> list[Club]:
     rows = db.execute(
-        "SELECT id, name, oxl_code, ea_club_id, is_active FROM clubs ORDER BY name"
+        "SELECT id, name, oxl_code, ea_club_id, is_active, opentrack_code,"
+        " website_url, is_oxfordshire_member FROM clubs ORDER BY name"
     ).fetchall()
     return [
-        Club(id=r[0], name=r[1], oxl_code=r[2], ea_club_id=r[3], is_active=r[4])
+        Club(
+            id=r[0],
+            name=r[1],
+            oxl_code=r[2],
+            ea_club_id=r[3],
+            is_active=r[4],
+            opentrack_code=r[5],
+            website_url=r[6],
+            is_oxfordshire_member=r[7],
+        )
         for r in rows
     ]
 
 
+def list_public_clubs(db: duckdb.DuckDBPyConnection) -> list[Club]:
+    """Return active clubs suitable for the public member directory."""
+    return [club for club in list_clubs(db) if club.is_active]
+
+
 def get_club_by_id(club_id: int, db: duckdb.DuckDBPyConnection) -> Club | None:
     row = db.execute(
-        "SELECT id, name, oxl_code, ea_club_id, is_active FROM clubs WHERE id = ?",
+        "SELECT id, name, oxl_code, ea_club_id, is_active, opentrack_code,"
+        " website_url, is_oxfordshire_member FROM clubs WHERE id = ?",
         [club_id],
     ).fetchone()
     if row is None:
         return None
     return Club(
-        id=row[0], name=row[1], oxl_code=row[2], ea_club_id=row[3], is_active=row[4]
+        id=row[0],
+        name=row[1],
+        oxl_code=row[2],
+        ea_club_id=row[3],
+        is_active=row[4],
+        opentrack_code=row[5],
+        website_url=row[6],
+        is_oxfordshire_member=row[7],
     )
 
 
@@ -954,18 +980,37 @@ def create_club(
     name: str,
     oxl_code: str,
     ea_club_id: str,
+    opentrack_code: str | None = None,
+    website_url: str | None = None,
+    is_oxfordshire_member: bool = True,
 ) -> Club:
     db.execute(
-        "INSERT INTO clubs (name, oxl_code, ea_club_id) VALUES (?, ?, ?)",
-        [name, oxl_code, ea_club_id],
+        "INSERT INTO clubs (name, oxl_code, ea_club_id, opentrack_code,"
+        " website_url, is_oxfordshire_member) VALUES (?, ?, ?, ?, ?, ?)",
+        [
+            name,
+            oxl_code,
+            ea_club_id,
+            opentrack_code,
+            website_url,
+            is_oxfordshire_member,
+        ],
     )
     row = db.execute(
-        "SELECT id, name, oxl_code, ea_club_id, is_active FROM clubs WHERE oxl_code = ?",
+        "SELECT id, name, oxl_code, ea_club_id, is_active, opentrack_code,"
+        " website_url, is_oxfordshire_member FROM clubs WHERE oxl_code = ?",
         [oxl_code],
     ).fetchone()
     assert row is not None  # noqa: S101
     return Club(
-        id=row[0], name=row[1], oxl_code=row[2], ea_club_id=row[3], is_active=row[4]
+        id=row[0],
+        name=row[1],
+        oxl_code=row[2],
+        ea_club_id=row[3],
+        is_active=row[4],
+        opentrack_code=row[5],
+        website_url=row[6],
+        is_oxfordshire_member=row[7],
     )
 
 
@@ -976,10 +1021,23 @@ def update_club(
     oxl_code: str,
     ea_club_id: str,
     is_active: bool,
+    opentrack_code: str | None = None,
+    website_url: str | None = None,
+    is_oxfordshire_member: bool = True,
 ) -> None:
     db.execute(
-        "UPDATE clubs SET name = ?, oxl_code = ?, ea_club_id = ?, is_active = ? WHERE id = ?",
-        [name, oxl_code, ea_club_id, is_active, club_id],
+        "UPDATE clubs SET name = ?, oxl_code = ?, ea_club_id = ?, is_active = ?,"
+        " opentrack_code = ?, website_url = ?, is_oxfordshire_member = ? WHERE id = ?",
+        [
+            name,
+            oxl_code,
+            ea_club_id,
+            is_active,
+            opentrack_code,
+            website_url,
+            is_oxfordshire_member,
+            club_id,
+        ],
     )
 
 
@@ -989,6 +1047,375 @@ def club_has_active_batches(db: duckdb.DuckDBPyConnection, club_id: int) -> bool
         [club_id],
     ).fetchone()
     return bool(row and row[0] > 0)
+
+
+# ---------------------------------------------------------------------------
+# Public content management
+# ---------------------------------------------------------------------------
+
+
+_LINK_CATEGORIES = ("national", "clubs", "leagues")
+_WINNER_TYPES = ("individual", "team")
+_WINNER_MODES = ("replace", "supplement")
+
+
+def list_external_links(
+    db: duckdb.DuckDBPyConnection,
+    active_only: bool = False,
+) -> list[ExternalLink]:
+    """Return links in display order, optionally hiding inactive records."""
+    if active_only:
+        rows = db.execute(
+            "SELECT id, title, url, category, description, sort_order, is_active"
+            " FROM external_links WHERE is_active = true"
+            " ORDER BY category, sort_order, title"
+        ).fetchall()
+    else:
+        rows = db.execute(
+            "SELECT id, title, url, category, description, sort_order, is_active"
+            " FROM external_links ORDER BY category, sort_order, title"
+        ).fetchall()
+    return [
+        ExternalLink(
+            id=row[0],
+            title=row[1],
+            url=row[2],
+            category=row[3],
+            description=row[4],
+            sort_order=row[5],
+            is_active=row[6],
+        )
+        for row in rows
+    ]
+
+
+def get_external_link(
+    db: duckdb.DuckDBPyConnection,
+    link_id: int,
+) -> ExternalLink | None:
+    row = db.execute(
+        "SELECT id, title, url, category, description, sort_order, is_active"
+        " FROM external_links WHERE id = ?",
+        [link_id],
+    ).fetchone()
+    if row is None:
+        return None
+    return ExternalLink(
+        id=row[0],
+        title=row[1],
+        url=row[2],
+        category=row[3],
+        description=row[4],
+        sort_order=row[5],
+        is_active=row[6],
+    )
+
+
+def create_external_link(
+    db: duckdb.DuckDBPyConnection,
+    title: str,
+    url: str,
+    category: str,
+    description: str | None,
+    sort_order: int,
+) -> ExternalLink:
+    if category not in _LINK_CATEGORIES:
+        raise ValueError("Invalid link category")
+    db.execute(
+        "INSERT INTO external_links"
+        " (title, url, category, description, sort_order) VALUES (?, ?, ?, ?, ?)",
+        [title, url, category, description, sort_order],
+    )
+    row = db.execute(
+        "SELECT id, title, url, category, description, sort_order, is_active"
+        " FROM external_links WHERE title = ? AND url = ?"
+        " ORDER BY id DESC LIMIT 1",
+        [title, url],
+    ).fetchone()
+    assert row is not None  # noqa: S101 — just inserted
+    return ExternalLink(
+        id=row[0],
+        title=row[1],
+        url=row[2],
+        category=row[3],
+        description=row[4],
+        sort_order=row[5],
+        is_active=row[6],
+    )
+
+
+def update_external_link(
+    db: duckdb.DuckDBPyConnection,
+    link_id: int,
+    title: str,
+    url: str,
+    category: str,
+    description: str | None,
+    sort_order: int,
+    is_active: bool,
+) -> None:
+    if category not in _LINK_CATEGORIES:
+        raise ValueError("Invalid link category")
+    db.execute(
+        "UPDATE external_links SET title = ?, url = ?, category = ?,"
+        " description = ?, sort_order = ?, is_active = ?,"
+        " updated_at = current_timestamp WHERE id = ?",
+        [title, url, category, description, sort_order, is_active, link_id],
+    )
+
+
+def toggle_external_link(
+    db: duckdb.DuckDBPyConnection,
+    link_id: int,
+) -> None:
+    db.execute(
+        "UPDATE external_links SET is_active = NOT is_active,"
+        " updated_at = current_timestamp WHERE id = ?",
+        [link_id],
+    )
+
+
+def list_division_assignments(
+    db: duckdb.DuckDBPyConnection,
+    season_id: int | None = None,
+) -> list[DivisionAssignment]:
+    if season_id is not None:
+        rows = db.execute(
+            "SELECT da.id, da.season_id, s.name, da.club_id, c.name,"
+            " da.gender, da.division FROM division_assignments da"
+            " JOIN seasons s ON s.id = da.season_id"
+            " JOIN clubs c ON c.id = da.club_id"
+            " WHERE da.season_id = ?"
+            " ORDER BY s.name DESC, da.gender, da.division, c.name",
+            [season_id],
+        ).fetchall()
+    else:
+        rows = db.execute(
+            "SELECT da.id, da.season_id, s.name, da.club_id, c.name,"
+            " da.gender, da.division FROM division_assignments da"
+            " JOIN seasons s ON s.id = da.season_id"
+            " JOIN clubs c ON c.id = da.club_id"
+            " ORDER BY s.name DESC, da.gender, da.division, c.name"
+        ).fetchall()
+    return [
+        DivisionAssignment(
+            id=row[0],
+            season_id=row[1],
+            season_name=row[2],
+            club_id=row[3],
+            club_name=row[4],
+            gender=row[5],
+            division=row[6],
+        )
+        for row in rows
+    ]
+
+
+def get_division_assignment(
+    db: duckdb.DuckDBPyConnection,
+    assignment_id: int,
+) -> DivisionAssignment | None:
+    rows = list_division_assignments(db)
+    return next((row for row in rows if row.id == assignment_id), None)
+
+
+def create_division_assignment(
+    db: duckdb.DuckDBPyConnection,
+    season_id: int,
+    club_id: int,
+    gender: str,
+    division: int,
+) -> DivisionAssignment:
+    if gender not in ("women", "men") or division not in (1, 2, 3):
+        raise ValueError("Invalid division assignment")
+    db.execute(
+        "INSERT INTO division_assignments"
+        " (season_id, club_id, gender, division) VALUES (?, ?, ?, ?)",
+        [season_id, club_id, gender, division],
+    )
+    row = db.execute(
+        "SELECT id FROM division_assignments WHERE season_id = ?"
+        " AND club_id = ? AND gender = ?",
+        [season_id, club_id, gender],
+    ).fetchone()
+    assert row is not None  # noqa: S101 — just inserted
+    assignment = get_division_assignment(db, int(row[0]))
+    assert assignment is not None  # noqa: S101 — just inserted
+    return assignment
+
+
+def update_division_assignment(
+    db: duckdb.DuckDBPyConnection,
+    assignment_id: int,
+    season_id: int,
+    club_id: int,
+    gender: str,
+    division: int,
+) -> None:
+    if gender not in ("women", "men") or division not in (1, 2, 3):
+        raise ValueError("Invalid division assignment")
+    db.execute(
+        "UPDATE division_assignments SET season_id = ?, club_id = ?, gender = ?,"
+        " division = ?, updated_at = current_timestamp WHERE id = ?",
+        [season_id, club_id, gender, division, assignment_id],
+    )
+
+
+def delete_division_assignment(
+    db: duckdb.DuckDBPyConnection,
+    assignment_id: int,
+) -> None:
+    db.execute("DELETE FROM division_assignments WHERE id = ?", [assignment_id])
+
+
+def list_winner_overrides(
+    db: duckdb.DuckDBPyConnection,
+    active_only: bool = False,
+) -> list[WinnerOverride]:
+    query = (
+        "SELECT wo.id, wo.season_id, s.name, wo.winner_type, wo.category,"
+        " wo.winner_name, wo.club, wo.total_score, wo.note, wo.mode,"
+        " wo.is_active, wo.updated_by_id FROM winner_overrides wo"
+        " JOIN seasons s ON s.id = wo.season_id"
+    )
+    if active_only:
+        query += " WHERE wo.is_active = true"
+    query += " ORDER BY s.name DESC, wo.winner_type, wo.category, wo.id"
+    rows = db.execute(query).fetchall()
+    return [
+        WinnerOverride(
+            id=row[0],
+            season_id=row[1],
+            season_name=row[2],
+            winner_type=row[3],
+            category=row[4],
+            winner_name=row[5],
+            club=row[6],
+            total_score=row[7],
+            note=row[8],
+            mode=row[9],
+            is_active=row[10],
+            updated_by_id=row[11],
+        )
+        for row in rows
+    ]
+
+
+def create_winner_override(
+    db: duckdb.DuckDBPyConnection,
+    season_id: int,
+    winner_type: str,
+    category: str,
+    winner_name: str,
+    club: str | None,
+    total_score: int | None,
+    note: str | None,
+    mode: str,
+    updated_by_id: int | None,
+) -> WinnerOverride:
+    if winner_type not in _WINNER_TYPES or mode not in _WINNER_MODES:
+        raise ValueError("Invalid winner override")
+    db.execute(
+        "INSERT INTO winner_overrides"
+        " (season_id, winner_type, category, winner_name, club, total_score,"
+        " note, mode, updated_by_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+            season_id,
+            winner_type,
+            category,
+            winner_name,
+            club,
+            total_score,
+            note,
+            mode,
+            updated_by_id,
+        ],
+    )
+    row = db.execute(
+        "SELECT id FROM winner_overrides WHERE season_id = ?"
+        " AND winner_type = ? AND category = ? AND winner_name = ?"
+        " ORDER BY id DESC LIMIT 1",
+        [season_id, winner_type, category, winner_name],
+    ).fetchone()
+    assert row is not None  # noqa: S101 — just inserted
+    return next(item for item in list_winner_overrides(db) if item.id == row[0])
+
+
+def toggle_winner_override(
+    db: duckdb.DuckDBPyConnection,
+    override_id: int,
+    updated_by_id: int | None,
+) -> None:
+    db.execute(
+        "UPDATE winner_overrides SET is_active = NOT is_active,"
+        " updated_by_id = ?, updated_at = current_timestamp WHERE id = ?",
+        [updated_by_id, override_id],
+    )
+
+
+def list_public_winners(db: duckdb.DuckDBPyConnection) -> list[dict]:
+    """Return standings winners with active administrative overrides applied."""
+    rows = db.execute(
+        "SELECT s.name, s.id, 'individual', i.category, i.athlete_name,"
+        " i.club, i.total_score FROM individual_standings i"
+        " JOIN seasons s ON s.id = i.season_id WHERE i.position = 1"
+        " UNION ALL"
+        " SELECT s.name, s.id, 'team', t.category, t.team_name, t.club,"
+        " t.total_score FROM team_standings t"
+        " JOIN seasons s ON s.id = t.season_id WHERE t.position = 1"
+        " ORDER BY name DESC, 3, 4, 5",
+    ).fetchall()
+    winners = [
+        {
+            "season_name": row[0],
+            "season_id": row[1],
+            "winner_type": row[2],
+            "category": row[3],
+            "winner_name": row[4],
+            "club": row[5],
+            "total_score": row[6],
+            "is_override": False,
+            "note": None,
+        }
+        for row in rows
+    ]
+    overrides = list_winner_overrides(db, active_only=True)
+    for override in overrides:
+        key = (override.season_id, override.winner_type, override.category)
+        if override.mode == "replace":
+            winners = [
+                winner
+                for winner in winners
+                if (
+                    winner["season_id"],
+                    winner["winner_type"],
+                    winner["category"],
+                )
+                != key
+            ]
+        winners.append(
+            {
+                "season_name": override.season_name,
+                "season_id": override.season_id,
+                "winner_type": override.winner_type,
+                "category": override.category,
+                "winner_name": override.winner_name,
+                "club": override.club,
+                "total_score": override.total_score,
+                "is_override": True,
+                "note": override.note,
+            }
+        )
+    return sorted(
+        winners,
+        key=lambda winner: (
+            winner["season_name"],
+            winner["winner_type"],
+            winner["category"],
+            winner["winner_name"],
+        ),
+        reverse=True,
+    )
 
 
 # ---------------------------------------------------------------------------

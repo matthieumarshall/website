@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Manage Winner Records — Oxfordshire Cross Country League{% endblock %}
+{% block content %}
+<div class="mb-4">
+  <h1 class="h3 mb-1">Manage Winner Records</h1>
+  <p class="text-muted mb-0">Correct official standings or add verified legacy winners without changing the standings tables.</p>
+</div>
+{% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+<div class="card mb-4"><div class="card-body">
+  <h2 class="h6">Add an override or legacy winner</h2>
+  <form method="post" action="/admin/winners" class="row g-2">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="col-12 col-md-3"><label for="season_id" class="form-label">Season</label><select id="season_id" name="season_id" class="form-select" required>{% for season in seasons %}<option value="{{ season.id }}">{{ season.name }}</option>{% endfor %}</select></div>
+    <div class="col-6 col-md-2"><label for="winner_type" class="form-label">Type</label><select id="winner_type" name="winner_type" class="form-select"><option value="individual">Individual</option><option value="team">Team</option></select></div>
+    <div class="col-6 col-md-3"><label for="category" class="form-label">Category</label><input id="category" name="category" class="form-control" required placeholder="Senior Women"></div>
+    <div class="col-12 col-md-4"><label for="winner_name" class="form-label">Winner</label><input id="winner_name" name="winner_name" class="form-control" required></div>
+    <div class="col-12 col-md-3"><label for="club" class="form-label">Club (optional)</label><input id="club" name="club" class="form-control"></div>
+    <div class="col-6 col-md-2"><label for="total_score" class="form-label">Score</label><input id="total_score" name="total_score" type="number" min="0" class="form-control"></div>
+    <div class="col-6 col-md-3"><label for="mode" class="form-label">Behaviour</label><select id="mode" name="mode" class="form-select"><option value="replace">Replace standings winner</option><option value="supplement">Supplement standings</option></select></div>
+    <div class="col-12 col-md-4"><label for="note" class="form-label">Audit note</label><input id="note" name="note" class="form-control" maxlength="500"></div>
+    <div class="col-12"><button type="submit" class="btn btn-primary">Save winner record</button></div>
+  </form>
+</div></div>
+{% if overrides %}<div class="table-responsive"><table class="table table-hover align-middle"><thead class="table-light"><tr><th scope="col">Season</th><th scope="col">Type/category</th><th scope="col">Winner</th><th scope="col">Mode</th><th scope="col">Status</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead><tbody>{% for item in overrides %}<tr><td>{{ item.season_name }}</td><td>{{ item.winner_type|title }} / {{ item.category }}</td><td>{{ item.winner_name }}{% if item.club %} ({{ item.club }}){% endif %}</td><td>{{ item.mode }}</td><td>{{ 'Active' if item.is_active else 'Inactive' }}</td><td><form method="post" action="/admin/winners/{{ item.id }}/toggle"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit" class="btn btn-outline-secondary btn-sm">{{ 'Deactivate' if item.is_active else 'Activate' }}</button></form></td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="text-muted">No winner overrides have been added.</p>{% endif %}
+{% endblock %}
