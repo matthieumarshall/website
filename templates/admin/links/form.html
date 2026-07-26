@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}{% if link %}Edit Link{% else %}Add Link{% endif %} — Oxfordshire Cross Country League{% endblock %}
+{% block content %}
+<div class="mb-4"><a href="/admin/links" class="btn btn-outline-secondary btn-sm mb-3">&larr; Back to links</a><h1 class="h3 mb-0">{% if link %}Edit Link{% else %}Add Link{% endif %}</h1></div>
+{% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+<form method="post" action="{% if link %}/admin/links/{{ link.id }}{% else %}/admin/links{% endif %}" novalidate>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <div class="mb-3"><label for="title" class="form-label">Title</label><input id="title" name="title" class="form-control" required maxlength="200" value="{{ link.title if link else '' }}"></div>
+  <div class="mb-3"><label for="url" class="form-label">URL</label><input id="url" name="url" type="url" class="form-control" required value="{{ link.url if link else '' }}"><div class="form-text">Use a complete HTTP or HTTPS URL.</div></div>
+  <div class="mb-3"><label for="category" class="form-label">Category</label><select id="category" name="category" class="form-select" required>
+    {% for key, label in category_labels.items() %}<option value="{{ key }}" {% if link and link.category == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+  </select></div>
+  <div class="mb-3"><label for="description" class="form-label">Description (optional)</label><textarea id="description" name="description" class="form-control" rows="3" maxlength="500">{{ link.description if link and link.description else '' }}</textarea></div>
+  <div class="mb-3"><label for="sort_order" class="form-label">Display order</label><input id="sort_order" name="sort_order" type="number" class="form-control" min="0" value="{{ link.sort_order if link else 0 }}"></div>
+  {% if link %}<div class="mb-3 form-check"><input id="is_active" name="is_active" type="checkbox" class="form-check-input" {% if link.is_active %}checked{% endif %}><label for="is_active" class="form-check-label">Visible on the public page</label></div>{% endif %}
+  <div class="d-flex gap-2"><button type="submit" class="btn btn-primary">Save link</button><a href="/admin/links" class="btn btn-outline-secondary">Cancel</a></div>
+</form>
+{% endblock %}

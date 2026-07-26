@@ -444,6 +444,7 @@ class TestResultsFilterDropdowns:
         charlie_row = browser.locator(
             "#results-table tbody tr", has_text="Charlie Brown"
         )
+        charlie_row.wait_for(state="visible")
         assert charlie_row.is_visible(), "Charlie Brown should be visible initially"
 
         # Select a non-matching club to verify the listener fires

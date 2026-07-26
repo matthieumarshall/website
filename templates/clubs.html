@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Member Clubs — Oxfordshire Cross Country League{% endblock %}
+{% block content %}
+<div class="mb-4">
+  <h1 class="h3 mb-1">Member Clubs</h1>
+  <p class="text-muted mb-0">Clubs currently participating in the Oxfordshire Cross Country League.</p>
+</div>
+
+{% if clubs %}
+  <div class="table-responsive">
+    <table class="table table-hover align-middle">
+      <caption class="visually-hidden">Oxfordshire Cross Country League member clubs</caption>
+      <thead class="table-light">
+        <tr>
+          <th scope="col">Club</th>
+          <th scope="col">OXL code</th>
+          <th scope="col">OpenTrack code</th>
+          <th scope="col">England Athletics ID</th>
+          <th scope="col">Oxfordshire</th>
+          <th scope="col"><span class="visually-hidden">Website</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for club in clubs %}
+        <tr>
+          <td class="fw-semibold">{{ club.name }}</td>
+          <td>{{ club.oxl_code }}</td>
+          <td>{{ club.opentrack_code or '—' }}</td>
+          <td>{{ club.ea_club_id }}</td>
+          <td>{{ 'Yes' if club.is_oxfordshire_member else 'No' }}</td>
+          <td>
+            {% if club.website_url %}
+            <a href="{{ club.website_url }}" target="_blank" rel="noopener noreferrer">
+              Website<span class="visually-hidden"> for {{ club.name }}</span>
+            </a>
+            {% else %}
+            <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <p class="text-muted">No member clubs have been added yet.</p>
+{% endif %}
+{% endblock %}

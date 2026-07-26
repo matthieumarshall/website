@@ -281,6 +281,50 @@ class Club(BaseModel):
     oxl_code: str
     ea_club_id: str
     is_active: bool
+    opentrack_code: str | None = None
+    website_url: str | None = None
+    is_oxfordshire_member: bool = True
+
+
+class ExternalLink(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    id: int
+    title: str
+    url: str
+    category: str
+    description: str | None
+    sort_order: int
+    is_active: bool
+
+
+class DivisionAssignment(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    id: int
+    season_id: int
+    season_name: str
+    club_id: int
+    club_name: str
+    gender: str
+    division: int
+
+
+class WinnerOverride(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    id: int
+    season_id: int
+    season_name: str
+    winner_type: str
+    category: str
+    winner_name: str
+    club: str | None
+    total_score: int | None
+    note: str | None
+    mode: str
+    is_active: bool
+    updated_by_id: int | None
 
 
 class ClubManager(BaseModel):

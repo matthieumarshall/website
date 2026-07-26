@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Manage Divisions — Oxfordshire Cross Country League{% endblock %}
+{% block content %}
+<div class="mb-4">
+  <h1 class="h3 mb-1">Manage Divisions</h1>
+  <p class="text-muted mb-0">Assign member clubs to the senior divisions for each season.</p>
+</div>
+{% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+<div class="card mb-4"><div class="card-body">
+  <h2 class="h6">Add division assignment</h2>
+  <form method="post" action="/admin/divisions" class="row g-2 align-items-end">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="col-12 col-md-3"><label for="season_id" class="form-label">Season</label><select id="season_id" name="season_id" class="form-select" required>{% for season in seasons %}<option value="{{ season.id }}">{{ season.name }}</option>{% endfor %}</select></div>
+    <div class="col-12 col-md-3"><label for="club_id" class="form-label">Club</label><select id="club_id" name="club_id" class="form-select" required>{% for club in clubs %}<option value="{{ club.id }}">{{ club.name }}</option>{% endfor %}</select></div>
+    <div class="col-6 col-md-2"><label for="gender" class="form-label">Competition</label><select id="gender" name="gender" class="form-select"><option value="women">Women</option><option value="men">Men</option></select></div>
+    <div class="col-6 col-md-2"><label for="division" class="form-label">Division</label><select id="division" name="division" class="form-select"><option>1</option><option>2</option><option>3</option></select></div>
+    <div class="col-12 col-md-2"><button type="submit" class="btn btn-primary w-100">Add</button></div>
+  </form>
+</div></div>
+{% if assignments %}<div class="table-responsive"><table class="table table-hover align-middle"><thead class="table-light"><tr><th scope="col">Season</th><th scope="col">Competition</th><th scope="col">Division</th><th scope="col">Club</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead><tbody>{% for assignment in assignments %}<tr><td>{{ assignment.season_name }}</td><td>{{ assignment.gender|title }}</td><td>{{ assignment.division }}</td><td>{{ assignment.club_name }}</td><td><form method="post" action="/admin/divisions/{{ assignment.id }}/delete"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit" class="btn btn-outline-danger btn-sm">Remove</button></form></td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="text-muted">No division assignments have been added yet.</p>{% endif %}
+{% endblock %}
