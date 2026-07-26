@@ -82,8 +82,8 @@ _INDIVIDUAL_REQUIRED_COLS = {"position"}
 _INDIVIDUAL_NAME_COLS = {"athlete_name", "name"}
 _TEAM_NAME_COLS = {"team", "team_name"}
 
-# Pattern matching round column headers: "R1", "R2", … or "Round 1", "Round 2", …
-_ROUND_COL_RE = re.compile(r"^(?:r|round\s*)(\d+)$", re.IGNORECASE)
+# Pattern matching round column headers: "R1", "R 1", "R2", … or "Round 1", "Round 2", …
+_ROUND_COL_RE = re.compile(r"^(?:r\s*|round\s*)(\d+)$", re.IGNORECASE)
 
 # Column header aliases for standings tables.
 _STANDINGS_HEADER_MAP: dict[str, str] = {
