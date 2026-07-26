@@ -59,12 +59,11 @@ Planned islands:
 - Export rules & constitution to PDF — **DONE**
 
 ### 2.3 Other pages
-- Divisions
-- Past individual winners
-- Links
+- Divisions — **DONE** (season-linked, admin-managed assignments)
+- Past individual and team winners — **DONE** (standings-derived with admin overrides)
+- Links — **DONE** (structured admin-managed external links)
   - to national athletics organisations, local clubs, other cross country leagues
-- Info somewhere about member clubs
--
+- Member clubs — **DONE** (public directory with admin-managed metadata)
 
 ---
 
@@ -96,8 +95,8 @@ Planned islands:
 - Serve original source PDF for each race (uploaded during migration) — **DONE**
 
 ### 4.2 Standings
-- Calculate standings dynamically per season — *started*
-- Publish historical standings (static data for past seasons) — *started*
+- Calculate standings dynamically per season — **DONE**
+- Publish historical standings (static data for past seasons) — **DONE**
 
 ### 4.3 Live / External Data
 - Integrate results dynamically from Tempo Events API — *not started*
@@ -163,7 +162,7 @@ Planned islands:
 
 ### 8.1 CI/CD
 - GitHub Actions pipeline (lint, security scan, tests on push/PR) — **DONE**
-- Automated deployment to production on merge to `main` — *not started*
+- Automated deployment to production (scheduled nightly + manual dispatch via `deploy.yml`) — **DONE** *(not yet triggered directly on merge to `main`)*
 
 ### 8.2 Production Server
 - Production WSGI/ASGI server (Gunicorn or similar) — **DONE**

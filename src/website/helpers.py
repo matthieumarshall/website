@@ -60,6 +60,10 @@ SIDEBAR_ITEMS: list[dict[str, str]] = [
     {"name": "Home / News", "route": "/news", "page": "news"},
     {"name": "Results", "route": "/results", "page": "results"},
     {"name": "Standings", "route": "/standings", "page": "standings"},
+    {"name": "Divisions", "route": "/divisions", "page": "divisions"},
+    {"name": "Past Winners", "route": "/winners", "page": "winners"},
+    {"name": "Member Clubs", "route": "/clubs", "page": "clubs"},
+    {"name": "Links", "route": "/links", "page": "links"},
     {"name": "Entries", "route": "/entries", "page": "entries"},
     {
         "name": "Rules and Constitution",
@@ -90,6 +94,14 @@ def safe_referer_path(referer: str) -> str:
         return "/news"
     path = urlparse(referer).path
     return path if path and path.startswith("/") else "/news"
+
+
+def validate_http_url(value: str) -> str:
+    """Validate and return a public HTTP(S) URL."""
+    parsed = urlparse(value.strip())
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("URL must be an HTTP or HTTPS URL")
+    return value.strip()
 
 
 def page_context(request: Request, current_page: str, **extra: Any) -> dict[str, Any]:

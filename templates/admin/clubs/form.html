@@ -21,6 +21,26 @@
   </div>
 
   <div class="mb-3">
+    <label for="opentrack_code" class="form-label">OpenTrack code</label>
+    <input type="text" id="opentrack_code" name="opentrack_code" class="form-control"
+           value="{{ club.opentrack_code if club and club.opentrack_code else '' }}">
+  </div>
+
+  <div class="mb-3">
+    <label for="website_url" class="form-label">Public website URL</label>
+    <input type="url" id="website_url" name="website_url" class="form-control"
+           value="{{ club.website_url if club and club.website_url else '' }}"
+           placeholder="https://example.org">
+  </div>
+
+  <div class="mb-3 form-check">
+    <input class="form-check-input" type="checkbox" id="is_oxfordshire_member"
+           name="is_oxfordshire_member"
+           {% if not club or club.is_oxfordshire_member %}checked{% endif %}>
+    <label class="form-check-label" for="is_oxfordshire_member">Oxfordshire member club</label>
+  </div>
+
+  <div class="mb-3">
     <label for="oxl_code" class="form-label">OXL code</label>
     <input type="text" id="oxl_code" name="oxl_code" class="form-control" required
            value="{{ club.oxl_code if club else '' }}"
