@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Manage Links — Oxfordshire Cross Country League{% endblock %}
+{% block content %}
+<div class="mb-4 d-flex flex-wrap align-items-center justify-content-between gap-2">
+  <div>
+    <h1 class="h3 mb-1">Manage Links</h1>
+    <p class="text-muted mb-0">Maintain the public links directory.</p>
+  </div>
+  <a href="/admin/links/new" class="btn btn-primary btn-sm">Add link</a>
+</div>
+
+{% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+{% if links %}
+<div class="table-responsive">
+  <table class="table table-hover align-middle">
+    <thead class="table-light"><tr>
+      <th scope="col">Title</th><th scope="col">Category</th><th scope="col">URL</th>
+      <th scope="col">Order</th><th scope="col">Status</th><th scope="col"><span class="visually-hidden">Actions</span></th>
+    </tr></thead>
+    <tbody>
+    {% for link in links %}<tr>
+      <td>{{ link.title }}</td><td>{{ category_labels[link.category] }}</td>
+      <td><a href="{{ link.url }}" target="_blank" rel="noopener noreferrer">{{ link.url }}</a></td>
+      <td>{{ link.sort_order }}</td>
+      <td>{{ 'Active' if link.is_active else 'Hidden' }}</td>
+      <td class="text-nowrap">
+        <a href="/admin/links/{{ link.id }}" class="btn btn-outline-secondary btn-sm">Edit</a>
+        <form method="post" action="/admin/links/{{ link.id }}/toggle" class="d-inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="btn btn-outline-secondary btn-sm">{{ 'Hide' if link.is_active else 'Show' }}</button>
+        </form>
+      </td>
+    </tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}<p class="text-muted">No links have been added yet.</p>{% endif %}
+{% endblock %}

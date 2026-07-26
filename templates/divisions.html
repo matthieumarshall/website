@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Divisions — Oxfordshire Cross Country League{% endblock %}
+{% block content %}
+<div class="mb-4">
+  <h1 class="h3 mb-1">Divisions</h1>
+  {% if season %}
+  <p class="text-muted mb-0">Senior team divisions for the {{ season.name }} season.</p>
+  {% else %}
+  <p class="text-muted mb-0">The current senior team divisions have not been published yet.</p>
+  {% endif %}
+</div>
+
+{% if season and assignments %}
+  <div class="row g-4">
+    {% for gender in ('women', 'men') %}
+    <section class="col-12 col-lg-6" aria-labelledby="{{ gender }}-divisions-heading">
+      <h2 id="{{ gender }}-divisions-heading" class="h5">{{ 'Women' if gender == 'women' else 'Men' }}</h2>
+      {% for division in (1, 2, 3) %}
+      <div class="card mb-3">
+        <div class="card-header"><h3 class="h6 mb-0">Division {{ division }}</h3></div>
+        {% set clubs = assignments[gender][division] %}
+        {% if clubs %}
+        <ul class="list-group list-group-flush">
+          {% for club in clubs %}
+          <li class="list-group-item">
+            {% if club.website_url %}
+            <a href="{{ club.website_url }}" target="_blank" rel="noopener noreferrer">{{ club.name }}</a>
+            {% else %}
+            {{ club.name }}
+            {% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <div class="card-body"><p class="text-muted mb-0">No clubs assigned.</p></div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </section>
+    {% endfor %}
+  </div>
+  <div class="alert alert-info" role="note">
+    Clubs move between divisions on a two-up, two-down basis according to the league rules.
+    Junior team scores are not divided.
+  </div>
+{% else %}
+  <div class="alert alert-info" role="status">
+    Division assignments are awaiting publication by the league administrator.
+  </div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Links — Oxfordshire Cross Country League{% endblock %}
+{% block content %}
+<div class="mb-4">
+  <h1 class="h3 mb-1">Links</h1>
+  <p class="text-muted mb-0">Useful organisations, clubs, and cross-country leagues.</p>
+</div>
+
+{% for category in categories %}
+<section class="mb-4" aria-labelledby="{{ category.key }}-links-heading">
+  <h2 id="{{ category.key }}-links-heading" class="h5">{{ category.label }}</h2>
+  {% set category_links = links_by_category[category.key] %}
+  {% if category_links %}
+  <div class="list-group">
+    {% for link in category_links %}
+    <a class="list-group-item list-group-item-action" href="{{ link.url }}" target="_blank" rel="noopener noreferrer">
+      <span class="fw-semibold">{{ link.title }}</span>
+      {% if link.description %}<span class="d-block small text-muted">{{ link.description }}</span>{% endif %}
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="text-muted">No links have been added in this category yet.</p>
+  {% endif %}
+</section>
+{% endfor %}
+{% endblock %}

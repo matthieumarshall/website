@@ -44,6 +44,7 @@ from website.helpers import (
     parse_timetable_from_json,
     safe_referer_path,
     sanitise_html,
+    validate_http_url,
     validate_csrf,
 )
 from website.models import (
@@ -230,6 +231,12 @@ _STAFF_ACL = [
 
 # ACL for routes only accessible to admins
 _ADMIN_ACL = [(Allow, "role:admin", All)]
+
+_LINK_CATEGORY_LABELS = {
+    "national": "National athletics organisations",
+    "clubs": "Member and local clubs",
+    "leagues": "Other cross-country leagues",
+}
 
 # ACL for routes accessible to any authenticated user
 _AUTH_ACL = [(Allow, Authenticated, "view")]
@@ -1143,6 +1150,95 @@ def standings_recalculate(
             detail=f"Standings calculation failed: {exc}",
         )
     return RedirectResponse(url=f"/standings?season_id={season_id}", status_code=303)
+
+
+@app.get("/clubs", response_class=HTMLResponse)
+def public_clubs(
+    request: Request,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+) -> HTMLResponse:
+    """Display the public directory of active member clubs."""
+    return templates.TemplateResponse(
+        request,
+        "clubs.html",
+        page_context(request, "clubs", clubs=repository.list_public_clubs(db)),
+    )
+
+
+@app.get("/links", response_class=HTMLResponse)
+def links(
+    request: Request,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+) -> HTMLResponse:
+    """Display active, administrator-managed external links."""
+    categories = [
+        {"key": "national", "label": "National athletics organisations"},
+        {"key": "clubs", "label": "Member and local clubs"},
+        {"key": "leagues", "label": "Other cross-country leagues"},
+    ]
+    links_by_category = {category["key"]: [] for category in categories}
+    for link in repository.list_external_links(db, active_only=True):
+        links_by_category[link.category].append(link)
+    return templates.TemplateResponse(
+        request,
+        "links.html",
+        page_context(
+            request,
+            "links",
+            categories=categories,
+            links_by_category=links_by_category,
+        ),
+    )
+
+
+@app.get("/divisions", response_class=HTMLResponse)
+def divisions(
+    request: Request,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+) -> HTMLResponse:
+    """Display current-season senior division assignments."""
+    seasons = repository.list_seasons(db)
+    season = seasons[0] if seasons else None
+    assignments: dict[str, dict[int, list[dict[str, str | None]]]] = {
+        "women": {1: [], 2: [], 3: []},
+        "men": {1: [], 2: [], 3: []},
+    }
+    if season is not None:
+        clubs_by_id = {club.id: club for club in repository.list_clubs(db)}
+        for assignment in repository.list_division_assignments(db, season.id):
+            club = clubs_by_id.get(assignment.club_id)
+            assignments[assignment.gender][assignment.division].append(
+                {
+                    "name": assignment.club_name,
+                    "website_url": club.website_url if club else None,
+                }
+            )
+    return templates.TemplateResponse(
+        request,
+        "divisions.html",
+        page_context(
+            request,
+            "divisions",
+            season=season,
+            assignments=assignments if season else {},
+        ),
+    )
+
+
+@app.get("/winners", response_class=HTMLResponse)
+def winners(
+    request: Request,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+) -> HTMLResponse:
+    """Display official standings winners and administrative corrections."""
+    winners_by_type = {"individual": [], "team": []}
+    for winner in repository.list_public_winners(db):
+        winners_by_type[winner["winner_type"]].append(winner)
+    return templates.TemplateResponse(
+        request,
+        "winners.html",
+        page_context(request, "winners", winners_by_type=winners_by_type),
+    )
 
 
 @app.get("/rules-and-constitution", response_class=HTMLResponse)
@@ -2347,6 +2443,9 @@ def admin_clubs_create(
     name: str = Form(...),
     oxl_code: str = Form(...),
     ea_club_id: str = Form(...),
+    opentrack_code: str = Form(""),
+    website_url: str = Form(""),
+    is_oxfordshire_member: str = Form("on"),
     csrf_token: str = Form(...),
     db: duckdb.DuckDBPyConnection = Depends(get_db),
     _: list = Permission("edit", _ADMIN_ACL),
@@ -2355,6 +2454,9 @@ def admin_clubs_create(
     name = name.strip()
     oxl_code = oxl_code.strip().upper()
     ea_club_id = ea_club_id.strip()
+    normalized_opentrack_code: str | None = opentrack_code.strip() or None
+    website_url = website_url.strip()
+    normalized_website_url: str | None = None
     if not name or not oxl_code or not ea_club_id:
         return templates.TemplateResponse(
             request,
@@ -2363,7 +2465,25 @@ def admin_clubs_create(
             status_code=422,
         )
     try:
-        repository.create_club(db, name=name, oxl_code=oxl_code, ea_club_id=ea_club_id)
+        if website_url:
+            normalized_website_url = validate_http_url(website_url)
+    except ValueError as exc:
+        return templates.TemplateResponse(
+            request,
+            "admin/clubs/form.html",
+            page_context(request, "admin", club=None, error=str(exc)),
+            status_code=422,
+        )
+    try:
+        repository.create_club(
+            db,
+            name=name,
+            oxl_code=oxl_code,
+            ea_club_id=ea_club_id,
+            opentrack_code=normalized_opentrack_code,
+            website_url=normalized_website_url,
+            is_oxfordshire_member=is_oxfordshire_member == "on",
+        )
     except Exception:
         return templates.TemplateResponse(
             request,
@@ -2403,6 +2523,9 @@ def admin_clubs_update(
     name: str = Form(...),
     oxl_code: str = Form(...),
     ea_club_id: str = Form(...),
+    opentrack_code: str = Form(""),
+    website_url: str = Form(""),
+    is_oxfordshire_member: str = Form("off"),
     is_active: str = Form("off"),
     csrf_token: str = Form(...),
     db: duckdb.DuckDBPyConnection = Depends(get_db),
@@ -2415,6 +2538,9 @@ def admin_clubs_update(
     name = name.strip()
     oxl_code = oxl_code.strip().upper()
     ea_club_id = ea_club_id.strip()
+    normalized_opentrack_code: str | None = opentrack_code.strip() or None
+    website_url = website_url.strip()
+    normalized_website_url: str | None = None
     active = is_active == "on"
     if not name or not oxl_code or not ea_club_id:
         return templates.TemplateResponse(
@@ -2423,15 +2549,361 @@ def admin_clubs_update(
             page_context(request, "admin", club=club, error="All fields are required."),
             status_code=422,
         )
-    repository.update_club(
-        db,
-        club_id=club_id,
-        name=name,
-        oxl_code=oxl_code,
-        ea_club_id=ea_club_id,
-        is_active=active,
-    )
+    try:
+        if website_url:
+            normalized_website_url = validate_http_url(website_url)
+        repository.update_club(
+            db,
+            club_id=club_id,
+            name=name,
+            oxl_code=oxl_code,
+            ea_club_id=ea_club_id,
+            is_active=active,
+            opentrack_code=normalized_opentrack_code,
+            website_url=normalized_website_url,
+            is_oxfordshire_member=is_oxfordshire_member == "on",
+        )
+    except ValueError as exc:
+        return templates.TemplateResponse(
+            request,
+            "admin/clubs/form.html",
+            page_context(request, "admin", club=club, error=str(exc)),
+            status_code=422,
+        )
     return RedirectResponse("/admin/clubs", status_code=303)
+
+
+# ---------------------------------------------------------------------------
+# Admin — Public content
+# ---------------------------------------------------------------------------
+
+
+@app.get("/admin/links", response_class=HTMLResponse)
+def admin_links_list(
+    request: Request,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _ADMIN_ACL),
+) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request,
+        "admin/links/list.html",
+        page_context(
+            request,
+            "admin",
+            links=repository.list_external_links(db),
+            category_labels=_LINK_CATEGORY_LABELS,
+        ),
+    )
+
+
+@app.get("/admin/links/new", response_class=HTMLResponse)
+def admin_links_new(
+    request: Request,
+    _: list = Permission("edit", _ADMIN_ACL),
+) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request,
+        "admin/links/form.html",
+        page_context(
+            request,
+            "admin",
+            link=None,
+            category_labels=_LINK_CATEGORY_LABELS,
+        ),
+    )
+
+
+def _link_form_context(
+    request: Request,
+    link: object | None,
+    error: str | None = None,
+) -> dict[str, object]:
+    return page_context(
+        request,
+        "admin",
+        link=link,
+        category_labels=_LINK_CATEGORY_LABELS,
+        error=error,
+    )
+
+
+@app.post("/admin/links", response_class=HTMLResponse)
+def admin_links_create(
+    request: Request,
+    title: str = Form(...),
+    url: str = Form(...),
+    category: str = Form(...),
+    description: str = Form(""),
+    sort_order: int = Form(0),
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _ADMIN_ACL),
+) -> Response:
+    validate_csrf(request, csrf_token)
+    title = title.strip()
+    normalized_description: str | None = description.strip() or None
+    try:
+        url = validate_http_url(url)
+        if not title or len(title) > 200 or category not in _LINK_CATEGORY_LABELS:
+            raise ValueError("Title and a valid category are required")
+        if sort_order < 0:
+            raise ValueError("Display order cannot be negative")
+        repository.create_external_link(
+            db, title, url, category, normalized_description, sort_order
+        )
+    except (ValueError, duckdb.ConstraintException) as exc:
+        return templates.TemplateResponse(
+            request,
+            "admin/links/form.html",
+            _link_form_context(request, None, str(exc)),
+            status_code=422,
+        )
+    return RedirectResponse("/admin/links", status_code=303)
+
+
+@app.get("/admin/links/{link_id}", response_class=HTMLResponse)
+def admin_links_edit(
+    request: Request,
+    link_id: int,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _ADMIN_ACL),
+) -> HTMLResponse:
+    link = repository.get_external_link(db, link_id)
+    if link is None:
+        raise HTTPException(status_code=404)
+    return templates.TemplateResponse(
+        request,
+        "admin/links/form.html",
+        _link_form_context(request, link),
+    )
+
+
+@app.post("/admin/links/{link_id}", response_class=HTMLResponse)
+def admin_links_update(
+    request: Request,
+    link_id: int,
+    title: str = Form(...),
+    url: str = Form(...),
+    category: str = Form(...),
+    description: str = Form(""),
+    sort_order: int = Form(0),
+    is_active: str = Form("off"),
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _ADMIN_ACL),
+) -> Response:
+    validate_csrf(request, csrf_token)
+    link = repository.get_external_link(db, link_id)
+    if link is None:
+        raise HTTPException(status_code=404)
+    title = title.strip()
+    normalized_description: str | None = description.strip() or None
+    try:
+        url = validate_http_url(url)
+        if not title or len(title) > 200 or category not in _LINK_CATEGORY_LABELS:
+            raise ValueError("Title and a valid category are required")
+        if sort_order < 0:
+            raise ValueError("Display order cannot be negative")
+        repository.update_external_link(
+            db,
+            link_id,
+            title,
+            url,
+            category,
+            normalized_description,
+            sort_order,
+            is_active == "on",
+        )
+    except ValueError as exc:
+        return templates.TemplateResponse(
+            request,
+            "admin/links/form.html",
+            _link_form_context(request, link, str(exc)),
+            status_code=422,
+        )
+    return RedirectResponse("/admin/links", status_code=303)
+
+
+@app.post("/admin/links/{link_id}/toggle")
+def admin_links_toggle(
+    request: Request,
+    link_id: int,
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _ADMIN_ACL),
+) -> RedirectResponse:
+    validate_csrf(request, csrf_token)
+    if repository.get_external_link(db, link_id) is None:
+        raise HTTPException(status_code=404)
+    repository.toggle_external_link(db, link_id)
+    return RedirectResponse("/admin/links", status_code=303)
+
+
+@app.get("/admin/divisions", response_class=HTMLResponse)
+def admin_divisions_list(
+    request: Request,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _ADMIN_ACL),
+) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request,
+        "admin/divisions/list.html",
+        page_context(
+            request,
+            "admin",
+            assignments=repository.list_division_assignments(db),
+            seasons=repository.list_seasons(db),
+            clubs=repository.list_clubs(db),
+        ),
+    )
+
+
+@app.post("/admin/divisions", response_class=HTMLResponse)
+def admin_divisions_create(
+    request: Request,
+    season_id: int = Form(...),
+    club_id: int = Form(...),
+    gender: str = Form(...),
+    division: int = Form(...),
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _ADMIN_ACL),
+) -> Response:
+    validate_csrf(request, csrf_token)
+    error: str | None = None
+    if repository.get_season_by_id(db, season_id) is None:
+        error = "Select a valid season."
+    elif repository.get_club_by_id(club_id, db) is None:
+        error = "Select a valid club."
+    else:
+        try:
+            repository.create_division_assignment(
+                db, season_id, club_id, gender, division
+            )
+        except (ValueError, duckdb.ConstraintException) as exc:
+            error = str(exc)
+    if error:
+        return templates.TemplateResponse(
+            request,
+            "admin/divisions/list.html",
+            page_context(
+                request,
+                "admin",
+                assignments=repository.list_division_assignments(db),
+                seasons=repository.list_seasons(db),
+                clubs=repository.list_clubs(db),
+                error=error,
+            ),
+            status_code=422,
+        )
+    return RedirectResponse("/admin/divisions", status_code=303)
+
+
+@app.post("/admin/divisions/{assignment_id}/delete")
+def admin_divisions_delete(
+    request: Request,
+    assignment_id: int,
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _ADMIN_ACL),
+) -> RedirectResponse:
+    validate_csrf(request, csrf_token)
+    if repository.get_division_assignment(db, assignment_id) is None:
+        raise HTTPException(status_code=404)
+    repository.delete_division_assignment(db, assignment_id)
+    return RedirectResponse("/admin/divisions", status_code=303)
+
+
+@app.get("/admin/winners", response_class=HTMLResponse)
+def admin_winners_list(
+    request: Request,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _ADMIN_ACL),
+) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request,
+        "admin/winners/list.html",
+        page_context(
+            request,
+            "admin",
+            overrides=repository.list_winner_overrides(db),
+            seasons=repository.list_seasons(db),
+        ),
+    )
+
+
+@app.post("/admin/winners", response_class=HTMLResponse)
+def admin_winners_create(
+    request: Request,
+    season_id: int = Form(...),
+    winner_type: str = Form(...),
+    category: str = Form(...),
+    winner_name: str = Form(...),
+    club: str = Form(""),
+    total_score: str = Form(""),
+    note: str = Form(""),
+    mode: str = Form(...),
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _ADMIN_ACL),
+) -> Response:
+    validate_csrf(request, csrf_token)
+    error: str | None = None
+    current_user = get_current_user(request)
+    try:
+        if repository.get_season_by_id(db, season_id) is None:
+            raise ValueError("Select a valid season.")
+        category = category.strip()
+        winner_name = winner_name.strip()
+        if not category or not winner_name:
+            raise ValueError("Category and winner are required.")
+        score = int(total_score) if total_score.strip() else None
+        if score is not None and score < 0:
+            raise ValueError("Score cannot be negative.")
+        repository.create_winner_override(
+            db,
+            season_id,
+            winner_type,
+            category,
+            winner_name,
+            club.strip() or None,
+            score,
+            note.strip() or None,
+            mode,
+            current_user["id"] if current_user else None,
+        )
+    except (ValueError, duckdb.ConstraintException) as exc:
+        error = str(exc)
+    if error:
+        return templates.TemplateResponse(
+            request,
+            "admin/winners/list.html",
+            page_context(
+                request,
+                "admin",
+                overrides=repository.list_winner_overrides(db),
+                seasons=repository.list_seasons(db),
+                error=error,
+            ),
+            status_code=422,
+        )
+    return RedirectResponse("/admin/winners", status_code=303)
+
+
+@app.post("/admin/winners/{override_id}/toggle")
+def admin_winners_toggle(
+    request: Request,
+    override_id: int,
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _ADMIN_ACL),
+) -> RedirectResponse:
+    validate_csrf(request, csrf_token)
+    if not any(item.id == override_id for item in repository.list_winner_overrides(db)):
+        raise HTTPException(status_code=404)
+    user = get_current_user(request)
+    repository.toggle_winner_override(db, override_id, user["id"] if user else None)
+    return RedirectResponse("/admin/winners", status_code=303)
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Past Winners — Oxfordshire Cross Country League{% endblock %}
+{% block content %}
+<div class="mb-4">
+  <h1 class="h3 mb-1">Past Winners</h1>
+  <p class="text-muted mb-0">Individual and team champions from the official standings available on this site.</p>
+</div>
+
+<div class="alert alert-info" role="note">
+  Historical coverage is being built from official standings. Where no verified standings
+  are available, the season is not shown here rather than being estimated from race results.
+</div>
+
+{% for winner_type, heading in (('individual', 'Individual winners'), ('team', 'Team winners')) %}
+<section class="mb-5" aria-labelledby="{{ winner_type }}-winners-heading">
+  <h2 id="{{ winner_type }}-winners-heading" class="h5">{{ heading }}</h2>
+  {% set winners = winners_by_type[winner_type] %}
+  {% if winners %}
+  <div class="table-responsive">
+    <table class="table table-hover align-middle">
+      <caption class="visually-hidden">{{ heading }}</caption>
+      <thead class="table-light">
+        <tr>
+          <th scope="col">Season</th>
+          <th scope="col">Category</th>
+          <th scope="col">Winner</th>
+          <th scope="col">Club</th>
+          <th scope="col">Score</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for winner in winners %}
+        <tr>
+          <td>{{ winner.season_name }}</td>
+          <td>{{ winner.category }}</td>
+          <td>
+            {{ winner.winner_name }}
+            {% if winner.is_override %}<span class="badge text-bg-secondary ms-1">Admin record</span>{% endif %}
+            {% if winner.note %}<div class="small text-muted">{{ winner.note }}</div>{% endif %}
+          </td>
+          <td>{{ winner.club or '—' }}</td>
+          <td>{{ winner.total_score if winner.total_score is not none else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-muted">No {{ winner_type }} winners have been published yet.</p>
+  {% endif %}
+</section>
+{% endfor %}
+{% endblock %}

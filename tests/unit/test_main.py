@@ -65,8 +65,8 @@ class TestSidebarItems:
     def test_sidebar_items_is_list(self) -> None:
         assert isinstance(SIDEBAR_ITEMS, list)
 
-    def test_sidebar_items_has_seven_entries(self) -> None:
-        assert len(SIDEBAR_ITEMS) == 7
+    def test_sidebar_items_has_eleven_entries(self) -> None:
+        assert len(SIDEBAR_ITEMS) == 11
 
     def test_all_items_have_required_fields(self) -> None:
         for item in SIDEBAR_ITEMS:
@@ -88,6 +88,10 @@ class TestSidebarItems:
             "news",
             "results",
             "standings",
+            "divisions",
+            "winners",
+            "clubs",
+            "links",
             "entries",
             "rules_and_constitution",
             "administration",
@@ -111,6 +115,10 @@ class TestPublicPageRoutes:
     _pages = [
         ("news", "/news"),
         ("results", "/results"),
+        ("divisions", "/divisions"),
+        ("winners", "/winners"),
+        ("clubs", "/clubs"),
+        ("links", "/links"),
         ("rules_and_constitution", "/rules-and-constitution"),
         ("fixtures", "/fixtures"),
     ]
