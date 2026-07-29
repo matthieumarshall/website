@@ -305,7 +305,35 @@ The `team_manager` role (referenced in high-level-plan.md Phase 1.3) needs to be
 6. Entry confirmed — visible on public entry list
 ```
 
-### 6.3 Entry ↔ Result Linking
+### 6.3 England Athletics API Status (26 July 2026)
+
+The live TRAPI integration reaches England Athletics successfully over mTLS:
+
+- The live client PFX loads and is accepted during the TLS handshake.
+- Both `GET race-provider/clubs` and the club-athletes request return HTTP 200.
+- EA returns an application-level `ResponseStatus` of `InvalidCall` for both
+    methods, so athlete data is not currently available.
+- Sending the configured call secret as ISO-8859-1 or UTF-8 bytes produced the
+    same response. Retrying with EA's own server timestamp also produced the same
+    response, ruling out header encoding and local clock skew as likely causes.
+- The client now preserves ISO-8859-1 credentials in raw HTTP headers and maps
+    `InvalidCall` and `ApiUserCredentialsIncorrect` to an explicit 503
+    authentication error instead of treating the response as an empty athlete
+    list.
+
+The remaining action is for England Athletics support to verify that the live
+call key, call secret, and client certificate are active and associated with one
+another. The response reference from the latest diagnostic request is
+`d4fcd09a-c854-4c22-b37a-b274b0d85f96`.
+
+The certificate is valid until 2039, but `cryptography` reports that it has a
+legacy non-positive serial number. EA should reissue it before a future
+`cryptography` release makes that certificate invalid.
+
+Do not add credentials, certificate passwords, or private certificate material
+to this document or to version control.
+
+### 6.4 Entry ↔ Result Linking
 
 Once results are uploaded for a fixture:
 
@@ -326,7 +354,7 @@ This allows:
 - On the **entries page**: show "Results: 1st at Fixture 1, 3rd at Fixture 2" next to each entry.
 - Athletes without entries still appear in results (e.g. guest runners, historic data).
 
-### 6.4 Entries Data Not Relevant to Results
+### 6.5 Entries Data Not Relevant to Results
 
 The entries table deliberately contains fields that results don't need:
 
