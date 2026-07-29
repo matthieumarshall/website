@@ -84,27 +84,26 @@ def _is_supported_cert_path(cert_path: str) -> bool:
     return normalized.endswith(".pfx") or normalized.endswith("pfx.txt")
 
 
-def _is_ascii(value: str) -> bool:
+def _is_latin_1(value: str) -> bool:
     try:
-        value.encode("ascii")
+        value.encode("latin-1")
         return True
     except UnicodeEncodeError:
         return False
 
 
 def validate_ea_header_values_for_startup() -> None:
-    """Fail fast when EA header values contain non-ASCII characters."""
+    """Fail fast when EA header values cannot be sent as HTTP header bytes."""
     if os.environ.get("EA_TEST_MODE", "").lower() == "true":
         return
 
     call_key = os.environ.get("EA_CALL_KEY", "")
     call_secret = os.environ.get("EA_CALL_SECRET", "")
     for name, value in (("EA_CALL_KEY", call_key), ("EA_CALL_SECRET", call_secret)):
-        if value and not _is_ascii(value):
+        if value and not _is_latin_1(value):
             raise RuntimeError(
-                f"Invalid {name}. Value contains non-ASCII characters, but HTTP "
-                "headers must be ASCII. Check for characters like '£' and replace "
-                "with the exact API secret value."
+                f"Invalid {name}. Value contains characters that cannot be encoded "
+                "in an ISO-8859-1 HTTP header."
             )
 
 
@@ -197,28 +196,30 @@ def _ea_base_url() -> str:
     return _EA_STAGING_BASE if staging else _EA_LIVE_BASE
 
 
-def _ea_headers() -> dict[str, str]:
+def _ea_headers() -> httpx.Headers:
     call_key = os.environ.get("EA_CALL_KEY", "")
     call_secret = os.environ.get("EA_CALL_SECRET", "")
     for name, value in (
         ("EA_CALL_KEY", call_key),
         ("EA_CALL_SECRET", call_secret),
     ):
-        if value and not _is_ascii(value):
-            logger.error("EA header value contains non-ASCII characters: %s", name)
+        if value and not _is_latin_1(value):
+            logger.error("EA header value cannot be encoded as ISO-8859-1: %s", name)
             raise HTTPException(
                 status_code=503,
                 detail=(
-                    f"Invalid {name}. Value contains non-ASCII characters. "
-                    "HTTP headers must be ASCII."
+                    f"Invalid {name}. Value cannot be encoded in an "
+                    "ISO-8859-1 HTTP header."
                 ),
             )
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
-    return {
-        "X-TRAPI-CALLKEY": call_key,
-        "X-TRAPI-CALLSECRET": call_secret,
-        "X-TRAPI-CALLDATETIME": ts,
-    }
+    return httpx.Headers(
+        [
+            (b"X-TRAPI-CALLKEY", call_key.encode("latin-1")),
+            (b"X-TRAPI-CALLSECRET", call_secret.encode("latin-1")),
+            (b"X-TRAPI-CALLDATETIME", ts.encode("ascii")),
+        ]
+    )
 
 
 def _normalize_registration_status(reg_status: str) -> str:
@@ -248,6 +249,23 @@ def _normalize_ea_athlete(raw: dict) -> dict:
     }
 
 
+def _validate_ea_response_status(data: dict) -> None:
+    response_status = data.get("ResponseStatus")
+    if response_status in {"ApiUserCredentialsIncorrect", "InvalidCall"}:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "England Athletics API authentication failed. "
+                "Contact the league administrator."
+            ),
+        )
+    if response_status != "SuccessfullyCompleted":
+        raise HTTPException(
+            status_code=502,
+            detail="England Athletics API returned an unexpected response.",
+        )
+
+
 class TemporaryAPIError(Exception):
     """Raised when EA API returns a temporary error (5xx status code)."""
 
@@ -260,7 +278,7 @@ class TemporaryAPIError(Exception):
 )
 def _fetch_from_ea_api(
     url: str,
-    headers: dict[str, str],
+    headers: httpx.Headers,
     params: dict[str, str],
     cert_file_path: str,
     key_file_path: str,
@@ -502,6 +520,7 @@ def fetch_club_athletes(ea_club_id: str) -> list[dict]:
             ),
         )
     data = resp.json()
+    _validate_ea_response_status(data)
     athletes = data.get("Athletes") or []
     logger.warning(
         "EA fetch successful: club_id=%s athletes=%s", ea_club_id, len(athletes)
