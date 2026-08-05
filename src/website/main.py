@@ -5,7 +5,7 @@ import os
 import re
 import uuid
 from contextlib import asynccontextmanager
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 from urllib.parse import quote
 from typing import Any, cast
@@ -510,59 +510,12 @@ def results_source_pdf(
 
 
 @app.get("/entries", response_class=HTMLResponse)
-def entries(
-    request: Request,
-    db: duckdb.DuckDBPyConnection = Depends(get_db),
-    user: dict[str, Any] | None = Depends(get_current_user),
-) -> Response:
-    """Team manager landing page: list open seasons and past batches."""
-    if user and user.get("role") == "admin":
-        return RedirectResponse(url="/admin/entries", status_code=303)
-
-    ctx: dict = require_club_manager(request, db)
-    club_manager = ctx["club_manager"]
-    seasons = repository.list_seasons(db)
-    open_seasons = []
-    for season in seasons:
-        config = repository.get_season_entry_config(season.id, db)
-        if config and config["entries_open"]:
-            fixtures_remaining = entries_module.compute_fixtures_remaining(
-                season.id, db
-            )
-            if fixtures_remaining > 0:
-                # Find next fixture date
-                next_row = db.execute(
-                    "SELECT MIN(date) FROM fixtures WHERE season_id = ? AND date >= current_date",
-                    [season.id],
-                ).fetchone()
-                next_fixture_date = next_row[0] if next_row and next_row[0] else None
-                open_seasons.append(
-                    {
-                        "season": season,
-                        "fixtures_remaining": fixtures_remaining,
-                        "next_fixture_date": next_fixture_date,
-                    }
-                )
-    # Past batches for this manager's club across all seasons
-    my_batches: list[dict] = []
-    season_map = {s.id: s.name for s in seasons}
-    for season in seasons:
-        for b in repository.list_entry_batches_for_season(
-            db, season_id=season.id, club_id=club_manager.club_id
-        ):
-            b["season_name"] = season_map.get(season.id, "?")
-            my_batches.append(b)
-    my_batches.sort(key=lambda x: x["created_at"] or datetime(2000, 1, 1), reverse=True)
+def entries(request: Request) -> Response:
+    """Team entries: not yet implemented. Not linked from navigation."""
     return templates.TemplateResponse(
         request,
-        "entries/season_select.html",
-        page_context(
-            request,
-            "entries",
-            club_manager=club_manager,
-            open_seasons=open_seasons,
-            my_batches=my_batches,
-        ),
+        "entries.html",
+        page_context(request, "entries"),
     )
 
 

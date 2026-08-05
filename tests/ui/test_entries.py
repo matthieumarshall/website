@@ -16,55 +16,20 @@ import pytest
 
 
 class TestManagerEntriesLanding:
-    """Club manager can navigate to /entries and see open seasons."""
+    """The /entries page is not linked from navigation and shows a WIP notice."""
 
-    def test_entries_page_requires_login(self, browser):
-        """Unauthenticated users are redirected away from /entries."""
-        response = browser.goto("http://localhost:8000/entries")
-        # Should redirect to login (302) or show login page content
-        final_url = browser.url
+    def test_entries_page_shows_work_in_progress_notice(self, browser):
+        """Unauthenticated users can reach /entries directly and see a WIP notice."""
+        browser.goto("http://localhost:8000/entries")
         content = browser.content().lower()
-        assert (
-            "login" in final_url
-            or "login" in content
-            or (response is not None and response.status in (302, 403))
-        )
+        assert "work in progress" in content
 
-    def test_manager_can_reach_entries_page(self, manager_browser):
-        """Authenticated club manager can access /entries."""
+    def test_manager_sees_work_in_progress_notice(self, manager_browser):
+        """Authenticated club managers also see the WIP notice on /entries."""
         manager_browser.goto("http://localhost:8000/entries")
         manager_browser.wait_for_load_state("networkidle")
-        assert "entries" in manager_browser.url or manager_browser.title() != ""
-
-    def test_entries_page_shows_team_entries_heading(self, manager_browser):
-        """The /entries page renders the 'Team Entries' heading."""
-        manager_browser.goto("http://localhost:8000/entries")
-        manager_browser.wait_for_load_state("networkidle")
-        content = manager_browser.content()
-        assert "Team Entries" in content
-
-    def test_entries_page_shows_open_season(self, manager_browser):
-        """The seeded open season is listed on the /entries page."""
-        manager_browser.goto("http://localhost:8000/entries")
-        manager_browser.wait_for_load_state("networkidle")
-        content = manager_browser.content()
-        # The seeded season is "Entries Test Season"
-        assert "Entries Test Season" in content
-
-    def test_entries_page_shows_previous_submission(self, manager_browser):
-        """The pre-seeded paid batch appears in 'My previous submissions'."""
-        manager_browser.goto("http://localhost:8000/entries")
-        manager_browser.wait_for_load_state("networkidle")
-        content = manager_browser.content()
-        # The paid badge should appear
-        assert "Paid" in content or "paid" in content.lower()
-
-    def test_entries_page_shows_club_name(self, manager_browser):
-        """The manager's club name is shown on the entries page."""
-        manager_browser.goto("http://localhost:8000/entries")
-        manager_browser.wait_for_load_state("networkidle")
-        content = manager_browser.content()
-        assert "UI Test Club" in content
+        content = manager_browser.content().lower()
+        assert "work in progress" in content
 
 
 class TestManagerSuccessPage:

@@ -16,7 +16,6 @@ class TestSidebarNavigation:
         expected_names = [
             "Home / News",
             "Results",
-            "Entries",
             "Rules and Constitution",
             "Administration",
             "Fixtures",
@@ -51,22 +50,6 @@ class TestSidebarNavigation:
         )
         assert active_link is not None
         assert active_link.get_attribute("href") == "/results"
-
-    def test_navigate_to_entries(self, browser):
-        """Clicking Entries navigates to /entries"""
-        browser.goto("http://localhost:8000/news")
-        browser.click("nav[aria-label='Main navigation'] a:has-text('Entries')")
-        browser.wait_for_url("**/entries")
-        assert "/entries" in browser.url
-
-    def test_entries_link_is_active_on_entries_page(self, manager_browser):
-        """The Entries link has the active class on /entries"""
-        manager_browser.goto("http://localhost:8000/entries")
-        active_link = manager_browser.query_selector(
-            "nav[aria-label='Main navigation'] a.active"
-        )
-        assert active_link is not None
-        assert active_link.get_attribute("href") == "/entries"
 
     def test_navigate_to_rules_and_constitution(self, browser):
         """Clicking Rules and Constitution navigates to /rules-and-constitution"""
