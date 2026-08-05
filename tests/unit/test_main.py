@@ -65,8 +65,8 @@ class TestSidebarItems:
     def test_sidebar_items_is_list(self) -> None:
         assert isinstance(SIDEBAR_ITEMS, list)
 
-    def test_sidebar_items_has_eleven_entries(self) -> None:
-        assert len(SIDEBAR_ITEMS) == 11
+    def test_sidebar_items_has_ten_entries(self) -> None:
+        assert len(SIDEBAR_ITEMS) == 10
 
     def test_all_items_have_required_fields(self) -> None:
         for item in SIDEBAR_ITEMS:
@@ -92,7 +92,6 @@ class TestSidebarItems:
             "winners",
             "clubs",
             "links",
-            "entries",
             "rules_and_constitution",
             "administration",
             "fixtures",
@@ -130,18 +129,17 @@ class TestPublicPageRoutes:
         assert test_client.get("/results").status_code == 200
 
     def test_entries_page_loads(self, test_client: TestClient) -> None:
-        # /entries requires club_manager auth — unauthenticated request redirects to login
-        # (TestClient follows redirects, so we check the login page title is in the response)
-        response = test_client.get("/entries", follow_redirects=False)
-        assert response.status_code == 302
-        assert response.headers["location"] == "/login?next=/entries"
+        # /entries is not linked from navigation and shows a work-in-progress notice.
+        response = test_client.get("/entries")
+        assert response.status_code == 200
+        assert "work in progress" in response.text.lower()
 
-    def test_entries_page_redirects_admin_to_admin_entries(
+    def test_entries_page_shows_wip_notice_for_admin(
         self, admin_client: TestClient
     ) -> None:
-        response = admin_client.get("/entries", follow_redirects=False)
-        assert response.status_code == 303
-        assert response.headers["location"] == "/admin/entries"
+        response = admin_client.get("/entries")
+        assert response.status_code == 200
+        assert "work in progress" in response.text.lower()
 
     def test_admin_entries_empty_state_links_to_fixtures(
         self, admin_client: TestClient
@@ -1207,7 +1205,7 @@ class TestContactRoute:
         resp = test_client.get("/contact")
         assert resp.status_code == 200
         assert "Contact Us" in resp.text
-        assert "oxfordshirexcleague@example.com" in resp.text
+        assert "committee@oxonxc.org.uk" in resp.text
 
 
 class TestAboutRoute:

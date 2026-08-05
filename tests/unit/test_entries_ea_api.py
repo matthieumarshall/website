@@ -1,3 +1,4 @@
+# pyright: reportPrivateUsage=false
 """Tests for England Athletics API integration in entries.py."""
 
 import os
@@ -5,6 +6,7 @@ from datetime import date, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
+from fastapi import HTTPException
 
 from website import entries
 
@@ -20,6 +22,39 @@ def _ea_staging_configured() -> bool:
     )
 
 
+class TestEAHeaders:
+    def test_latin_1_call_secret_is_preserved(self) -> None:
+        with patch.dict(
+            os.environ,
+            {"EA_CALL_KEY": "test_key", "EA_CALL_SECRET": "test_secret\xa3"},
+        ):
+            headers = getattr(entries, "_ea_headers")()
+
+        secret = next(
+            value
+            for name, value in headers.raw
+            if name.lower() == b"x-trapi-callsecret"
+        )
+        assert secret == b"test_secret\xa3"
+
+    @pytest.mark.parametrize(
+        ("response_status", "expected_http_status"),
+        [
+            ("InvalidCall", 503),
+            ("ApiUserCredentialsIncorrect", 503),
+            ("InternalError", 502),
+        ],
+    )
+    def test_unsuccessful_response_status_raises(
+        self, response_status: str, expected_http_status: int
+    ) -> None:
+        validate_response_status = getattr(entries, "_validate_ea_response_status")
+        with pytest.raises(HTTPException) as exc_info:
+            validate_response_status({"ResponseStatus": response_status})
+
+        assert exc_info.value.status_code == expected_http_status
+
+
 class TestEAStaging:
     """Unit tests for England Athletics staging API using mocked responses."""
 
@@ -29,6 +64,7 @@ class TestEAStaging:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
+            "ResponseStatus": "SuccessfullyCompleted",
             "Athletes": [
                 {
                     "Urn": 12345,
@@ -37,7 +73,7 @@ class TestEAStaging:
                     "Dob": "2010-05-15",
                     "CompetitiveRegStatus": "Active",
                 }
-            ]
+            ],
         }
 
         with (
@@ -114,6 +150,7 @@ class TestEAStaging:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
+            "ResponseStatus": "SuccessfullyCompleted",
             "Athletes": [
                 {
                     "Urn": 12345,
@@ -122,7 +159,7 @@ class TestEAStaging:
                     "Dob": "2010-05-15",
                     "CompetitiveRegStatus": "Active",
                 }
-            ]
+            ],
         }
 
         with (
@@ -209,6 +246,7 @@ class TestEAStaging:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
+            "ResponseStatus": "SuccessfullyCompleted",
             "Athletes": [
                 {
                     "Urn": 12345,
@@ -224,7 +262,7 @@ class TestEAStaging:
                     "Dob": "2008-03-22",
                     "CompetitiveRegStatus": "Not Active",
                 },
-            ]
+            ],
         }
 
         with (
@@ -302,6 +340,7 @@ class TestEAStaging:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
+            "ResponseStatus": "SuccessfullyCompleted",
             "Athletes": [
                 {
                     "Urn": 12345,
@@ -324,7 +363,7 @@ class TestEAStaging:
                     "Dob": "1980-01-01",
                     "CompetitiveRegStatus": "Active",
                 },
-            ]
+            ],
         }
 
         with (

@@ -37,7 +37,7 @@ Planned islands:
 - `fastapi-permissions` integration — **DONE**
 - `admin` and `content_creator` roles — **DONE**
 - Account page (shows username + role badge) — **DONE**
-- `team_manager` role — *not started (needed for Entries phase)*
+- `club_manager` role (team manager equivalent) — **DONE** (`require_club_manager` dependency in `identity.py`)
 
 ---
 
@@ -105,22 +105,26 @@ Planned islands:
 
 ## Phase 5: Entries
 
-### 5.1 Athlete & Category Management
-- Team manager role — *not started*
-- Add athletes to categories and seasons — *not started*
-- Assign competition numbers — *not started*
-- Link athletes to their results — *not started*
+**Status**: Fully built (all tasks in `specs/002-team-entries/tasks.md` complete) but currently **hidden from navigation** — the `/entries` route renders a "work in progress" placeholder pending a reliable EA API authentication fix (see `fix/ea-api-integration` branch). Once that's resolved, re-add the nav link and flip the route back to the real flow. Also still in need of full testing of stripe integration. Still work in progress.
 
-### 5.3 Payments
-- Stripe integration (server-side PaymentIntent via Python `stripe` SDK) — *not started*
-- `static/entry-payment.js` island — mounts Stripe Elements widget, submits payment — *not started*
-- Post-payment confirmation page (server redirect, no JS) — *not started*
-- Webhook handler for async payment events (`/webhooks/stripe`) — *not started*
-- Update CSP to allow `js.stripe.com` and `api.stripe.com` (PCI DSS requirement) — *not started*
-- Document Stripe cookie / data collection in `templates/privacy.html` — *not started*
+### 5.1 Athlete & Category Management
+- `club_manager` role — **DONE**
+- Fetch club athletes from England Athletics TRAPI API, compute age category — **** (`src/website/entries.py`) — *blocked on production auth reliability*
+- Add athletes to a season as an entry batch — **DONE**
+- Assign competition (race) numbers — **DONE** (`assign_race_numbers`)
+- Admin clubs / club-managers management UI — **DONE**
+- Admin pricing & season entry config UI — **DONE**
+- Link athletes to their results — *not started (not part of original scope; would need race_number ↔ results matching)*
+
+### 5.2 Payments
+- Stripe integration (server-side Checkout Session via Python `stripe` SDK) — **DONE** — implemented as a hosted Stripe Checkout redirect rather than an embedded Elements widget, so no `entry-payment.js` island or CSP change was needed
+- Post-payment confirmation page (server redirect, no JS) — **DONE**
+- Webhook handler for async payment events (`/webhooks/stripe`) — **DONE** (card + BACS Direct Debit state machine)
+- PDF receipt generation (WeasyPrint) — **DONE**
 
 ### 5.3 GDPR Compliance for Athlete Data
-- Lawful basis for processing personal data — *not started*
+- Lawful basis for processing personal data — **DONE** (documented as contract/legitimate interest)
+- EA athlete data added to `templates/privacy.html` data inventory — **DONE**
 - Right to access data (data export) — *not started*
 - Right to erasure (deletion flow) — *not started*
 
