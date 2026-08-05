@@ -1379,6 +1379,7 @@ def administration_create_section(
             sort_order=sort_order,
         )
     except Exception:
+        _logger.exception("Failed to create administration section (slug=%s)", slug)
         raise HTTPException(
             status_code=400, detail="A section with that slug already exists."
         )
