@@ -64,7 +64,6 @@ SIDEBAR_ITEMS: list[dict[str, str]] = [
     {"name": "Past Winners", "route": "/winners", "page": "winners"},
     {"name": "Member Clubs", "route": "/clubs", "page": "clubs"},
     {"name": "Links", "route": "/links", "page": "links"},
-    {"name": "Entries", "route": "/entries", "page": "entries"},
     {
         "name": "Rules and Constitution",
         "route": "/rules-and-constitution",
