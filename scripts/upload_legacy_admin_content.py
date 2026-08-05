@@ -195,6 +195,29 @@ class Stats:
 # ---------------------------------------------------------------------------
 
 
+def _new_client() -> httpx.Client:
+    """Build the shared client for the script's HTTP session.
+
+    In production the app sets `https_only=True` on the session cookie, so the
+    server sends it with the `Secure` attribute. This script deliberately talks
+    to the app over plain ``http://127.0.0.1`` (loopback) so admin credentials
+    never cross the network — but httpx honours the `Secure` flag just like a
+    browser would and refuses to resend such a cookie over a non-HTTPS
+    connection. Without a fix, every request after login looks unauthenticated.
+    Re-insert the session cookie without the `Secure` flag after every response
+    so it actually gets sent on subsequent requests.
+    """
+    client = httpx.Client(follow_redirects=True, timeout=30.0)
+
+    def _persist_session_cookie_over_http(response: httpx.Response) -> None:
+        value = response.cookies.get("session")
+        if value is not None:
+            client.cookies.set("session", value)
+
+    client.event_hooks["response"] = [_persist_session_cookie_over_http]
+    return client
+
+
 def login(client: httpx.Client, base_url: str, username: str, password: str) -> None:
     resp = client.get(f"{base_url}/login")
     resp.raise_for_status()
@@ -521,7 +544,7 @@ def main() -> None:
     password = os.environ.get("ADMIN_PASSWORD") or getpass.getpass("Admin password: ")
 
     stats = Stats()
-    with httpx.Client(follow_redirects=True, timeout=30.0) as client:
+    with _new_client() as client:
         print(f"Logging in to {args.base_url} as '{username}'...")
         login(client, args.base_url, username, password)
         print("Login OK.")
