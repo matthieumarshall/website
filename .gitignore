@@ -41,6 +41,12 @@ data/fixture-maps/
 !data/fixture-maps/.gitkeep
 *.duckdb.wal
 
+# Scratch logs written by scripts/migrate_standings.py runs
+data/standings_import_*.jsonl
+data/standings_import_summary_*.txt
+data/standings_directory_import_*.jsonl
+data/standings_directory_import_summary_*.txt
+
 # Environment variables
 .env
 .env.local
