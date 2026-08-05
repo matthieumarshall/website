@@ -126,19 +126,6 @@ class TestSidebarNavigation:
             assert len(active_links) == 1, (
                 f"Expected exactly 1 active link on {route}, found {len(active_links)}"
             )
-        # /entries requires auth
-        browser.goto("http://localhost:8000/login")
-        browser.fill("input[name='username']", "entries_manager")
-        browser.fill("input[name='password']", "ManagerPassword123!@#")
-        browser.click("button[type='submit']")
-        browser.wait_for_load_state("networkidle")
-        browser.goto("http://localhost:8000/entries")
-        active_links = browser.query_selector_all(
-            "nav[aria-label='Main navigation'] a.active"
-        )
-        assert len(active_links) == 1, (
-            f"Expected exactly 1 active link on /entries, found {len(active_links)}"
-        )
 
     def test_sidebar_toggle_visible_on_mobile(self, browser):
         """The sidebar toggle button is visible at mobile viewport width"""

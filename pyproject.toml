@@ -26,7 +26,7 @@ dependencies = [
     "fastapi-permissions>=0.2.7",
     "httpx>=0.28.1",
     "fpdf2>=2.8.7",
-    "cryptography>46.0.6",
+    "cryptography>=50.0.0",
     "stripe>=15.2.0",
     "weasyprint>=69.0",
     "tenacity>=9.1.4",
