@@ -5,11 +5,13 @@
     "quill-better-table": "^1.2.10"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.10.0",
     "@playwright/test": "^1.40.0"
   },
   "scripts": {
     "lint:html": "uv run djlint templates/ --lint",
-    "test:ui": "playwright test"
+    "test:ui": "playwright test",
+    "test:a11y": "playwright test"
   },
   "dependencies": {
     "quill-better-table": "^1.2.10"
