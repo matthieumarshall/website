@@ -33,6 +33,28 @@
     modules: { toolbar: { container: toolbarOptions, handlers: { image: imageHandler } } },
   });
 
+  // Quill's dropdown "picker" controls (e.g. the heading-level selector) render
+  // as a <span role="button"> whose only content is a CSS/SVG icon, leaving them
+  // with no accessible name. Give each picker an explicit aria-label so screen
+  // readers can announce its purpose.
+  const pickerLabels = {
+    "ql-header": "Text style",
+    "ql-font": "Font",
+    "ql-size": "Font size",
+    "ql-align": "Alignment",
+    "ql-color": "Text color",
+    "ql-background": "Background color",
+  };
+  document.querySelectorAll(".ql-picker").forEach(function (picker) {
+    const labelKey = Object.keys(pickerLabels).find(function (cls) {
+      return picker.classList.contains(cls);
+    });
+    const label = picker.querySelector(".ql-picker-label");
+    if (label && labelKey) {
+      label.setAttribute("aria-label", pickerLabels[labelKey]);
+    }
+  });
+
   function imageHandler() {
     const input = document.createElement("input");
     input.setAttribute("type", "file");

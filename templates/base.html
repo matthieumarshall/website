@@ -81,11 +81,11 @@
   </div>
 
   {% if show_cookie_notice %}
-  <div id="cookie-notice" class="fixed-bottom bg-brand text-white py-2 px-3 d-flex flex-wrap align-items-center gap-2 small">
+  <div id="cookie-notice" role="region" aria-label="Cookie notice" class="fixed-bottom bg-brand text-white py-2 px-3 d-flex flex-wrap align-items-center gap-2 small">
     <span>
       This site uses a strictly necessary session cookie to keep you logged in.
       No tracking or advertising cookies are used.
-      <a href="/privacy-policy" class="text-white-50">Privacy policy</a>
+      <a href="/privacy-policy" class="cookie-notice-link">Privacy policy</a>
     </span>
     <form action="/dismiss-cookie-notice" method="post" class="d-inline m-0">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

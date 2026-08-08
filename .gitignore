@@ -78,6 +78,11 @@ coverage.json
 # Node.js
 node_modules/
 
+# Playwright (Node @playwright/test) artifacts
+test-results/
+playwright-report/
+tests/a11y/.seed-ids.json
+
 # Temporary files
 tmp/
 temp/
