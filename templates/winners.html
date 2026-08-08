@@ -16,7 +16,7 @@
   <h2 id="{{ winner_type }}-winners-heading" class="h5">{{ heading }}</h2>
   {% set winners = winners_by_type[winner_type] %}
   {% if winners %}
-  <div class="table-responsive">
+  <div class="table-responsive" tabindex="0">
     <table class="table table-hover align-middle">
       <caption class="visually-hidden">{{ heading }}</caption>
       <thead class="table-light">

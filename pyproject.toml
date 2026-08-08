@@ -5,6 +5,9 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.ty.environment]
+extra-paths = ["tests/ui"]
+
 [project]
 name = "website"
 version = "0.1.0"

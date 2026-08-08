@@ -253,3 +253,70 @@ dialog.fixture-image-modal:modal img {
 footer {
   border-top-color: var(--bs-border-color);
 }
+
+/* ============================================================================
+   9. ACCESSIBILITY — WCAG 2.1 AA contrast overrides
+   ========================================================================== */
+
+/* Bootstrap 5's outline button variants use their own component-scoped custom
+   properties (--bs-btn-*) with hardcoded fallback colours baked in at build
+   time — overriding the global --bs-primary/--bs-secondary tokens above does
+   NOT cascade into them. Override the component variables directly instead. */
+.btn-outline-secondary {
+  --bs-btn-color: #495057;
+  --bs-btn-border-color: #495057;
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-bg: #495057;
+  --bs-btn-hover-border-color: #495057;
+  --bs-btn-active-color: #fff;
+  --bs-btn-active-bg: #495057;
+  --bs-btn-active-border-color: #495057;
+  --bs-btn-disabled-color: #495057;
+  --bs-btn-disabled-border-color: #495057;
+}
+
+.btn-outline-primary {
+  --bs-btn-color: var(--brand-primary);
+  --bs-btn-border-color: var(--brand-primary);
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-bg: var(--brand-primary);
+  --bs-btn-hover-border-color: var(--brand-primary);
+  --bs-btn-active-color: #fff;
+  --bs-btn-active-bg: var(--brand-primary);
+  --bs-btn-active-border-color: var(--brand-primary);
+  --bs-btn-disabled-color: var(--brand-primary);
+  --bs-btn-disabled-border-color: var(--brand-primary);
+}
+
+.btn-outline-danger {
+  --bs-btn-color: #842029;
+  --bs-btn-border-color: #842029;
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-bg: #842029;
+  --bs-btn-hover-border-color: #842029;
+  --bs-btn-active-color: #fff;
+  --bs-btn-active-bg: #842029;
+  --bs-btn-active-border-color: #842029;
+  --bs-btn-disabled-color: #842029;
+  --bs-btn-disabled-border-color: #842029;
+}
+
+/* Bootstrap's default inline-code colour (#d63384) only reaches 4.13:1 against
+   our off-white body background; darken it to clear the 4.5:1 AA threshold. */
+code {
+  color: #99154f;
+}
+
+/* The cookie notice link inherited Bootstrap's .text-white-50 (50% opacity),
+   which only reaches 4.16:1 against the navy banner. Use full-opacity white
+   with an underline so the link remains visually distinct from the
+   surrounding text. */
+.cookie-notice-link {
+  color: #fff;
+  text-decoration: underline;
+}
+
+.cookie-notice-link:hover,
+.cookie-notice-link:focus {
+  color: #fff;
+}
