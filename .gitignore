@@ -91,7 +91,8 @@ OXL_League_Manual.pdf
 scripts/download-fonts.ps1
 scripts/pdf_to_markdown.py
 data/original_website
-.github\skills\vps\SKILL.md
+.github/skills/vps/SKILL.md
+docs/email-transfer-docs.md
 
 # EA client certificate artifacts (staging/production)
 data/*ClientCert*pfx*
