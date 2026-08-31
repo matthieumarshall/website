@@ -134,18 +134,18 @@ Planned islands:
 
 ### 6.1 Mobile Responsiveness
 - Website must be mobile-friendly and responsive across all device sizes (mobile, tablet, desktop) — *in progress*
-- Test layout and usability on common mobile devices and screen sizes — *not started*
+- Test layout and usability on common mobile devices and screen sizes — *in progress*
 - Ensure touch-friendly interactive elements (sufficient tap target size) — *not started*
 
 ### 6.2 Web Content Accessibility Guidelines (WCAG) 2.1 AA
 - Website must be WCAG 2.1 Level AA compliant — *in progress*
-- Keyboard navigation support for all interactive elements — *not started*
-- Proper semantic HTML and ARIA labels where required — *not started*
+- Keyboard navigation support for all interactive elements — *in progress*
+- Proper semantic HTML and ARIA labels where required — *in progress*
 - Sufficient colour contrast ratios (4.5:1 for normal text) — **DONE**
 - Alt text on all images — *started*
 - Accessible form labels and error messaging — *not started*
 - Screen reader testing (NVDA, JAWS) — *not started*
-- Automated accessibility testing in CI/CD pipeline — *not started*
+- Automated accessibility testing in CI/CD pipeline — **DONE**
 
 ---
 
