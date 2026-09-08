@@ -2,6 +2,10 @@
 
 {% block title %}Fixtures — Oxfordshire Cross Country League{% endblock %}
 
+{% block extra_head %}
+<link rel="stylesheet" href="/static/leaflet.min.css">
+{% endblock %}
+
 {% block content %}
 <div>
   <h1 class="h3 mb-3">Fixtures</h1>
@@ -71,5 +75,6 @@
 {% endblock %}
 
 {% block extra_scripts %}
+<script src="/static/leaflet.min.js"></script>
 <script src="/static/fixture-images.js"></script>
 {% endblock %}
