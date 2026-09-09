@@ -41,7 +41,21 @@ Host vps
 
 ## Common Tasks
 
-### Deploy latest code
+### Automatic nightly deploy
+
+`.github/workflows/deploy.yml` runs on a schedule (`cron: "0 0 * * *"`,
+midnight) and deploys `main` to the VPS automatically — it's a no-op if the
+VPS is already on the latest commit. It can also be triggered manually:
+
+```powershell
+gh workflow run deploy.yml --repo matthieumarshall/website
+```
+
+Merging a PR to `main` does **not** go live immediately; it lands at the
+next midnight run unless manually triggered as above (or deployed by hand
+below).
+
+### Deploy latest code (manual)
 
 ```bash
 ssh vps
