@@ -10,6 +10,10 @@
   var sentinel = document.getElementById("fixture-map");
   if (!sentinel) return;
 
+  // Leaflet must already be loaded (see fixtures.html: leaflet.min.js is
+  // loaded in <head> so it always runs before this island).
+  if (typeof L === "undefined") return;
+
   var lat = parseFloat(sentinel.dataset.lat);
   var lon = parseFloat(sentinel.dataset.lon);
   if (isNaN(lat) || isNaN(lon)) return;
