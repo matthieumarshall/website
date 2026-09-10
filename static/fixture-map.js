@@ -3,12 +3,24 @@
 /**
  * fixture-map.js — Leaflet map island for fixture location.
  *
- * Sentinel element: <div id="fixture-map" data-lat="..." data-lon="...">
- * The element must have an explicit height set via CSS or inline style.
+ * Sentinel element: <div class="fixture-map" data-lat="..." data-lon="...">
+ * immediately preceding this <script> tag. The element must have an explicit
+ * height set via CSS or inline style.
+ *
+ * The sentinel's id is unique per fixture (e.g. "fixture-map-12") rather than
+ * a fixed "fixture-map" id. This matters because htmx swaps this whole block
+ * in via hx-swap="innerHTML" on every fixture tab click, and htmx settles
+ * (re-syncs) class/style/width/height attributes between old and new elements
+ * that share the same id across a swap. With a fixed shared id, htmx would
+ * strip the leaflet-container class Leaflet adds here moments after this
+ * script runs, breaking the map's CSS containment (it would render huge,
+ * overflowing the page). Using document.currentScript to self-locate avoids
+ * depending on a fixed id at all.
  */
 (function () {
-  var sentinel = document.getElementById("fixture-map");
-  if (!sentinel) return;
+  var script = document.currentScript;
+  var sentinel = script && script.previousElementSibling;
+  if (!sentinel || !sentinel.classList.contains("fixture-map")) return;
 
   // Leaflet must already be loaded (see fixtures.html: leaflet.min.js is
   // loaded in <head> so it always runs before this island).
@@ -35,7 +47,7 @@
   // Point Leaflet's default icon loader at our self-hosted images.
   L.Icon.Default.imagePath = "/static/images/";
 
-  var map = L.map("fixture-map", {
+  var map = L.map(sentinel, {
     scrollWheelZoom: false,
     maxBounds: southEngland.pad(0.25),
     minZoom: 8,

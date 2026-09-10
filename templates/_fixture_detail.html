@@ -22,7 +22,8 @@
     {% if fixture.latitude and fixture.longitude %}
     <h3 class="h6 mt-3">Map</h3>
     <div
-      id="fixture-map"
+      id="fixture-map-{{ fixture.id }}"
+      class="fixture-map"
       data-lat="{{ fixture.latitude }}"
       data-lon="{{ fixture.longitude }}"
       style="height: 300px; border-radius: 4px;"
