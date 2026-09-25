@@ -101,3 +101,6 @@ data/generated/*
 scripts/convert_round_xls_to_seed*
 scripts/list_original_results*
 scripts/standardize_original*
+
+# website admin
+*dns.txt
