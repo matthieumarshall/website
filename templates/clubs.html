@@ -1,48 +1,92 @@
 {% extends "base.html" %}
 {% block title %}Member Clubs — Oxfordshire Cross Country League{% endblock %}
 {% block content %}
-<div class="mb-4">
-  <h1 class="h3 mb-1">Member Clubs</h1>
-  <p class="text-muted mb-0">Clubs currently participating in the Oxfordshire Cross Country League.</p>
+<div class="mb-4 d-flex flex-wrap align-items-center justify-content-between gap-2">
+  <div>
+    <h1 class="h3 mb-1">Member Clubs</h1>
+    <p class="text-muted mb-0">Clubs currently participating in the Oxfordshire Cross Country League.</p>
+  </div>
+  {% if is_staff %}
+  <div class="d-flex gap-2">
+    <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#add-club-collapse" aria-expanded="false" aria-controls="add-club-collapse">
+      + Add Club
+    </button>
+    <a href="/admin/clubs" class="btn btn-outline-secondary btn-sm">Admin Table</a>
+  </div>
+  {% endif %}
 </div>
 
-{% if clubs %}
-  <div class="table-responsive" tabindex="0">
-    <table class="table table-hover align-middle">
-      <caption class="visually-hidden">Oxfordshire Cross Country League member clubs</caption>
-      <thead class="table-light">
-        <tr>
-          <th scope="col">Club</th>
-          <th scope="col">OXL code</th>
-          <th scope="col">OpenTrack code</th>
-          <th scope="col">England Athletics ID</th>
-          <th scope="col">Oxfordshire</th>
-          <th scope="col"><span class="visually-hidden">Website</span></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for club in clubs %}
-        <tr>
-          <td class="fw-semibold">{{ club.name }}</td>
-          <td>{{ club.oxl_code }}</td>
-          <td>{{ club.opentrack_code or '—' }}</td>
-          <td>{{ club.ea_club_id }}</td>
-          <td>{{ 'Yes' if club.is_oxfordshire_member else 'No' }}</td>
-          <td>
-            {% if club.website_url %}
-            <a href="{{ club.website_url }}" target="_blank" rel="noopener noreferrer">
-              Website<span class="visually-hidden"> for {{ club.name }}</span>
-            </a>
-            {% else %}
-            <span class="text-muted">—</span>
-            {% endif %}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+{% if is_staff %}
+<div class="collapse mb-4" id="add-club-collapse">
+  <div class="card shadow-sm border-primary">
+    <div class="card-body">
+      <h2 class="h6 mb-3">Add new club</h2>
+      <div id="add-club-error" class="d-none alert alert-danger py-1 small mb-2" role="alert"></div>
+      <form hx-post="/clubs/inline-add"
+            hx-target="#clubs-table-body"
+            hx-swap="afterbegin"
+            hx-on::after-request="if(event.detail.successful) { this.reset(); const c = bootstrap.Collapse.getInstance(document.getElementById('add-club-collapse')); if(c) c.hide(); document.getElementById('add-club-error').classList.add('d-none'); document.getElementById('no-clubs-msg')?.remove(); }">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="row g-2">
+          <div class="col-12 col-md-4">
+            <label for="new_club_name" class="form-label small mb-1">Club name</label>
+            <input type="text" id="new_club_name" name="name" class="form-control form-control-sm" required placeholder="e.g. Oxford City AC">
+          </div>
+          <div class="col-6 col-md-2">
+            <label for="new_oxl_code" class="form-label small mb-1">OXL code</label>
+            <input type="text" id="new_oxl_code" name="oxl_code" class="form-control form-control-sm" required placeholder="e.g. OXC" pattern="[A-Z0-9\-]+" title="Uppercase letters, digits, and hyphens">
+          </div>
+          <div class="col-6 col-md-2">
+            <label for="new_ea_club_id" class="form-label small mb-1">EA club ID</label>
+            <input type="text" id="new_ea_club_id" name="ea_club_id" class="form-control form-control-sm" required placeholder="e.g. 123456">
+          </div>
+          <div class="col-6 col-md-2">
+            <label for="new_opentrack_code" class="form-label small mb-1">OpenTrack code</label>
+            <input type="text" id="new_opentrack_code" name="opentrack_code" class="form-control form-control-sm" placeholder="Optional">
+          </div>
+          <div class="col-6 col-md-2">
+            <label for="new_website_url" class="form-label small mb-1">Website URL</label>
+            <input type="url" id="new_website_url" name="website_url" class="form-control form-control-sm" placeholder="https://...">
+          </div>
+          <div class="col-12 d-flex align-items-center justify-content-between pt-2">
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="checkbox" id="new_is_oxfordshire" name="is_oxfordshire_member" checked>
+              <label class="form-check-label small" for="new_is_oxfordshire">Oxfordshire member club</label>
+            </div>
+            <div class="d-flex gap-2">
+              <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="collapse" data-bs-target="#add-club-collapse">Cancel</button>
+              <button type="submit" class="btn btn-primary btn-sm">Add Club</button>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
   </div>
-{% else %}
-  <p class="text-muted">No member clubs have been added yet.</p>
+</div>
+{% endif %}
+
+<div class="table-responsive" tabindex="0">
+  <table class="table table-hover align-middle">
+    <caption class="visually-hidden">Oxfordshire Cross Country League member clubs</caption>
+    <thead class="table-light">
+      <tr>
+        <th scope="col">Club</th>
+        <th scope="col">OXL code</th>
+        <th scope="col">OpenTrack code</th>
+        <th scope="col">England Athletics ID</th>
+        <th scope="col">Oxfordshire</th>
+        <th scope="col">Website</th>
+        {% if is_staff %}<th scope="col">Actions</th>{% endif %}
+      </tr>
+    </thead>
+    <tbody id="clubs-table-body">
+      {% for club in clubs %}
+        {% include "_club_row.html" %}
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% if not clubs %}
+  <p id="no-clubs-msg" class="text-muted">No member clubs have been added yet.</p>
 {% endif %}
 {% endblock %}

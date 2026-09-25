@@ -23,4 +23,79 @@
     {% endif %}
   </dd>
 </dl>
+
+{% if current_user.role in (UserRole.admin.value, UserRole.content_creator.value) %}
+<div class="card mt-4">
+  <div class="card-header bg-light">
+    <h2 class="h5 mb-0">Website Content Quick Links</h2>
+  </div>
+  <div class="card-body">
+    <p class="text-muted small mb-3">Jump directly to in-page editing or backend management tools:</p>
+    <div class="row g-3">
+      <div class="col-12 col-md-6 col-lg-4">
+        <div class="border rounded p-3 h-100">
+          <h3 class="h6 mb-2">Member Clubs</h3>
+          <p class="small text-muted mb-2">Edit directory information, OXL codes, and active status.</p>
+          <div class="d-flex gap-2">
+            <a href="/clubs" class="btn btn-sm btn-outline-primary">Public Page</a>
+            <a href="/admin/clubs" class="btn btn-sm btn-outline-secondary">Admin Table</a>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-md-6 col-lg-4">
+        <div class="border rounded p-3 h-100">
+          <h3 class="h6 mb-2">Senior Divisions</h3>
+          <p class="small text-muted mb-2">Assign and reorder clubs in men's and women's divisions 1–3.</p>
+          <div class="d-flex gap-2">
+            <a href="/divisions" class="btn btn-sm btn-outline-primary">Public Page</a>
+            <a href="/admin/divisions" class="btn btn-sm btn-outline-secondary">Admin Table</a>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-md-6 col-lg-4">
+        <div class="border rounded p-3 h-100">
+          <h3 class="h6 mb-2">Past Winners</h3>
+          <p class="small text-muted mb-2">Add legacy winners or correct official standings entries.</p>
+          <div class="d-flex gap-2">
+            <a href="/winners" class="btn btn-sm btn-outline-primary">Public Page</a>
+            <a href="/admin/winners" class="btn btn-sm btn-outline-secondary">Admin Table</a>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-md-6 col-lg-4">
+        <div class="border rounded p-3 h-100">
+          <h3 class="h6 mb-2">External Links</h3>
+          <p class="small text-muted mb-2">Manage links to national organisations, clubs, and leagues.</p>
+          <div class="d-flex gap-2">
+            <a href="/links" class="btn btn-sm btn-outline-primary">Public Page</a>
+            <a href="/admin/links" class="btn btn-sm btn-outline-secondary">Admin Table</a>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-md-6 col-lg-4">
+        <div class="border rounded p-3 h-100">
+          <h3 class="h6 mb-2">Administration Documents</h3>
+          <p class="small text-muted mb-2">Upload AGM minutes, constitution forms, and league files.</p>
+          <div class="d-flex gap-2">
+            <a href="/administration" class="btn btn-sm btn-outline-primary">Public Page</a>
+            <a href="/administration/manage" class="btn btn-sm btn-outline-secondary">Manage Files</a>
+          </div>
+        </div>
+      </div>
+      {% if current_user.role == UserRole.admin.value %}
+      <div class="col-12 col-md-6 col-lg-4">
+        <div class="border rounded p-3 h-100">
+          <h3 class="h6 mb-2">Club Managers & Entries</h3>
+          <p class="small text-muted mb-2">Manage manager credentials, payments, and athlete entries.</p>
+          <div class="d-flex gap-2">
+            <a href="/admin/club-managers" class="btn btn-sm btn-outline-secondary">Managers</a>
+            <a href="/admin/entries" class="btn btn-sm btn-outline-secondary">Entries</a>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
 {% endblock %}

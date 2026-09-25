@@ -1119,10 +1119,191 @@ def public_clubs(
     db: duckdb.DuckDBPyConnection = Depends(get_db),
 ) -> HTMLResponse:
     """Display the public directory of active member clubs."""
+    principals = get_active_principals(request)
+    is_staff = "role:admin" in principals or "role:content_creator" in principals
+    clubs_list = (
+        repository.list_clubs(db) if is_staff else repository.list_public_clubs(db)
+    )
     return templates.TemplateResponse(
         request,
         "clubs.html",
-        page_context(request, "clubs", clubs=repository.list_public_clubs(db)),
+        page_context(request, "clubs", clubs=clubs_list, is_staff=is_staff),
+    )
+
+
+@app.post("/clubs/inline-add", response_class=HTMLResponse)
+def clubs_inline_add(
+    request: Request,
+    name: str = Form(...),
+    oxl_code: str = Form(...),
+    ea_club_id: str = Form(...),
+    opentrack_code: str = Form(""),
+    website_url: str = Form(""),
+    is_oxfordshire_member: str = Form("off"),
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
+) -> Response:
+    validate_csrf(request, csrf_token)
+    name = name.strip()
+    oxl_code = oxl_code.strip().upper()
+    ea_club_id = ea_club_id.strip()
+    norm_opentrack = opentrack_code.strip() or None
+    norm_url = None
+    if not name or not oxl_code or not ea_club_id:
+        raise HTTPException(
+            status_code=422, detail="Name, OXL code and EA club ID are required."
+        )
+    if website_url.strip():
+        try:
+            norm_url = validate_http_url(website_url.strip())
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    try:
+        club = repository.create_club(
+            db,
+            name=name,
+            oxl_code=oxl_code,
+            ea_club_id=ea_club_id,
+            opentrack_code=norm_opentrack,
+            website_url=norm_url,
+            is_oxfordshire_member=is_oxfordshire_member == "on",
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=409, detail="A club with that OXL code already exists."
+        ) from exc
+    return templates.TemplateResponse(
+        request,
+        "_club_row.html",
+        page_context(request, "clubs", club=club, is_staff=True),
+    )
+
+
+@app.get("/clubs/{club_id}/inline-form", response_class=HTMLResponse)
+def clubs_inline_form(
+    request: Request,
+    club_id: int,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
+) -> HTMLResponse:
+    club = repository.get_club_by_id(club_id, db)
+    if club is None:
+        raise HTTPException(status_code=404)
+    return templates.TemplateResponse(
+        request,
+        "_club_row_edit.html",
+        page_context(request, "clubs", club=club),
+    )
+
+
+@app.get("/clubs/{club_id}/inline-row", response_class=HTMLResponse)
+def clubs_inline_row(
+    request: Request,
+    club_id: int,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
+) -> HTMLResponse:
+    club = repository.get_club_by_id(club_id, db)
+    if club is None:
+        raise HTTPException(status_code=404)
+    return templates.TemplateResponse(
+        request,
+        "_club_row.html",
+        page_context(request, "clubs", club=club, is_staff=True),
+    )
+
+
+@app.post("/clubs/{club_id}/inline-edit", response_class=HTMLResponse)
+def clubs_inline_edit(
+    request: Request,
+    club_id: int,
+    name: str = Form(...),
+    oxl_code: str = Form(...),
+    ea_club_id: str = Form(...),
+    opentrack_code: str = Form(""),
+    website_url: str = Form(""),
+    is_oxfordshire_member: str = Form("off"),
+    is_active: str = Form("off"),
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
+) -> HTMLResponse:
+    validate_csrf(request, csrf_token)
+    club = repository.get_club_by_id(club_id, db)
+    if club is None:
+        raise HTTPException(status_code=404)
+    name = name.strip()
+    oxl_code = oxl_code.strip().upper()
+    ea_club_id = ea_club_id.strip()
+    norm_opentrack = opentrack_code.strip() or None
+    norm_url = None
+    if not name or not oxl_code or not ea_club_id:
+        return templates.TemplateResponse(
+            request,
+            "_club_row_edit.html",
+            page_context(
+                request,
+                "clubs",
+                club=club,
+                error="Name, OXL code and EA club ID are required.",
+            ),
+            status_code=422,
+        )
+    if website_url.strip():
+        try:
+            norm_url = validate_http_url(website_url.strip())
+        except ValueError as exc:
+            return templates.TemplateResponse(
+                request,
+                "_club_row_edit.html",
+                page_context(request, "clubs", club=club, error=str(exc)),
+                status_code=422,
+            )
+    try:
+        repository.update_club(
+            db,
+            club_id=club_id,
+            name=name,
+            oxl_code=oxl_code,
+            ea_club_id=ea_club_id,
+            is_active=is_active == "on",
+            opentrack_code=norm_opentrack,
+            website_url=norm_url,
+            is_oxfordshire_member=is_oxfordshire_member == "on",
+        )
+    except Exception as exc:
+        return templates.TemplateResponse(
+            request,
+            "_club_row_edit.html",
+            page_context(request, "clubs", club=club, error=str(exc)),
+            status_code=422,
+        )
+    updated_club = repository.get_club_by_id(club_id, db)
+    return templates.TemplateResponse(
+        request,
+        "_club_row.html",
+        page_context(request, "clubs", club=updated_club, is_staff=True),
+    )
+
+
+@app.post("/clubs/{club_id}/inline-toggle", response_class=HTMLResponse)
+def clubs_inline_toggle(
+    request: Request,
+    club_id: int,
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
+) -> HTMLResponse:
+    validate_csrf(request, csrf_token)
+    if repository.get_club_by_id(club_id, db) is None:
+        raise HTTPException(status_code=404)
+    repository.toggle_club_active(db, club_id)
+    updated_club = repository.get_club_by_id(club_id, db)
+    return templates.TemplateResponse(
+        request,
+        "_club_row.html",
+        page_context(request, "clubs", club=updated_club, is_staff=True),
     )
 
 
@@ -1132,14 +1313,19 @@ def links(
     db: duckdb.DuckDBPyConnection = Depends(get_db),
 ) -> HTMLResponse:
     """Display active, administrator-managed external links."""
+    principals = get_active_principals(request)
+    is_staff = "role:admin" in principals or "role:content_creator" in principals
     categories = [
         {"key": "national", "label": "National athletics organisations"},
         {"key": "clubs", "label": "Member and local clubs"},
         {"key": "leagues", "label": "Other cross-country leagues"},
     ]
-    links_by_category = {category["key"]: [] for category in categories}
-    for link in repository.list_external_links(db, active_only=True):
-        links_by_category[link.category].append(link)
+    links_by_category: dict[str, list] = {
+        category["key"]: [] for category in categories
+    }
+    for link in repository.list_external_links(db, active_only=not is_staff):
+        if link.category in links_by_category:
+            links_by_category[link.category].append(link)
     return templates.TemplateResponse(
         request,
         "links.html",
@@ -1148,42 +1334,368 @@ def links(
             "links",
             categories=categories,
             links_by_category=links_by_category,
+            is_staff=is_staff,
         ),
     )
+
+
+@app.post("/links/inline-add", response_class=HTMLResponse)
+def links_inline_add(
+    request: Request,
+    title: str = Form(...),
+    url: str = Form(...),
+    category: str = Form(...),
+    description: str = Form(""),
+    sort_order: int = Form(0),
+    is_active: str = Form("off"),
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
+) -> Response:
+    validate_csrf(request, csrf_token)
+    title = title.strip()
+    norm_desc = description.strip() or None
+    try:
+        norm_url = validate_http_url(url.strip())
+        if not title or len(title) > 200 or category not in _LINK_CATEGORY_LABELS:
+            raise ValueError("Title and valid category are required")
+        if sort_order < 0:
+            raise ValueError("Display order cannot be negative")
+        link = repository.create_external_link(
+            db, title, norm_url, category, norm_desc, sort_order
+        )
+        if is_active != "on":
+            repository.toggle_external_link(db, link.id)
+            link = repository.get_external_link(db, link.id)
+    except (ValueError, duckdb.ConstraintException) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    item_html = templates.get_template("_link_item.html").render(
+        page_context(request, "links", link=link, is_staff=True)
+    )
+    oob_html = (
+        f'<div id="no-links-{category}" hx-swap-oob="delete"></div>'
+        f'<div hx-swap-oob="beforeend:#links-group-{category}">{item_html}</div>'
+    )
+    return HTMLResponse(content=oob_html, status_code=200)
+
+
+@app.get("/links/{link_id}/inline-form", response_class=HTMLResponse)
+def links_inline_form(
+    request: Request,
+    link_id: int,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
+) -> HTMLResponse:
+    link = repository.get_external_link(db, link_id)
+    if link is None:
+        raise HTTPException(status_code=404)
+    return templates.TemplateResponse(
+        request,
+        "_link_item_edit.html",
+        page_context(request, "links", link=link),
+    )
+
+
+@app.get("/links/{link_id}/inline-item", response_class=HTMLResponse)
+def links_inline_item(
+    request: Request,
+    link_id: int,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
+) -> HTMLResponse:
+    link = repository.get_external_link(db, link_id)
+    if link is None:
+        raise HTTPException(status_code=404)
+    return templates.TemplateResponse(
+        request,
+        "_link_item.html",
+        page_context(request, "links", link=link, is_staff=True),
+    )
+
+
+@app.post("/links/{link_id}/inline-edit", response_class=HTMLResponse)
+def links_inline_edit(
+    request: Request,
+    link_id: int,
+    title: str = Form(...),
+    url: str = Form(...),
+    category: str = Form(...),
+    description: str = Form(""),
+    sort_order: int = Form(0),
+    is_active: str = Form("off"),
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
+) -> HTMLResponse:
+    validate_csrf(request, csrf_token)
+    link = repository.get_external_link(db, link_id)
+    if link is None:
+        raise HTTPException(status_code=404)
+    title = title.strip()
+    norm_desc = description.strip() or None
+    try:
+        norm_url = validate_http_url(url.strip())
+        if not title or len(title) > 200 or category not in _LINK_CATEGORY_LABELS:
+            raise ValueError("Title and valid category are required")
+        if sort_order < 0:
+            raise ValueError("Display order cannot be negative")
+        repository.update_external_link(
+            db,
+            link_id,
+            title,
+            norm_url,
+            category,
+            norm_desc,
+            sort_order,
+            is_active == "on",
+        )
+    except (ValueError, duckdb.ConstraintException) as exc:
+        return templates.TemplateResponse(
+            request,
+            "_link_item_edit.html",
+            page_context(request, "links", link=link, error=str(exc)),
+            status_code=422,
+        )
+    updated_link = repository.get_external_link(db, link_id)
+    return templates.TemplateResponse(
+        request,
+        "_link_item.html",
+        page_context(request, "links", link=updated_link, is_staff=True),
+    )
+
+
+@app.post("/links/{link_id}/inline-toggle", response_class=HTMLResponse)
+def links_inline_toggle(
+    request: Request,
+    link_id: int,
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
+) -> HTMLResponse:
+    validate_csrf(request, csrf_token)
+    if repository.get_external_link(db, link_id) is None:
+        raise HTTPException(status_code=404)
+    repository.toggle_external_link(db, link_id)
+    updated_link = repository.get_external_link(db, link_id)
+    return templates.TemplateResponse(
+        request,
+        "_link_item.html",
+        page_context(request, "links", link=updated_link, is_staff=True),
+    )
+
+
+@app.post("/links/{link_id}/inline-delete", response_class=HTMLResponse)
+def links_inline_delete(
+    request: Request,
+    link_id: int,
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
+) -> HTMLResponse:
+    validate_csrf(request, csrf_token)
+    if repository.get_external_link(db, link_id) is None:
+        raise HTTPException(status_code=404)
+    repository.delete_external_link(db, link_id)
+    return HTMLResponse(content="", status_code=200)
+
+
+def _build_divisions_context(
+    db: duckdb.DuckDBPyConnection,
+    season_id: int | None = None,
+) -> tuple[Any, list[Any], dict[str, dict[int, list[dict[str, Any]]]]]:
+    seasons = repository.list_seasons(db)
+    selected_season = None
+    if season_id is not None:
+        selected_season = repository.get_season_by_id(db, season_id)
+    if selected_season is None and seasons:
+        selected_season = seasons[0]
+    assignments: dict[str, dict[int, list[dict[str, Any]]]] = {
+        "women": {1: [], 2: [], 3: []},
+        "men": {1: [], 2: [], 3: []},
+    }
+    if selected_season is not None:
+        clubs_by_id = {club.id: club for club in repository.list_clubs(db)}
+        for assignment in repository.list_division_assignments(db, selected_season.id):
+            club = clubs_by_id.get(assignment.club_id)
+            assignments[assignment.gender][assignment.division].append(
+                {
+                    "assignment_id": assignment.id,
+                    "club_id": assignment.club_id,
+                    "name": assignment.club_name,
+                    "website_url": club.website_url if club else None,
+                }
+            )
+    return selected_season, seasons, assignments
 
 
 @app.get("/divisions", response_class=HTMLResponse)
 def divisions(
     request: Request,
+    season_id: int | None = None,
     db: duckdb.DuckDBPyConnection = Depends(get_db),
 ) -> HTMLResponse:
     """Display current-season senior division assignments."""
-    seasons = repository.list_seasons(db)
-    season = seasons[0] if seasons else None
-    assignments: dict[str, dict[int, list[dict[str, str | None]]]] = {
-        "women": {1: [], 2: [], 3: []},
-        "men": {1: [], 2: [], 3: []},
-    }
-    if season is not None:
-        clubs_by_id = {club.id: club for club in repository.list_clubs(db)}
-        for assignment in repository.list_division_assignments(db, season.id):
-            club = clubs_by_id.get(assignment.club_id)
-            assignments[assignment.gender][assignment.division].append(
-                {
-                    "name": assignment.club_name,
-                    "website_url": club.website_url if club else None,
-                }
-            )
+    principals = get_active_principals(request)
+    is_staff = "role:admin" in principals or "role:content_creator" in principals
+    selected_season, seasons, assignments = _build_divisions_context(db, season_id)
+    all_clubs = repository.list_clubs(db) if is_staff else []
     return templates.TemplateResponse(
         request,
         "divisions.html",
         page_context(
             request,
             "divisions",
-            season=season,
-            assignments=assignments if season else {},
+            season=selected_season,
+            seasons=seasons,
+            assignments=assignments if selected_season else {},
+            all_clubs=all_clubs,
+            is_staff=is_staff,
         ),
     )
+
+
+@app.get("/divisions/panel", response_class=HTMLResponse)
+def divisions_panel(
+    request: Request,
+    season_id: int | None = None,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+) -> HTMLResponse:
+    principals = get_active_principals(request)
+    is_staff = "role:admin" in principals or "role:content_creator" in principals
+    selected_season, _, assignments = _build_divisions_context(db, season_id)
+    return templates.TemplateResponse(
+        request,
+        "_divisions_panel.html",
+        page_context(
+            request,
+            "divisions",
+            season=selected_season,
+            assignments=assignments if selected_season else {},
+            is_staff=is_staff,
+        ),
+    )
+
+
+@app.post("/divisions/inline-assign", response_class=HTMLResponse)
+def divisions_inline_assign(
+    request: Request,
+    season_id: int = Form(...),
+    club_id: int = Form(...),
+    gender: str = Form(...),
+    division: int = Form(...),
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
+) -> HTMLResponse:
+    validate_csrf(request, csrf_token)
+    error = None
+    if repository.get_season_by_id(db, season_id) is None:
+        error = "Select a valid season."
+    elif repository.get_club_by_id(club_id, db) is None:
+        error = "Select a valid club."
+    else:
+        try:
+            repository.create_division_assignment(
+                db, season_id, club_id, gender, division
+            )
+        except (ValueError, duckdb.ConstraintException) as exc:
+            error = str(exc)
+    selected_season, _, assignments = _build_divisions_context(db, season_id)
+    return templates.TemplateResponse(
+        request,
+        "_divisions_panel.html",
+        page_context(
+            request,
+            "divisions",
+            season=selected_season,
+            assignments=assignments if selected_season else {},
+            is_staff=True,
+            error=error,
+        ),
+        status_code=422 if error else 200,
+    )
+
+
+@app.post(
+    "/divisions/assignments/{assignment_id}/inline-delete",
+    response_class=HTMLResponse,
+)
+def divisions_inline_delete(
+    request: Request,
+    assignment_id: int,
+    season_id: int = Form(...),
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
+) -> HTMLResponse:
+    validate_csrf(request, csrf_token)
+    if repository.get_division_assignment(db, assignment_id) is None:
+        raise HTTPException(status_code=404)
+    repository.delete_division_assignment(db, assignment_id)
+    selected_season, _, assignments = _build_divisions_context(db, season_id)
+    return templates.TemplateResponse(
+        request,
+        "_divisions_panel.html",
+        page_context(
+            request,
+            "divisions",
+            season=selected_season,
+            assignments=assignments if selected_season else {},
+            is_staff=True,
+        ),
+    )
+
+
+@app.post(
+    "/divisions/assignments/{assignment_id}/inline-move",
+    response_class=HTMLResponse,
+)
+def divisions_inline_move(
+    request: Request,
+    assignment_id: int,
+    division: int = Form(...),
+    season_id: int = Form(...),
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
+) -> HTMLResponse:
+    validate_csrf(request, csrf_token)
+    assignment = repository.get_division_assignment(db, assignment_id)
+    if assignment is None:
+        raise HTTPException(status_code=404)
+    repository.update_division_assignment(
+        db,
+        assignment_id=assignment.id,
+        season_id=assignment.season_id,
+        club_id=assignment.club_id,
+        gender=assignment.gender,
+        division=division,
+    )
+    selected_season, _, assignments = _build_divisions_context(db, season_id)
+    return templates.TemplateResponse(
+        request,
+        "_divisions_panel.html",
+        page_context(
+            request,
+            "divisions",
+            season=selected_season,
+            assignments=assignments if selected_season else {},
+            is_staff=True,
+        ),
+    )
+
+
+def _build_winners_by_type(
+    db: duckdb.DuckDBPyConnection,
+) -> dict[str, list[dict[str, Any]]]:
+    winners_by_type: dict[str, list[dict[str, Any]]] = {
+        "individual": [],
+        "team": [],
+    }
+    for winner in repository.list_public_winners(db):
+        winners_by_type[winner["winner_type"]].append(winner)
+    return winners_by_type
 
 
 @app.get("/winners", response_class=HTMLResponse)
@@ -1192,13 +1704,208 @@ def winners(
     db: duckdb.DuckDBPyConnection = Depends(get_db),
 ) -> HTMLResponse:
     """Display official standings winners and administrative corrections."""
-    winners_by_type = {"individual": [], "team": []}
-    for winner in repository.list_public_winners(db):
-        winners_by_type[winner["winner_type"]].append(winner)
+    principals = get_active_principals(request)
+    is_staff = "role:admin" in principals or "role:content_creator" in principals
+    winners_by_type = _build_winners_by_type(db)
+    seasons = repository.list_seasons(db)
     return templates.TemplateResponse(
         request,
         "winners.html",
-        page_context(request, "winners", winners_by_type=winners_by_type),
+        page_context(
+            request,
+            "winners",
+            winners_by_type=winners_by_type,
+            seasons=seasons,
+            is_staff=is_staff,
+        ),
+    )
+
+
+@app.get("/winners/tables-panel", response_class=HTMLResponse)
+def winners_tables_panel(
+    request: Request,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+) -> HTMLResponse:
+    principals = get_active_principals(request)
+    is_staff = "role:admin" in principals or "role:content_creator" in principals
+    winners_by_type = _build_winners_by_type(db)
+    return templates.TemplateResponse(
+        request,
+        "_winners_tables_panel.html",
+        page_context(
+            request,
+            "winners",
+            winners_by_type=winners_by_type,
+            is_staff=is_staff,
+        ),
+    )
+
+
+@app.post("/winners/inline-add", response_class=HTMLResponse)
+def winners_inline_add(
+    request: Request,
+    season_id: int = Form(...),
+    winner_type: str = Form(...),
+    category: str = Form(...),
+    winner_name: str = Form(...),
+    club: str = Form(""),
+    total_score: str = Form(""),
+    note: str = Form(""),
+    mode: str = Form(...),
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
+) -> HTMLResponse:
+    validate_csrf(request, csrf_token)
+    error: str | None = None
+    current_user = get_current_user(request)
+    try:
+        if repository.get_season_by_id(db, season_id) is None:
+            raise ValueError("Select a valid season.")
+        category = category.strip()
+        winner_name = winner_name.strip()
+        if not category or not winner_name:
+            raise ValueError("Category and winner are required.")
+        score = int(total_score) if total_score.strip() else None
+        if score is not None and score < 0:
+            raise ValueError("Score cannot be negative.")
+        repository.create_winner_override(
+            db,
+            season_id=season_id,
+            winner_type=winner_type,
+            category=category,
+            winner_name=winner_name,
+            club=club.strip() or None,
+            total_score=score,
+            note=note.strip() or None,
+            mode=mode,
+            updated_by_id=current_user["id"] if current_user else None,
+        )
+    except (ValueError, duckdb.ConstraintException) as exc:
+        error = str(exc)
+
+    winners_by_type = _build_winners_by_type(db)
+    return templates.TemplateResponse(
+        request,
+        "_winners_tables_panel.html",
+        page_context(
+            request,
+            "winners",
+            winners_by_type=winners_by_type,
+            is_staff=True,
+            error=error,
+        ),
+        status_code=422 if error else 200,
+    )
+
+
+@app.get("/winners/overrides/{override_id}/inline-form", response_class=HTMLResponse)
+def winners_override_inline_form(
+    request: Request,
+    override_id: int,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
+) -> HTMLResponse:
+    override = repository.get_winner_override(db, override_id)
+    if override is None:
+        raise HTTPException(status_code=404)
+    seasons = repository.list_seasons(db)
+    return templates.TemplateResponse(
+        request,
+        "_winner_override_row_edit.html",
+        page_context(
+            request,
+            "winners",
+            override=override,
+            seasons=seasons,
+        ),
+    )
+
+
+@app.post("/winners/overrides/{override_id}/inline-edit", response_class=HTMLResponse)
+def winners_override_inline_edit(
+    request: Request,
+    override_id: int,
+    season_id: int = Form(...),
+    winner_type: str = Form(...),
+    category: str = Form(...),
+    winner_name: str = Form(...),
+    club: str = Form(""),
+    total_score: str = Form(""),
+    note: str = Form(""),
+    mode: str = Form(...),
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
+) -> HTMLResponse:
+    validate_csrf(request, csrf_token)
+    if repository.get_winner_override(db, override_id) is None:
+        raise HTTPException(status_code=404)
+    error: str | None = None
+    current_user = get_current_user(request)
+    try:
+        if repository.get_season_by_id(db, season_id) is None:
+            raise ValueError("Select a valid season.")
+        category = category.strip()
+        winner_name = winner_name.strip()
+        if not category or not winner_name:
+            raise ValueError("Category and winner are required.")
+        score = int(total_score) if total_score.strip() else None
+        if score is not None and score < 0:
+            raise ValueError("Score cannot be negative.")
+        repository.update_winner_override(
+            db,
+            override_id=override_id,
+            season_id=season_id,
+            winner_type=winner_type,
+            category=category,
+            winner_name=winner_name,
+            club=club.strip() or None,
+            total_score=score,
+            note=note.strip() or None,
+            mode=mode,
+            updated_by_id=current_user["id"] if current_user else None,
+        )
+    except (ValueError, duckdb.ConstraintException) as exc:
+        error = str(exc)
+
+    winners_by_type = _build_winners_by_type(db)
+    return templates.TemplateResponse(
+        request,
+        "_winners_tables_panel.html",
+        page_context(
+            request,
+            "winners",
+            winners_by_type=winners_by_type,
+            is_staff=True,
+            error=error,
+        ),
+        status_code=422 if error else 200,
+    )
+
+
+@app.post("/winners/overrides/{override_id}/inline-delete", response_class=HTMLResponse)
+def winners_override_inline_delete(
+    request: Request,
+    override_id: int,
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
+) -> HTMLResponse:
+    validate_csrf(request, csrf_token)
+    if repository.get_winner_override(db, override_id) is None:
+        raise HTTPException(status_code=404)
+    repository.delete_winner_override(db, override_id)
+    winners_by_type = _build_winners_by_type(db)
+    return templates.TemplateResponse(
+        request,
+        "_winners_tables_panel.html",
+        page_context(
+            request,
+            "winners",
+            winners_by_type=winners_by_type,
+            is_staff=True,
+        ),
     )
 
 
@@ -1301,7 +2008,7 @@ def administration_manage(
         "administration_manage.html",
         page_context(
             request,
-            "administration",
+            "admin_administration",
             sections=sections,
         ),
     )
@@ -2383,7 +3090,7 @@ def admin_clubs_list(
     return templates.TemplateResponse(
         request,
         "admin/clubs/list.html",
-        page_context(request, "admin", clubs=clubs),
+        page_context(request, "admin_clubs", clubs=clubs),
     )
 
 
@@ -2395,7 +3102,7 @@ def admin_clubs_new(
     return templates.TemplateResponse(
         request,
         "admin/clubs/form.html",
-        page_context(request, "admin", club=None),
+        page_context(request, "admin_clubs", club=None),
     )
 
 
@@ -2423,7 +3130,9 @@ def admin_clubs_create(
         return templates.TemplateResponse(
             request,
             "admin/clubs/form.html",
-            page_context(request, "admin", club=None, error="All fields are required."),
+            page_context(
+                request, "admin_clubs", club=None, error="All fields are required."
+            ),
             status_code=422,
         )
     try:
@@ -2433,7 +3142,7 @@ def admin_clubs_create(
         return templates.TemplateResponse(
             request,
             "admin/clubs/form.html",
-            page_context(request, "admin", club=None, error=str(exc)),
+            page_context(request, "admin_clubs", club=None, error=str(exc)),
             status_code=422,
         )
     try:
@@ -2452,7 +3161,7 @@ def admin_clubs_create(
             "admin/clubs/form.html",
             page_context(
                 request,
-                "admin",
+                "admin_clubs",
                 club=None,
                 error="A club with that OXL code already exists.",
             ),
@@ -2474,7 +3183,7 @@ def admin_clubs_edit(
     return templates.TemplateResponse(
         request,
         "admin/clubs/form.html",
-        page_context(request, "admin", club=club),
+        page_context(request, "admin_clubs", club=club),
     )
 
 
@@ -2508,7 +3217,9 @@ def admin_clubs_update(
         return templates.TemplateResponse(
             request,
             "admin/clubs/form.html",
-            page_context(request, "admin", club=club, error="All fields are required."),
+            page_context(
+                request, "admin_clubs", club=club, error="All fields are required."
+            ),
             status_code=422,
         )
     try:
@@ -2529,7 +3240,7 @@ def admin_clubs_update(
         return templates.TemplateResponse(
             request,
             "admin/clubs/form.html",
-            page_context(request, "admin", club=club, error=str(exc)),
+            page_context(request, "admin_clubs", club=club, error=str(exc)),
             status_code=422,
         )
     return RedirectResponse("/admin/clubs", status_code=303)
@@ -2551,7 +3262,7 @@ def admin_links_list(
         "admin/links/list.html",
         page_context(
             request,
-            "admin",
+            "admin_links",
             links=repository.list_external_links(db),
             category_labels=_LINK_CATEGORY_LABELS,
         ),
@@ -2568,7 +3279,7 @@ def admin_links_new(
         "admin/links/form.html",
         page_context(
             request,
-            "admin",
+            "admin_links",
             link=None,
             category_labels=_LINK_CATEGORY_LABELS,
         ),
@@ -2582,7 +3293,7 @@ def _link_form_context(
 ) -> dict[str, object]:
     return page_context(
         request,
-        "admin",
+        "admin_links",
         link=link,
         category_labels=_LINK_CATEGORY_LABELS,
         error=error,
@@ -2701,6 +3412,21 @@ def admin_links_toggle(
     return RedirectResponse("/admin/links", status_code=303)
 
 
+@app.post("/admin/links/{link_id}/delete")
+def admin_links_delete(
+    request: Request,
+    link_id: int,
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
+) -> RedirectResponse:
+    validate_csrf(request, csrf_token)
+    if repository.get_external_link(db, link_id) is None:
+        raise HTTPException(status_code=404)
+    repository.delete_external_link(db, link_id)
+    return RedirectResponse("/admin/links", status_code=303)
+
+
 @app.get("/admin/divisions", response_class=HTMLResponse)
 def admin_divisions_list(
     request: Request,
@@ -2712,7 +3438,7 @@ def admin_divisions_list(
         "admin/divisions/list.html",
         page_context(
             request,
-            "admin",
+            "admin_divisions",
             assignments=repository.list_division_assignments(db),
             seasons=repository.list_seasons(db),
             clubs=repository.list_clubs(db),
@@ -2750,7 +3476,7 @@ def admin_divisions_create(
             "admin/divisions/list.html",
             page_context(
                 request,
-                "admin",
+                "admin_divisions",
                 assignments=repository.list_division_assignments(db),
                 seasons=repository.list_seasons(db),
                 clubs=repository.list_clubs(db),
@@ -2787,7 +3513,7 @@ def admin_winners_list(
         "admin/winners/list.html",
         page_context(
             request,
-            "admin",
+            "admin_winners",
             overrides=repository.list_winner_overrides(db),
             seasons=repository.list_seasons(db),
         ),
@@ -2842,7 +3568,7 @@ def admin_winners_create(
             "admin/winners/list.html",
             page_context(
                 request,
-                "admin",
+                "admin_winners",
                 overrides=repository.list_winner_overrides(db),
                 seasons=repository.list_seasons(db),
                 error=error,
@@ -2868,6 +3594,21 @@ def admin_winners_toggle(
     return RedirectResponse("/admin/winners", status_code=303)
 
 
+@app.post("/admin/winners/{override_id}/delete")
+def admin_winners_delete(
+    request: Request,
+    override_id: int,
+    csrf_token: str = Form(...),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
+) -> RedirectResponse:
+    validate_csrf(request, csrf_token)
+    if repository.get_winner_override(db, override_id) is None:
+        raise HTTPException(status_code=404)
+    repository.delete_winner_override(db, override_id)
+    return RedirectResponse("/admin/winners", status_code=303)
+
+
 # ---------------------------------------------------------------------------
 # Admin — Club Managers
 # ---------------------------------------------------------------------------
@@ -2884,7 +3625,7 @@ def admin_club_managers_list(
     return templates.TemplateResponse(
         request,
         "admin/club-managers/list.html",
-        page_context(request, "admin", managers=managers, clubs=clubs),
+        page_context(request, "admin_club_managers", managers=managers, clubs=clubs),
     )
 
 

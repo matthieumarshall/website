@@ -1,0 +1,34 @@
+<tr id="club-row-{{ club.id }}">
+  <td class="fw-semibold">{{ club.name }}</td>
+  <td><code>{{ club.oxl_code }}</code></td>
+  <td>{{ club.opentrack_code or '—' }}</td>
+  <td><code>{{ club.ea_club_id }}</code></td>
+  <td>{{ 'Yes' if club.is_oxfordshire_member else 'No' }}</td>
+  <td>
+    {% if club.website_url %}
+    <a href="{{ club.website_url }}" target="_blank" rel="noopener noreferrer">
+      Website<span class="visually-hidden"> for {{ club.name }}</span>
+    </a>
+    {% else %}
+    <span class="text-muted">—</span>
+    {% endif %}
+  </td>
+  {% if is_staff %}
+  <td class="text-nowrap">
+    {% if not club.is_active %}<span class="badge text-bg-secondary me-1">Inactive</span>{% endif %}
+    <button type="button" class="btn btn-outline-secondary btn-sm"
+            hx-get="/clubs/{{ club.id }}/inline-form"
+            hx-target="#club-row-{{ club.id }}"
+            hx-swap="outerHTML">
+      Edit
+    </button>
+    <button type="button" class="btn btn-outline-{{ 'warning' if club.is_active else 'success' }} btn-sm"
+            hx-post="/clubs/{{ club.id }}/inline-toggle"
+            hx-vals='{"csrf_token": "{{ csrf_token }}"}'
+            hx-target="#club-row-{{ club.id }}"
+            hx-swap="outerHTML">
+      {{ 'Deactivate' if club.is_active else 'Activate' }}
+    </button>
+  </td>
+  {% endif %}
+</tr>

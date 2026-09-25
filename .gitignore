@@ -40,6 +40,8 @@ data/uploads/
 data/fixture-maps/
 !data/fixture-maps/.gitkeep
 *.duckdb.wal
+*.duckdb.*
+*.bak
 
 # Scratch logs written by scripts/migrate_standings.py runs
 data/standings_import_*.jsonl
