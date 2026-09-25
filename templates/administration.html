@@ -6,7 +6,7 @@
       <h1 class="h3 mb-2">Administration</h1>
       <p class="text-muted mb-0">Download league administration documents by section.</p>
     </div>
-    {% if current_user and current_user.role == UserRole.admin.value %}
+    {% if current_user and current_user.role in (UserRole.admin.value, UserRole.content_creator.value) %}
       <a href="/administration/manage" class="btn btn-outline-secondary btn-sm">Manage documents</a>
     {% endif %}
   </div>
