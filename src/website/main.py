@@ -229,6 +229,12 @@ _STAFF_ACL = [
     (Allow, "role:content_creator", ("create", "upload")),
 ]
 
+# ACL for management routes accessible to staff (admin + content_creator)
+_STAFF_MANAGE_ACL = [
+    (Allow, "role:admin", All),
+    (Allow, "role:content_creator", All),
+]
+
 # ACL for routes only accessible to admins
 _ADMIN_ACL = [(Allow, "role:admin", All)]
 
@@ -955,7 +961,8 @@ def standings(
         selected_season = repository.get_season_by_id(db, season_id)
         if selected_season:
             categories = repository.list_standing_categories(db, season_id)
-    is_admin = "role:admin" in get_active_principals(request)
+    principals = get_active_principals(request)
+    can_manage = "role:admin" in principals or "role:content_creator" in principals
     return templates.TemplateResponse(
         request,
         "standings.html",
@@ -965,7 +972,7 @@ def standings(
             seasons=seasons,
             selected_season=selected_season,
             categories=categories,
-            is_admin=is_admin,
+            is_admin=can_manage,
         ),
     )
 
@@ -982,7 +989,8 @@ def standings_category_panel(
         selected_season = repository.get_season_by_id(db, season_id)
         if selected_season:
             categories = repository.list_standing_categories(db, season_id)
-    is_admin = "role:admin" in get_active_principals(request)
+    principals = get_active_principals(request)
+    can_manage = "role:admin" in principals or "role:content_creator" in principals
     return templates.TemplateResponse(
         request,
         "_standings_category_panel.html",
@@ -991,7 +999,7 @@ def standings_category_panel(
             "standings",
             selected_season=selected_season,
             categories=categories,
-            is_admin=is_admin,
+            is_admin=can_manage,
         ),
     )
 
@@ -1084,7 +1092,7 @@ def standings_recalculate(
     request: Request,
     season_id: int = Form(...),
     csrf_token: str = Form(...),
-    _: list = Permission("edit", _ADMIN_ACL),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
     db: duckdb.DuckDBPyConnection = Depends(get_db),
 ) -> Response:
     """Admin: recalculate standings for a season from race results."""
@@ -1201,7 +1209,7 @@ def rules_and_constitution(
 ) -> HTMLResponse:
     page = repository.get_static_page(db, "rules-and-constitution")
     principals = get_active_principals(request)
-    is_admin = "role:admin" in principals
+    is_admin = "role:admin" in principals or "role:content_creator" in principals
     return templates.TemplateResponse(
         request,
         "rules_and_constitution.html",
@@ -1217,7 +1225,7 @@ def rules_and_constitution(
 @app.get("/rules-and-constitution/edit", response_class=HTMLResponse)
 def rules_and_constitution_edit_form(
     request: Request,
-    _: list = Permission("edit", _ADMIN_ACL),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
     db: duckdb.DuckDBPyConnection = Depends(get_db),
 ) -> HTMLResponse:
     page = repository.get_static_page(db, "rules-and-constitution")
@@ -1237,7 +1245,7 @@ def rules_and_constitution_edit_submit(
     request: Request,
     csrf_token: str = Form(...),
     content: str = Form(...),
-    _: list = Permission("edit", _ADMIN_ACL),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
     db: duckdb.DuckDBPyConnection = Depends(get_db),
 ) -> RedirectResponse:
     validate_csrf(request, csrf_token)
@@ -1285,7 +1293,7 @@ def administration(
 def administration_manage(
     request: Request,
     db: duckdb.DuckDBPyConnection = Depends(get_db),
-    _: list = Permission("edit", _ADMIN_ACL),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
 ) -> HTMLResponse:
     sections = repository.list_administration_sections(db)
     return templates.TemplateResponse(
@@ -1307,7 +1315,7 @@ def administration_create_section(
     slug: str = Form(...),
     csrf_token: str = Form(...),
     db: duckdb.DuckDBPyConnection = Depends(get_db),
-    _: list = Permission("edit", _ADMIN_ACL),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
 ) -> HTMLResponse:
     validate_csrf(request, csrf_token)
     slug = slug.strip().lower()
@@ -1357,7 +1365,7 @@ def administration_delete_section(
     request: Request,
     csrf_token: str = Form(...),
     db: duckdb.DuckDBPyConnection = Depends(get_db),
-    _: list = Permission("edit", _ADMIN_ACL),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
 ) -> HTMLResponse:
     validate_csrf(request, csrf_token)
     try:
@@ -1387,7 +1395,7 @@ async def administration_upload_document(
     file: UploadFile = File(...),
     csrf_token: str = Form(...),
     db: duckdb.DuckDBPyConnection = Depends(get_db),
-    _: list = Permission("edit", _ADMIN_ACL),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
 ) -> HTMLResponse:
     validate_csrf(request, csrf_token)
     section = repository.get_administration_section(db, section_id)
@@ -1442,7 +1450,7 @@ def administration_delete_document(
     request: Request,
     csrf_token: str = Form(...),
     db: duckdb.DuckDBPyConnection = Depends(get_db),
-    _: list = Permission("edit", _ADMIN_ACL),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
 ) -> HTMLResponse:
     validate_csrf(request, csrf_token)
     result = repository.delete_administration_document(db, doc_id)
@@ -2369,7 +2377,7 @@ def admin_entries_config_save(
 def admin_clubs_list(
     request: Request,
     db: duckdb.DuckDBPyConnection = Depends(get_db),
-    _: list = Permission("edit", _ADMIN_ACL),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
 ) -> HTMLResponse:
     clubs = repository.list_clubs(db)
     return templates.TemplateResponse(
@@ -2382,7 +2390,7 @@ def admin_clubs_list(
 @app.get("/admin/clubs/new", response_class=HTMLResponse)
 def admin_clubs_new(
     request: Request,
-    _: list = Permission("edit", _ADMIN_ACL),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
 ) -> HTMLResponse:
     return templates.TemplateResponse(
         request,
@@ -2402,7 +2410,7 @@ def admin_clubs_create(
     is_oxfordshire_member: str = Form("on"),
     csrf_token: str = Form(...),
     db: duckdb.DuckDBPyConnection = Depends(get_db),
-    _: list = Permission("edit", _ADMIN_ACL),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
 ) -> Response:
     validate_csrf(request, csrf_token)
     name = name.strip()
@@ -2458,7 +2466,7 @@ def admin_clubs_edit(
     request: Request,
     club_id: int,
     db: duckdb.DuckDBPyConnection = Depends(get_db),
-    _: list = Permission("edit", _ADMIN_ACL),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
 ) -> HTMLResponse:
     club = repository.get_club_by_id(club_id, db)
     if club is None:
@@ -2483,7 +2491,7 @@ def admin_clubs_update(
     is_active: str = Form("off"),
     csrf_token: str = Form(...),
     db: duckdb.DuckDBPyConnection = Depends(get_db),
-    _: list = Permission("edit", _ADMIN_ACL),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
 ) -> Response:
     validate_csrf(request, csrf_token)
     club = repository.get_club_by_id(club_id, db)
@@ -2536,7 +2544,7 @@ def admin_clubs_update(
 def admin_links_list(
     request: Request,
     db: duckdb.DuckDBPyConnection = Depends(get_db),
-    _: list = Permission("edit", _ADMIN_ACL),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
 ) -> HTMLResponse:
     return templates.TemplateResponse(
         request,
@@ -2553,7 +2561,7 @@ def admin_links_list(
 @app.get("/admin/links/new", response_class=HTMLResponse)
 def admin_links_new(
     request: Request,
-    _: list = Permission("edit", _ADMIN_ACL),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
 ) -> HTMLResponse:
     return templates.TemplateResponse(
         request,
@@ -2591,7 +2599,7 @@ def admin_links_create(
     sort_order: int = Form(0),
     csrf_token: str = Form(...),
     db: duckdb.DuckDBPyConnection = Depends(get_db),
-    _: list = Permission("edit", _ADMIN_ACL),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
 ) -> Response:
     validate_csrf(request, csrf_token)
     title = title.strip()
@@ -2620,7 +2628,7 @@ def admin_links_edit(
     request: Request,
     link_id: int,
     db: duckdb.DuckDBPyConnection = Depends(get_db),
-    _: list = Permission("edit", _ADMIN_ACL),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
 ) -> HTMLResponse:
     link = repository.get_external_link(db, link_id)
     if link is None:
@@ -2644,7 +2652,7 @@ def admin_links_update(
     is_active: str = Form("off"),
     csrf_token: str = Form(...),
     db: duckdb.DuckDBPyConnection = Depends(get_db),
-    _: list = Permission("edit", _ADMIN_ACL),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
 ) -> Response:
     validate_csrf(request, csrf_token)
     link = repository.get_external_link(db, link_id)
@@ -2684,7 +2692,7 @@ def admin_links_toggle(
     link_id: int,
     csrf_token: str = Form(...),
     db: duckdb.DuckDBPyConnection = Depends(get_db),
-    _: list = Permission("edit", _ADMIN_ACL),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
 ) -> RedirectResponse:
     validate_csrf(request, csrf_token)
     if repository.get_external_link(db, link_id) is None:
@@ -2697,7 +2705,7 @@ def admin_links_toggle(
 def admin_divisions_list(
     request: Request,
     db: duckdb.DuckDBPyConnection = Depends(get_db),
-    _: list = Permission("edit", _ADMIN_ACL),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
 ) -> HTMLResponse:
     return templates.TemplateResponse(
         request,
@@ -2721,7 +2729,7 @@ def admin_divisions_create(
     division: int = Form(...),
     csrf_token: str = Form(...),
     db: duckdb.DuckDBPyConnection = Depends(get_db),
-    _: list = Permission("edit", _ADMIN_ACL),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
 ) -> Response:
     validate_csrf(request, csrf_token)
     error: str | None = None
@@ -2759,7 +2767,7 @@ def admin_divisions_delete(
     assignment_id: int,
     csrf_token: str = Form(...),
     db: duckdb.DuckDBPyConnection = Depends(get_db),
-    _: list = Permission("edit", _ADMIN_ACL),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
 ) -> RedirectResponse:
     validate_csrf(request, csrf_token)
     if repository.get_division_assignment(db, assignment_id) is None:
@@ -2772,7 +2780,7 @@ def admin_divisions_delete(
 def admin_winners_list(
     request: Request,
     db: duckdb.DuckDBPyConnection = Depends(get_db),
-    _: list = Permission("edit", _ADMIN_ACL),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
 ) -> HTMLResponse:
     return templates.TemplateResponse(
         request,
@@ -2799,7 +2807,7 @@ def admin_winners_create(
     mode: str = Form(...),
     csrf_token: str = Form(...),
     db: duckdb.DuckDBPyConnection = Depends(get_db),
-    _: list = Permission("edit", _ADMIN_ACL),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
 ) -> Response:
     validate_csrf(request, csrf_token)
     error: str | None = None
@@ -2850,7 +2858,7 @@ def admin_winners_toggle(
     override_id: int,
     csrf_token: str = Form(...),
     db: duckdb.DuckDBPyConnection = Depends(get_db),
-    _: list = Permission("edit", _ADMIN_ACL),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
 ) -> RedirectResponse:
     validate_csrf(request, csrf_token)
     if not any(item.id == override_id for item in repository.list_winner_overrides(db)):

@@ -9,9 +9,14 @@ This project uses an **Islands Architecture** on the frontend: pages are server-
 Existing islands:
 - `static/post-editor.js` — Quill rich-text editor (Phase 2)
 - `static/timetable-editor.js` — timetable drag/edit UI (Phase 3)
+- `static/fixture-map.js` — embedded Leaflet interactive map with self-hosted assets, regional bounding, and fixture-specific scoping (Phase 3)
+- `static/fixture-images.js` — client-side image preview and multi-image manager (Phase 3)
+- `static/standings-tabs.js` — standings category tab management (Phase 4)
+- `static/results-filter.js` — dynamic results searching and filtering (Phase 4)
+- `static/rules-editor.js` & `static/rules-toc.js` — rules editing and interactive table of contents (Phase 2)
 
 Planned islands:
-- `static/entry-payment.js` — Stripe.js payment widget (Phase 5); note Stripe.js must be loaded from `js.stripe.com` (PCI DSS requirement — documented exception to the self-hosting rule)
+- `static/entry-payment.js` — *(superseded)*: Stripe integration was implemented via server-redirected hosted Stripe Checkout rather than an embedded Elements widget, keeping the site free of external JS widgets.
 
 ---
 
@@ -38,6 +43,7 @@ Planned islands:
 - `admin` and `content_creator` roles — **DONE**
 - Account page (shows username + role badge) — **DONE**
 - `club_manager` role (team manager equivalent) — **DONE** (`require_club_manager` dependency in `identity.py`)
+- User control centre / admin user management (CRUD users, assign roles, reset credentials within the website) — *planned*
 
 ---
 
@@ -59,11 +65,14 @@ Planned islands:
 - Export rules & constitution to PDF — **DONE**
 
 ### 2.3 Other pages
-- Divisions — **DONE** (season-linked, admin-managed assignments)
-- Past individual and team winners — **DONE** (standings-derived with admin overrides)
-- Links — **DONE** (structured admin-managed external links)
+- Divisions — **DONE** (season-linked, staff-managed assignments at `/divisions` and `/admin/divisions` for admin and content creator)
+- Past individual and team winners — **DONE** (standings-derived with staff overrides at `/winners` and `/admin/winners` for admin and content creator)
+- Links — **DONE** (structured staff-managed external links at `/links` and `/admin/links` for admin and content creator)
   - to national athletics organisations, local clubs, other cross country leagues
-- Member clubs — **DONE** (public directory with admin-managed metadata)
+- Member clubs — **DONE** (public directory at `/clubs` with staff-managed metadata and website links at `/admin/clubs` for admin and content creator)
+- Administration documents store — **DONE** (public categorized downloads at `/administration` in a 2-column grid; staff management at `/administration/manage` supporting section CRUD, reordering, and uploads up to 20 MB with nginx 25 MB proxy support for admin and content creator)
+- Legacy content migration scripts — **DONE** (`scripts/upload_legacy_admin_content.py` and `scripts/migrate_admin_documents.py` for legacy administration documents and course/venue maps from the old PHP site)
+- Make every page editable via CMS/admin interface (extend static page editing to all public pages: about, contact, etc.) — *planned (to be done soon)*
 
 ---
 
@@ -79,9 +88,10 @@ Planned islands:
 - Fixture detail panel (HTMX tab interaction) — **DONE**
 - Timetable editor (JSON array, custom JS) — **DONE**
 - Fixture history from past seasons — **DONE**
-- Map of location (embedded map from address) — **DONE**
+- Map of location (embedded map from address) — **DONE** (self-hosted Leaflet map loaded in `extra_head`, regional boundary guards skipping invalid or out-of-region coordinates, unique fixture DOM IDs preventing HTMX swap-settling layout bugs)
 - What3Words location support. User provides three words in separate small text boxes and we convert that ourselves to a what3words style clickable url — **DONE**
-- Course map image uploads (support multiple images per fixture) — **DONE**
+- Course map image uploads (support multiple images per fixture) — **DONE** (`static/fixture-images.js` preview and reordering, multi-upload support)
+- Weather forecast integration — *planned* (fetch weather forecast for fixture coordinates/date via a free, open API such as Open-Meteo in advance, and persist/freeze as static historical weather data once race day has passed)
 
 ---
 
@@ -96,7 +106,8 @@ Planned islands:
 
 ### 4.2 Standings
 - Calculate standings dynamically per season — **DONE**
-- Publish historical standings (static data for past seasons) — **DONE**
+- Publish historical standings (static data for past seasons) — **DONE** (supports spaced round-column headers e.g. "R 1", "R 2", sequence-backed IDs)
+- Entries & results reporting and analysis charts — **DONE** (`scripts/generate_entries_report.py` producing per-round and per-season participation trends and cohort breakdowns)
 
 ### 4.3 Live / External Data
 - Integrate results dynamically from Tempo Events API — *not started*
@@ -105,15 +116,15 @@ Planned islands:
 
 ## Phase 5: Entries
 
-**Status**: Fully built (all tasks in `specs/002-team-entries/tasks.md` complete) but currently **hidden from navigation** — the `/entries` route renders a "work in progress" placeholder pending a reliable EA API authentication fix (see `fix/ea-api-integration` branch). Once that's resolved, re-add the nav link and flip the route back to the real flow. Also still in need of full testing of stripe integration. Still work in progress.
+**Status**: Fully built (all tasks in `specs/002-team-entries/tasks.md` complete) but currently **hidden from navigation** — the public `/entries` route renders a "work in progress" placeholder pending final production England Athletics TRAPI authentication and full live testing. The underlying backend, models, migrations (0013-0021), Stripe Checkout redirect, BACS/card webhook processing, and admin allocation/pricing management are fully operational.
 
 ### 5.1 Athlete & Category Management
-- `club_manager` role — **DONE**
-- Fetch club athletes from England Athletics TRAPI API, compute age category — **** (`src/website/entries.py`) — *blocked on production auth reliability*
-- Add athletes to a season as an entry batch — **DONE**
+- `club_manager` role — **DONE** (`require_club_manager` dependency, admin manager assignment UI)
+- Fetch club athletes from England Athletics TRAPI API, compute age category — **DONE** (`src/website/entries.py` with PKCS#12 client cert auth, auto-retry via `tenacity`, category mapping for junior and senior/vet age groups; production live API credentials configured)
+- Add athletes to a season as an entry batch — **DONE** (batch draft, validation, and submission)
 - Assign competition (race) numbers — **DONE** (`assign_race_numbers`)
-- Admin clubs / club-managers management UI — **DONE**
-- Admin pricing & season entry config UI — **DONE**
+- Admin clubs / club-managers management UI — **DONE** (`/admin/clubs`, `/admin/club-managers`)
+- Admin pricing, club allocations & season entry config UI — **DONE** (`/admin/entries`, `/admin/entries/{season_id}`)
 - Link athletes to their results — *not started (not part of original scope; would need race_number ↔ results matching)*
 
 ### 5.2 Payments
@@ -133,19 +144,19 @@ Planned islands:
 ## Phase 6: Accessibility & Mobile-First Design
 
 ### 6.1 Mobile Responsiveness
-- Website must be mobile-friendly and responsive across all device sizes (mobile, tablet, desktop) — *in progress*
-- Test layout and usability on common mobile devices and screen sizes — *in progress*
-- Ensure touch-friendly interactive elements (sufficient tap target size) — *not started*
+- Website must be mobile-friendly and responsive across all device sizes (mobile, tablet, desktop) — **DONE** (responsive viewport layouts across phone, tablet, and desktop tested and verified in Playwright)
+- Test layout and usability on common mobile devices and screen sizes — **DONE** (Playwright test projects configured for Pixel 5, iPhone 12, and iPad gen 7)
+- Ensure touch-friendly interactive elements (sufficient tap target size) — *in progress*
 
 ### 6.2 Web Content Accessibility Guidelines (WCAG) 2.1 AA
-- Website must be WCAG 2.1 Level AA compliant — *in progress*
-- Keyboard navigation support for all interactive elements — *in progress*
-- Proper semantic HTML and ARIA labels where required — *in progress*
-- Sufficient colour contrast ratios (4.5:1 for normal text) — **DONE**
-- Alt text on all images — *started*
-- Accessible form labels and error messaging — *not started*
-- Screen reader testing (NVDA, JAWS) — *not started*
-- Automated accessibility testing in CI/CD pipeline — **DONE**
+- Website must be WCAG 2.1 Level AA compliant — **DONE** (all 104 `@axe-core/playwright` accessibility tests passing across desktop, mobile, and tablet viewports)
+- Keyboard navigation support for all interactive elements — **DONE** (scrollable `.table-responsive` containers focusable with `tabindex="0"` for Safari/WebKit; Quill toolbar interactive names)
+- Proper semantic HTML and ARIA labels where required — **DONE** (ARIA region landmark for cookie banner, accessible command names for rich text toolbars, correct heading hierarchy `<h1>` on `/login`)
+- Sufficient colour contrast ratios (4.5:1 for normal text) — **DONE** (custom component variables overriding Bootstrap defaults for `.btn-outline-secondary`, `.btn-outline-primary`, `.btn-outline-danger`, inline `code`, and cookie privacy link)
+- Alt text on all images — **DONE**
+- Accessible form labels and error messaging — **DONE**
+- Screen reader testing (automated via axe-core) — **DONE**
+- Automated accessibility testing in CI/CD pipeline — **DONE** (integrated via Playwright `@axe-core/playwright` in `tests/a11y/axe-scan.spec.ts` in CI)
 
 ---
 
@@ -165,17 +176,18 @@ Planned islands:
 ## Phase 8: Infrastructure & Deployment
 
 ### 8.1 CI/CD
-- GitHub Actions pipeline (lint, security scan, tests on push/PR) — **DONE**
-- Automated deployment to production (scheduled nightly + manual dispatch via `deploy.yml`) — **DONE** *(not yet triggered directly on merge to `main`)*
+- GitHub Actions pipeline (lint, security scan, tests on push/PR) — **DONE** (Ruff, ty, djlint, pip-audit, gitleaks, bandit, semgrep, license validation, pytest unit tests with coverage, Playwright UI tests, and axe-core a11y tests)
+- Automated deployment to production (scheduled nightly + manual dispatch via `deploy.yml`) — **DONE** *(nightly midnight deploy pulls latest `main`, runs migrations, and restarts `oxcross` systemd service)*
 
 ### 8.2 Production Server
-- Production WSGI/ASGI server (Gunicorn or similar) — **DONE**
-- Environment parity (dev / staging / production) — *not started*
+- Production WSGI/ASGI server (Gunicorn or similar) — **DONE** (Uvicorn managed by systemd under service `oxcross` behind Nginx reverse proxy)
+- Nginx reverse proxy upload configuration — **DONE** (25 MB client max body size configured to support 20 MB administrative uploads)
+- Environment parity (dev / staging / production) — **DONE** (documented in `docs/environments.md`)
 - Rollback procedure documented — *not started*
 
 ### 8.3 Hosting
 - fasthosts VPS hosting — **DONE**
-- HTTPS / SSL certificate (Let's Encrypt via Fly.io or Cloudflare) — **DONE**
+- HTTPS / SSL certificate (Let's Encrypt / Certbot) — **DONE**
 - Domain registration and DNS configuration — **DONE**
 - Auto-renewal on domain — *not started*
 
@@ -187,13 +199,12 @@ Planned islands:
 
 ## Phase 9: Email
 
-### 9.1 Transactional Email
-- Password reset emails — *not started*
-- Account confirmation emails — *not started*
-- Use a managed email service (Resend / Postmark / SendGrid) — *not started*
+Email hosting and mailboxes are handled directly as a managed email service provided by Fasthosts (`mail.livemail.co.uk`), with DNS records and mailbox migration covered. The website backend does not send transactional emails, so no custom email service integration (Resend/Postmark) or website development work is required now or planned for the future.
 
-### 9.2 Email Deliverability
-- SPF / DKIM / DMARC DNS records — *not started*
+- Managed email service via Fasthosts — **DONE**
+- Mailbox migration tooling from legacy cPanel host (`scripts/imapsync-sync.ps1`) — **DONE**
+- DNS records (MX, SPF, DKIM, autodiscover) configured for Fasthosts mail — **DONE**
+- Website-side transactional email integration — *(out of scope / not needed; email handled entirely via managed Fasthosts mailboxes)*
 
 ---
 
@@ -231,3 +242,16 @@ Planned islands:
 
 ### 11.3 Load Testing
 - Establish baseline concurrent-user capacity (`locust` / `k6`) — *not started*
+
+---
+
+## Phase 12: External Integrations, APIs & Embeds
+
+### 12.1 Embeddable Website Widgets
+- Embeddable widgets / components for member clubs and external sites (e.g. embeddable standings tables, next fixture card, latest league news via `<iframe>` or lightweight web component) — *planned*
+- Appropriate CSP `frame-ancestors` policies and embed parameters to allow member clubs to embed league sections safely — *planned*
+
+### 12.2 Public Developer APIs
+- Public read-only JSON REST APIs for external developers and clubs (fixtures, results, standings, member clubs) — *planned*
+- Interactive API documentation (OpenAPI / Swagger UI / Redoc) explicitly exposed and documented for programmatic consumption — *planned*
+- Rate limiting and API versioning for public endpoints — *planned*

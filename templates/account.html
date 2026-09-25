@@ -15,9 +15,11 @@
       {{ current_user.role | replace("_", " ") | title }}
     </span>
     {% if current_user.role == UserRole.admin.value %}
-      <span class="ms-2 text-muted small">Full access — can create, edit, and delete any post.</span>
+      <span class="ms-2 text-muted small">Full access — can manage all site content and settings.</span>
+    {% elif current_user.role == UserRole.content_creator.value %}
+      <span class="ms-2 text-muted small">Content creator — can manage news, fixtures, results, standings, rules, administration documents, clubs, links, divisions, and past winners.</span>
     {% else %}
-      <span class="ms-2 text-muted small">Can create and edit your own posts.</span>
+      <span class="ms-2 text-muted small">Can manage your club's entries.</span>
     {% endif %}
   </dd>
 </dl>
