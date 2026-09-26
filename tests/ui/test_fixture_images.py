@@ -18,6 +18,26 @@ _BASE = "http://localhost:8000"
 class TestFixtureImageModal:
     """Tests for the course map image thumbnail gallery and modal behaviour."""
 
+    def test_fixture_tab_active_state_updates_on_click(
+        self, admin_browser: Page
+    ) -> None:
+        """Selecting a fixture updates its active and aria-pressed states."""
+        admin_browser.goto(f"{_BASE}/fixtures")
+        admin_browser.wait_for_load_state("networkidle")
+
+        fixture_tabs = admin_browser.locator("#season-panel [data-fixture-tab]")
+        assert fixture_tabs.count() == 2
+        assert fixture_tabs.nth(0).get_attribute("aria-pressed") == "true"
+        assert fixture_tabs.nth(1).get_attribute("aria-pressed") == "false"
+
+        fixture_tabs.nth(1).click()
+        admin_browser.wait_for_load_state("networkidle")
+
+        assert "active" in (fixture_tabs.nth(1).get_attribute("class") or "")
+        assert "active" not in (fixture_tabs.nth(0).get_attribute("class") or "")
+        assert fixture_tabs.nth(1).get_attribute("aria-pressed") == "true"
+        assert fixture_tabs.nth(0).get_attribute("aria-pressed") == "false"
+
     def test_fixtures_page_loads_for_admin(self, admin_browser: Page) -> None:
         """Fixtures page is accessible to admin users and shows seeded data."""
         admin_browser.goto(f"{_BASE}/fixtures")
