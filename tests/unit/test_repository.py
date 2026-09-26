@@ -559,3 +559,84 @@ class TestFixtureImageRepository:
         assert len(images) == 2
         filenames = {img.filename for img in images}
         assert {"img1.jpg", "img2.png"} == filenames
+
+
+# ---------------------------------------------------------------------------
+# Content Management Repository Tests (Clubs, Links, Winners)
+# ---------------------------------------------------------------------------
+
+
+class TestClubContentRepository:
+    def test_toggle_club_active(self, db: duckdb.DuckDBPyConnection) -> None:
+        club = repository.create_club(db, "Active Club", "ACT", "111")
+        assert club.is_active is True
+        repository.toggle_club_active(db, club.id)
+        fetched = repository.get_club_by_id(club.id, db)
+        assert fetched is not None
+        assert fetched.is_active is False
+        repository.toggle_club_active(db, club.id)
+        fetched = repository.get_club_by_id(club.id, db)
+        assert fetched is not None
+        assert fetched.is_active is True
+
+
+class TestExternalLinksRepository:
+    def test_delete_external_link(self, db: duckdb.DuckDBPyConnection) -> None:
+        link = repository.create_external_link(
+            db, "Link To Delete", "https://example.com/del", "national", "desc", 0
+        )
+        assert repository.get_external_link(db, link.id) is not None
+        repository.delete_external_link(db, link.id)
+        assert repository.get_external_link(db, link.id) is None
+
+
+class TestWinnerOverridesRepository:
+    def test_winner_override_crud_and_public_list(
+        self, db: duckdb.DuckDBPyConnection, admin_user: User
+    ) -> None:
+        season = repository.create_season(db, "Override Season")
+        override = repository.create_winner_override(
+            db,
+            season_id=season.id,
+            winner_type="individual",
+            category="U15 Girls",
+            winner_name="Runner One",
+            club="Test AC",
+            total_score=5,
+            note="Test note",
+            mode="replace",
+            updated_by_id=admin_user.id,
+        )
+        fetched = repository.get_winner_override(db, override.id)
+        assert fetched is not None
+        assert fetched.winner_name == "Runner One"
+        assert fetched.note == "Test note"
+
+        repository.update_winner_override(
+            db,
+            override_id=override.id,
+            season_id=season.id,
+            winner_type="individual",
+            category="U15 Girls",
+            winner_name="Runner Two",
+            club="Updated AC",
+            total_score=8,
+            note="Updated note",
+            mode="replace",
+            updated_by_id=admin_user.id,
+        )
+        updated = repository.get_winner_override(db, override.id)
+        assert updated is not None
+        assert updated.winner_name == "Runner Two"
+        assert updated.total_score == 8
+
+        public_winners = repository.list_public_winners(db)
+        match = next(
+            (w for w in public_winners if w["winner_name"] == "Runner Two"), None
+        )
+        assert match is not None
+        assert match["is_override"] is True
+        assert match["override_id"] == override.id
+
+        repository.delete_winner_override(db, override.id)
+        assert repository.get_winner_override(db, override.id) is None

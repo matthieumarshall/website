@@ -6,7 +6,10 @@
     <h1 class="h3 mb-1">Manage Links</h1>
     <p class="text-muted mb-0">Maintain the public links directory.</p>
   </div>
-  <a href="/admin/links/new" class="btn btn-primary btn-sm">Add link</a>
+  <div class="d-flex gap-2">
+    <a href="/links" class="btn btn-outline-secondary btn-sm">View public page</a>
+    <a href="/admin/links/new" class="btn btn-primary btn-sm">Add link</a>
+  </div>
 </div>
 
 {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
@@ -28,6 +31,10 @@
         <form method="post" action="/admin/links/{{ link.id }}/toggle" class="d-inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button type="submit" class="btn btn-outline-secondary btn-sm">{{ 'Hide' if link.is_active else 'Show' }}</button>
+        </form>
+        <form method="post" action="/admin/links/{{ link.id }}/delete" class="d-inline" onsubmit="return confirm('Delete this link?');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
         </form>
       </td>
     </tr>{% endfor %}

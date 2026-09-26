@@ -62,6 +62,35 @@
                 >{{ item.name }}</a>
               </li>
               {% endfor %}
+
+              {% if current_user and current_user.role in (UserRole.admin.value, UserRole.content_creator.value) %}
+              <li class="nav-item mt-3 pt-2 border-top">
+                <span class="sidebar-heading px-3 text-muted text-uppercase small fw-semibold">Website Content</span>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link{{ ' active' if current_page == 'admin_clubs' else '' }}" href="/admin/clubs">Manage Clubs</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link{{ ' active' if current_page == 'admin_divisions' else '' }}" href="/admin/divisions">Manage Divisions</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link{{ ' active' if current_page == 'admin_winners' else '' }}" href="/admin/winners">Manage Winners</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link{{ ' active' if current_page == 'admin_links' else '' }}" href="/admin/links">Manage Links</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link{{ ' active' if current_page == 'admin_administration' else '' }}" href="/administration/manage">Manage Documents</a>
+              </li>
+              {% if current_user.role == UserRole.admin.value %}
+              <li class="nav-item">
+                <a class="nav-link{{ ' active' if current_page == 'admin_club_managers' else '' }}" href="/admin/club-managers">Club Managers</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link{{ ' active' if current_page == 'admin_entries' else '' }}" href="/admin/entries">Entries Overview</a>
+              </li>
+              {% endif %}
+              {% endif %}
             </ul>
           </nav>
         </div>

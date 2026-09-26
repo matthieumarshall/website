@@ -1041,6 +1041,16 @@ def update_club(
     )
 
 
+def toggle_club_active(
+    db: duckdb.DuckDBPyConnection,
+    club_id: int,
+) -> None:
+    db.execute(
+        "UPDATE clubs SET is_active = NOT is_active WHERE id = ?",
+        [club_id],
+    )
+
+
 def club_has_active_batches(db: duckdb.DuckDBPyConnection, club_id: int) -> bool:
     row = db.execute(
         "SELECT COUNT(*) FROM entry_batches WHERE club_id = ? AND status IN ('pending_payment', 'payment_initiated', 'paid')",
@@ -1173,6 +1183,13 @@ def toggle_external_link(
         " updated_at = current_timestamp WHERE id = ?",
         [link_id],
     )
+
+
+def delete_external_link(
+    db: duckdb.DuckDBPyConnection,
+    link_id: int,
+) -> None:
+    db.execute("DELETE FROM external_links WHERE id = ?", [link_id])
 
 
 def list_division_assignments(
@@ -1341,6 +1358,77 @@ def create_winner_override(
     return next(item for item in list_winner_overrides(db) if item.id == row[0])
 
 
+def get_winner_override(
+    db: duckdb.DuckDBPyConnection,
+    override_id: int,
+) -> WinnerOverride | None:
+    row = db.execute(
+        "SELECT wo.id, wo.season_id, s.name, wo.winner_type, wo.category,"
+        " wo.winner_name, wo.club, wo.total_score, wo.note, wo.mode,"
+        " wo.is_active, wo.updated_by_id FROM winner_overrides wo"
+        " JOIN seasons s ON s.id = wo.season_id"
+        " WHERE wo.id = ?",
+        [override_id],
+    ).fetchone()
+    if not row:
+        return None
+    return WinnerOverride(
+        id=row[0],
+        season_id=row[1],
+        season_name=row[2],
+        winner_type=row[3],
+        category=row[4],
+        winner_name=row[5],
+        club=row[6],
+        total_score=row[7],
+        note=row[8],
+        mode=row[9],
+        is_active=row[10],
+        updated_by_id=row[11],
+    )
+
+
+def update_winner_override(
+    db: duckdb.DuckDBPyConnection,
+    override_id: int,
+    season_id: int,
+    winner_type: str,
+    category: str,
+    winner_name: str,
+    club: str | None,
+    total_score: int | None,
+    note: str | None,
+    mode: str,
+    updated_by_id: int | None,
+) -> None:
+    if winner_type not in _WINNER_TYPES or mode not in _WINNER_MODES:
+        raise ValueError("Invalid winner override")
+    db.execute(
+        "UPDATE winner_overrides SET season_id = ?, winner_type = ?, category = ?,"
+        " winner_name = ?, club = ?, total_score = ?, note = ?, mode = ?,"
+        " updated_by_id = ?, updated_at = current_timestamp WHERE id = ?",
+        [
+            season_id,
+            winner_type,
+            category,
+            winner_name,
+            club,
+            total_score,
+            note,
+            mode,
+            updated_by_id,
+            override_id,
+        ],
+    )
+
+
+def delete_winner_override(
+    db: duckdb.DuckDBPyConnection,
+    override_id: int,
+) -> None:
+    db.execute("DELETE FROM winner_overrides WHERE id = ?", [override_id])
+
+
 def toggle_winner_override(
     db: duckdb.DuckDBPyConnection,
     override_id: int,
@@ -1375,6 +1463,7 @@ def list_public_winners(db: duckdb.DuckDBPyConnection) -> list[dict]:
             "club": row[5],
             "total_score": row[6],
             "is_override": False,
+            "override_id": None,
             "note": None,
         }
         for row in rows
@@ -1403,6 +1492,7 @@ def list_public_winners(db: duckdb.DuckDBPyConnection) -> list[dict]:
                 "club": override.club,
                 "total_score": override.total_score,
                 "is_override": True,
+                "override_id": override.id,
                 "note": override.note,
             }
         )

@@ -1,0 +1,69 @@
+<div id="winners-tables-panel">
+  {% if error %}<div class="alert alert-danger py-1 small mb-3" role="alert">{{ error }}</div>{% endif %}
+  {% for winner_type, heading in (('individual', 'Individual winners'), ('team', 'Team winners')) %}
+  <section class="mb-5" aria-labelledby="{{ winner_type }}-winners-heading">
+    <h2 id="{{ winner_type }}-winners-heading" class="h5">{{ heading }}</h2>
+    {% set winners = winners_by_type[winner_type] %}
+    {% if winners %}
+    <div class="table-responsive" tabindex="0">
+      <table class="table table-hover align-middle">
+        <caption class="visually-hidden">{{ heading }}</caption>
+        <thead class="table-light">
+          <tr>
+            <th scope="col">Season</th>
+            <th scope="col">Category</th>
+            <th scope="col">Winner</th>
+            <th scope="col">Club</th>
+            <th scope="col">Score</th>
+            {% if is_staff %}<th scope="col">Actions</th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for winner in winners %}
+          <tr {% if winner.is_override %}id="winner-row-{{ winner.override_id }}"{% endif %}>
+            <td>{{ winner.season_name }}</td>
+            <td>{{ winner.category }}</td>
+            <td>
+              {{ winner.winner_name }}
+              {% if winner.is_override %}<span class="badge text-bg-secondary ms-1">Admin record</span>{% endif %}
+              {% if winner.note %}<div class="small text-muted">{{ winner.note }}</div>{% endif %}
+            </td>
+            <td>{{ winner.club or '—' }}</td>
+            <td>{{ winner.total_score if winner.total_score is not none else '—' }}</td>
+            {% if is_staff %}
+            <td class="text-nowrap">
+              {% if winner.is_override %}
+              <button type="button" class="btn btn-outline-secondary btn-sm"
+                      hx-get="/winners/overrides/{{ winner.override_id }}/inline-form"
+                      hx-target="#winner-row-{{ winner.override_id }}"
+                      hx-swap="outerHTML">
+                Edit
+              </button>
+              <form hx-post="/winners/overrides/{{ winner.override_id }}/inline-delete"
+                    hx-target="#winners-tables-panel"
+                    hx-confirm="Delete this winner record?"
+                    class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
+              </form>
+              {% else %}
+              <button type="button" class="btn btn-outline-primary btn-sm py-0 px-2 small"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#add-winner-collapse"
+                      onclick="document.getElementById('new_winner_season_id').value = '{{ winner.season_id }}'; document.getElementById('new_winner_type').value = '{{ winner.winner_type }}'; document.getElementById('new_winner_category').value = '{{ winner.category }}'; document.getElementById('new_winner_name').value = '{{ winner.winner_name }}'; document.getElementById('new_winner_club').value = '{{ winner.club or '' }}'; document.getElementById('new_winner_score').value = '{{ winner.total_score if winner.total_score is not none else '' }}'; document.getElementById('new_winner_note').value = 'Correction for {{ winner.winner_name }}';">
+                + Override
+              </button>
+              {% endif %}
+            </td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-muted">No {{ winner_type }} winners have been published yet.</p>
+    {% endif %}
+  </section>
+  {% endfor %}
+</div>

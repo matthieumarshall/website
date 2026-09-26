@@ -1,0 +1,66 @@
+<tr id="winner-row-{{ override.id }}" class="table-active">
+  <td colspan="6" class="p-3">
+    <div class="card shadow-sm border-primary">
+      <div class="card-body">
+        <h3 class="h6 mb-3">Edit Winner Record — {{ override.season_name }} ({{ override.winner_type|title }})</h3>
+        {% if error %}<div class="alert alert-danger py-1 small mb-2" role="alert">{{ error }}</div>{% endif %}
+        <form hx-post="/winners/overrides/{{ override.id }}/inline-edit"
+              hx-target="#winners-tables-panel">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <div class="row g-2">
+            <div class="col-12 col-md-3">
+              <label for="edit_override_season-{{ override.id }}" class="form-label small mb-1">Season</label>
+              <select id="edit_override_season-{{ override.id }}" name="season_id" class="form-select form-select-sm" required>
+                {% for s in seasons %}
+                <option value="{{ s.id }}" {% if override.season_id == s.id %}selected{% endif %}>{{ s.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-6 col-md-2">
+              <label for="edit_override_type-{{ override.id }}" class="form-label small mb-1">Type</label>
+              <select id="edit_override_type-{{ override.id }}" name="winner_type" class="form-select form-select-sm" required>
+                <option value="individual" {% if override.winner_type == 'individual' %}selected{% endif %}>Individual</option>
+                <option value="team" {% if override.winner_type == 'team' %}selected{% endif %}>Team</option>
+              </select>
+            </div>
+            <div class="col-6 col-md-3">
+              <label for="edit_override_category-{{ override.id }}" class="form-label small mb-1">Category</label>
+              <input type="text" id="edit_override_category-{{ override.id }}" name="category" class="form-control form-control-sm" required value="{{ override.category }}">
+            </div>
+            <div class="col-12 col-md-4">
+              <label for="edit_override_name-{{ override.id }}" class="form-label small mb-1">Winner</label>
+              <input type="text" id="edit_override_name-{{ override.id }}" name="winner_name" class="form-control form-control-sm" required value="{{ override.winner_name }}">
+            </div>
+            <div class="col-12 col-md-4">
+              <label for="edit_override_club-{{ override.id }}" class="form-label small mb-1">Club (optional)</label>
+              <input type="text" id="edit_override_club-{{ override.id }}" name="club" class="form-control form-control-sm" value="{{ override.club or '' }}">
+            </div>
+            <div class="col-6 col-md-2">
+              <label for="edit_override_score-{{ override.id }}" class="form-label small mb-1">Score</label>
+              <input type="number" id="edit_override_score-{{ override.id }}" name="total_score" class="form-control form-control-sm" min="0" value="{{ override.total_score if override.total_score is not none else '' }}">
+            </div>
+            <div class="col-6 col-md-3">
+              <label for="edit_override_mode-{{ override.id }}" class="form-label small mb-1">Behaviour</label>
+              <select id="edit_override_mode-{{ override.id }}" name="mode" class="form-select form-select-sm">
+                <option value="replace" {% if override.mode == 'replace' %}selected{% endif %}>Replace standings winner</option>
+                <option value="supplement" {% if override.mode == 'supplement' %}selected{% endif %}>Supplement standings</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-3">
+              <label for="edit_override_note-{{ override.id }}" class="form-label small mb-1">Audit note</label>
+              <input type="text" id="edit_override_note-{{ override.id }}" name="note" class="form-control form-control-sm" maxlength="500" value="{{ override.note or '' }}">
+            </div>
+            <div class="col-12 d-flex justify-content-end gap-2 pt-2">
+              <button type="button" class="btn btn-outline-secondary btn-sm"
+                      hx-get="/winners/tables-panel"
+                      hx-target="#winners-tables-panel">
+                Cancel
+              </button>
+              <button type="submit" class="btn btn-primary btn-sm">Save</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </td>
+</tr>

@@ -1,0 +1,79 @@
+<div id="divisions-panel">
+  {% if error %}<div class="alert alert-danger py-1 small mb-3" role="alert">{{ error }}</div>{% endif %}
+  {% if season and assignments %}
+    <div class="row g-4">
+      {% for gender in ('women', 'men') %}
+      <section class="col-12 col-lg-6" aria-labelledby="{{ gender }}-divisions-heading">
+        <h2 id="{{ gender }}-divisions-heading" class="h5">{{ 'Women' if gender == 'women' else 'Men' }}</h2>
+        {% for division in (1, 2, 3) %}
+        <div class="card mb-3">
+          <div class="card-header d-flex align-items-center justify-content-between">
+            <h3 class="h6 mb-0">Division {{ division }}</h3>
+            {% if is_staff %}
+            <span class="badge text-bg-light border text-muted">{{ assignments[gender][division]|length }} clubs</span>
+            {% endif %}
+          </div>
+          {% set clubs = assignments[gender][division] %}
+          {% if clubs %}
+          <ul class="list-group list-group-flush">
+            {% for club in clubs %}
+            <li class="list-group-item d-flex align-items-center justify-content-between gap-2 flex-wrap">
+              <div>
+                {% if club.website_url %}
+                <a href="{{ club.website_url }}" target="_blank" rel="noopener noreferrer">{{ club.name }}</a>
+                {% else %}
+                {{ club.name }}
+                {% endif %}
+              </div>
+              {% if is_staff %}
+              <div class="d-flex align-items-center gap-1">
+                <div class="dropdown">
+                  <button class="btn btn-outline-secondary btn-sm dropdown-toggle py-0 px-2" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    Move
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end">
+                    {% for target_div in (1, 2, 3) %}
+                    {% if target_div != division %}
+                    <li>
+                      <form hx-post="/divisions/assignments/{{ club.assignment_id }}/inline-move"
+                            hx-target="#divisions-panel">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="division" value="{{ target_div }}">
+                        <input type="hidden" name="season_id" value="{{ season.id }}">
+                        <button type="submit" class="dropdown-item small">To Division {{ target_div }}</button>
+                      </form>
+                    </li>
+                    {% endif %}
+                    {% endfor %}
+                  </ul>
+                </div>
+                <form hx-post="/divisions/assignments/{{ club.assignment_id }}/inline-delete"
+                      hx-target="#divisions-panel"
+                      hx-confirm="Remove {{ club.name }} from Division {{ division }}?">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <input type="hidden" name="season_id" value="{{ season.id }}">
+                  <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-2">Remove</button>
+                </form>
+              </div>
+              {% endif %}
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <div class="card-body"><p class="text-muted mb-0">No clubs assigned.</p></div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </section>
+      {% endfor %}
+    </div>
+    <div class="alert alert-info" role="note">
+      Clubs move between divisions on a two-up, two-down basis according to the league rules.
+      Junior team scores are not divided.
+    </div>
+  {% else %}
+    <div class="alert alert-info" role="status">
+      Division assignments are awaiting publication by the league administrator.
+    </div>
+  {% endif %}
+</div>

@@ -6,6 +6,7 @@ import uuid
 
 # Set testing mode before importing the app
 os.environ["TESTING"] = "true"
+os.environ["PRODUCTION"] = "false"
 
 import duckdb
 import pytest
@@ -123,6 +124,14 @@ def admin_client(test_db: duckdb.DuckDBPyConnection) -> TestClient:  # type: ign
 def content_creator_client(test_db: duckdb.DuckDBPyConnection) -> TestClient:  # type: ignore[misc]  # ty:ignore[invalid-return-type]
     """TestClient authenticated as a content_creator user."""
     _, client = _create_user_and_client(test_db, UserRole.content_creator)
+    yield client
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def club_manager_client(test_db: duckdb.DuckDBPyConnection) -> TestClient:  # type: ignore[misc]  # ty:ignore[invalid-return-type]
+    """TestClient authenticated as a club_manager user."""
+    _, client = _create_user_and_client(test_db, UserRole.club_manager)
     yield client
     app.dependency_overrides.clear()
 

@@ -1,0 +1,50 @@
+<div id="link-item-{{ link.id }}" class="list-group-item bg-light p-3">
+  <h2 class="h6 mb-2">Edit Link</h2>
+  {% if error %}<div class="alert alert-danger py-1 small mb-2" role="alert">{{ error }}</div>{% endif %}
+  <form hx-post="/links/{{ link.id }}/inline-edit"
+        hx-target="#link-item-{{ link.id }}"
+        hx-swap="outerHTML">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="row g-2">
+      <div class="col-12 col-md-5">
+        <label for="link-title-{{ link.id }}" class="form-label small mb-1">Title</label>
+        <input type="text" id="link-title-{{ link.id }}" name="title" class="form-control form-control-sm" required maxlength="200" value="{{ link.title }}">
+      </div>
+      <div class="col-12 col-md-7">
+        <label for="link-url-{{ link.id }}" class="form-label small mb-1">URL</label>
+        <input type="url" id="link-url-{{ link.id }}" name="url" class="form-control form-control-sm" required value="{{ link.url }}">
+      </div>
+      <div class="col-12 col-md-4">
+        <label for="link-category-{{ link.id }}" class="form-label small mb-1">Category</label>
+        <select id="link-category-{{ link.id }}" name="category" class="form-select form-select-sm" required>
+          <option value="national" {% if link.category == 'national' %}selected{% endif %}>National athletics organisations</option>
+          <option value="clubs" {% if link.category == 'clubs' %}selected{% endif %}>Member and local clubs</option>
+          <option value="leagues" {% if link.category == 'leagues' %}selected{% endif %}>Other cross-country leagues</option>
+        </select>
+      </div>
+      <div class="col-8 col-md-6">
+        <label for="link-desc-{{ link.id }}" class="form-label small mb-1">Description (optional)</label>
+        <input type="text" id="link-desc-{{ link.id }}" name="description" class="form-control form-control-sm" maxlength="500" value="{{ link.description or '' }}">
+      </div>
+      <div class="col-4 col-md-2">
+        <label for="link-order-{{ link.id }}" class="form-label small mb-1">Order</label>
+        <input type="number" id="link-order-{{ link.id }}" name="sort_order" class="form-control form-control-sm" min="0" value="{{ link.sort_order }}">
+      </div>
+      <div class="col-12 d-flex align-items-center justify-content-between pt-2">
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" id="link-active-{{ link.id }}" name="is_active" {% if link.is_active %}checked{% endif %}>
+          <label class="form-check-label small" for="link-active-{{ link.id }}">Visible on public page</label>
+        </div>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-outline-secondary btn-sm"
+                  hx-get="/links/{{ link.id }}/inline-item"
+                  hx-target="#link-item-{{ link.id }}"
+                  hx-swap="outerHTML">
+            Cancel
+          </button>
+          <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
