@@ -39,9 +39,11 @@ from starlette.middleware.sessions import SessionMiddleware
 from website.auth import hash_password, verify_password
 from website.database import get_db, run_migrations
 from website.helpers import (
+    ADMIN_GUIDES,
     geocode_address,
     page_context,
     parse_timetable_from_json,
+    post_summary,
     safe_referer_path,
     sanitise_html,
     validate_http_url,
@@ -60,6 +62,7 @@ from website.models import (
 from website import repository
 from website.export import (
     build_csv,
+    build_document_pdf,
     build_pdf,
     build_rules_pdf,
     filter_results as filter_race_results,
@@ -213,6 +216,7 @@ app.mount(
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 templates.env.filters["fromjson"] = json.loads
+templates.env.filters["post_summary"] = post_summary
 cast(dict[str, object], templates.env.globals)["STRIPE_PUBLISHABLE_KEY"] = (
     os.environ.get("STRIPE_PUBLISHABLE_KEY", "")
 )
@@ -2174,6 +2178,94 @@ def administration_delete_document(
             "administration",
             sections=sections,
         ),
+    )
+
+
+@app.get("/administration/{slug}", response_class=HTMLResponse)
+def administration_guide_page(
+    slug: str,
+    request: Request,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+) -> HTMLResponse:
+    guide = ADMIN_GUIDES.get(slug)
+    if not guide:
+        raise HTTPException(status_code=404, detail="Page not found")
+    page = repository.get_static_page(db, slug)
+    principals = get_active_principals(request)
+    is_admin = "role:admin" in principals or "role:content_creator" in principals
+    return templates.TemplateResponse(
+        request,
+        "administration_guide.html",
+        page_context(
+            request,
+            guide["page"],
+            title=guide["title"],
+            slug=slug,
+            content=page.content if page else "",
+            is_admin=is_admin,
+        ),
+    )
+
+
+@app.get("/administration/{slug}/edit", response_class=HTMLResponse)
+def administration_guide_edit_form(
+    slug: str,
+    request: Request,
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+) -> HTMLResponse:
+    guide = ADMIN_GUIDES.get(slug)
+    if not guide:
+        raise HTTPException(status_code=404, detail="Page not found")
+    page = repository.get_static_page(db, slug)
+    return templates.TemplateResponse(
+        request,
+        "administration_guide_form.html",
+        page_context(
+            request,
+            guide["page"],
+            title=guide["title"],
+            slug=slug,
+            content=page.content if page else "",
+        ),
+    )
+
+
+@app.post("/administration/{slug}/edit")
+def administration_guide_edit_submit(
+    slug: str,
+    request: Request,
+    csrf_token: str = Form(...),
+    content: str = Form(...),
+    _: list = Permission("edit", _STAFF_MANAGE_ACL),
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+) -> RedirectResponse:
+    guide = ADMIN_GUIDES.get(slug)
+    if not guide:
+        raise HTTPException(status_code=404, detail="Page not found")
+    validate_csrf(request, csrf_token)
+    user = get_current_user(request)
+    author_id: int | None = user["id"] if user else None
+    clean_content = sanitise_html(content)
+    repository.upsert_static_page(db, slug, clean_content, author_id)
+    return RedirectResponse(url=f"/administration/{slug}", status_code=303)
+
+
+@app.get("/administration/{slug}/export/pdf")
+def administration_guide_export_pdf(
+    slug: str,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+) -> Response:
+    guide = ADMIN_GUIDES.get(slug)
+    if not guide:
+        raise HTTPException(status_code=404, detail="Page not found")
+    page = repository.get_static_page(db, slug)
+    html_content = page.content if page else ""
+    pdf_bytes = build_document_pdf(guide["title"], html_content)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={guide['filename']}"},
     )
 
 

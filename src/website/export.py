@@ -145,16 +145,16 @@ def build_pdf(
     return bytes(raw) if raw is not None else b"", filename
 
 
-def build_rules_pdf(html_content: str) -> bytes:
-    """Render the rules-and-constitution HTML content to an A4 portrait PDF."""
+def build_document_pdf(title: str, html_content: str) -> bytes:
+    """Render an HTML document to an A4 portrait PDF with league branding."""
     from fpdf.html import HTMLMixin  # noqa: PLC0415 — local import to avoid circular
 
-    class _RulesPDF(FPDF, HTMLMixin):
+    class _DocPDF(FPDF, HTMLMixin):
         pass
 
     _FONT_PATH = Path("static/fonts/dm-sans.ttf")
 
-    pdf = _RulesPDF(orientation="P", unit="mm", format="A4")
+    pdf = _DocPDF(orientation="P", unit="mm", format="A4")
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.set_margins(left=20, top=20, right=20)
 
@@ -179,7 +179,7 @@ def build_rules_pdf(html_content: str) -> bytes:
     font_family = "DM Sans" if _FONT_PATH.exists() else "Helvetica"
     pdf.set_font(font_family, "B", 16)
     pdf.set_text_color(*_PRIMARY)
-    pdf.cell(0, 10, "Rules and Constitution", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 10, title, new_x="LMARGIN", new_y="NEXT")
     # Accent rule under title
     pdf.set_draw_color(*_ACCENT)
     pdf.set_line_width(0.5)
@@ -194,9 +194,19 @@ def build_rules_pdf(html_content: str) -> bytes:
     pdf.set_font(font_family, size=11)
     pdf.set_text_color(*_TEXT)
     _heading_style = FontFace(color=_PRIMARY)
+    content_to_render = (
+        html_content
+        if html_content and html_content.strip()
+        else "<p>No content has been published yet.</p>"
+    )
     pdf.write_html(
-        html_content,
+        content_to_render,
         tag_styles={f"h{i}": _heading_style for i in range(1, 7)},
     )
     raw = pdf.output()
     return bytes(raw) if raw is not None else b""
+
+
+def build_rules_pdf(html_content: str) -> bytes:
+    """Render the rules-and-constitution HTML content to an A4 portrait PDF."""
+    return build_document_pdf("Rules and Constitution", html_content)

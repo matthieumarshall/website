@@ -41,6 +41,11 @@ const publicPages = [
   '/standings',
   '/results',
   '/entries',
+  '/administration',
+  '/administration/athlete-registration-guide',
+  '/administration/race-directors-guide',
+  '/administration/suppliers-list',
+  '/administration/team-managers-guide',
 ];
 
 for (const path of publicPages) {

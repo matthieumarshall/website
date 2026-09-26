@@ -1,5 +1,6 @@
 import json as _json
 import logging
+import re
 import secrets
 from typing import Any
 from urllib.parse import urlparse
@@ -47,7 +48,7 @@ _ALLOWED_TAGS = {
     "span",
 }
 _ALLOWED_ATTRS = {
-    "a": {"href", "title", "target"},
+    "a": {"href", "title", "target", "aria-label"},
     "img": {"src", "alt", "width", "height"},
     "td": {"colspan", "rowspan", "data-row", "data-cell"},
     "th": {"colspan", "rowspan", "scope"},
@@ -56,20 +57,78 @@ _ALLOWED_ATTRS = {
     "span": {"class", "data-row", "data-cell"},
 }
 
-SIDEBAR_ITEMS: list[dict[str, str]] = [
+ADMIN_GUIDES: dict[str, dict[str, str]] = {
+    "athlete-registration-guide": {
+        "title": "Athlete Registration Guide",
+        "slug": "athlete-registration-guide",
+        "page": "athlete_registration_guide",
+        "route": "/administration/athlete-registration-guide",
+        "filename": "athlete-registration-guide.pdf",
+    },
+    "race-directors-guide": {
+        "title": "Race Directors Guide",
+        "slug": "race-directors-guide",
+        "page": "race_directors_guide",
+        "route": "/administration/race-directors-guide",
+        "filename": "race-directors-guide.pdf",
+    },
+    "suppliers-list": {
+        "title": "Suppliers List",
+        "slug": "suppliers-list",
+        "page": "suppliers_list",
+        "route": "/administration/suppliers-list",
+        "filename": "suppliers-list.pdf",
+    },
+    "team-managers-guide": {
+        "title": "Team Managers Guide",
+        "slug": "team-managers-guide",
+        "page": "team_managers_guide",
+        "route": "/administration/team-managers-guide",
+        "filename": "team-managers-guide.pdf",
+    },
+}
+
+SIDEBAR_ITEMS: list[dict[str, Any]] = [
     {"name": "Home / News", "route": "/news", "page": "news"},
     {"name": "Results", "route": "/results", "page": "results"},
     {"name": "Standings", "route": "/standings", "page": "standings"},
     {"name": "Divisions", "route": "/divisions", "page": "divisions"},
     {"name": "Past Winners", "route": "/winners", "page": "winners"},
     {"name": "Member Clubs", "route": "/clubs", "page": "clubs"},
-    {"name": "Links", "route": "/links", "page": "links"},
     {
         "name": "Rules and Constitution",
         "route": "/rules-and-constitution",
         "page": "rules_and_constitution",
     },
-    {"name": "Administration", "route": "/administration", "page": "administration"},
+    {
+        "name": "Administration",
+        "route": "/administration",
+        "page": "administration",
+        "children": [
+            {"name": "Documents", "route": "/administration", "page": "administration"},
+            {"name": "Links", "route": "/links", "page": "links"},
+            {
+                "name": "Athlete Registration Guide",
+                "route": "/administration/athlete-registration-guide",
+                "page": "athlete_registration_guide",
+            },
+            {
+                "name": "Race Directors Guide",
+                "route": "/administration/race-directors-guide",
+                "page": "race_directors_guide",
+            },
+            {
+                "name": "Suppliers List",
+                "route": "/administration/suppliers-list",
+                "page": "suppliers_list",
+            },
+            {
+                "name": "Team Managers Guide",
+                "route": "/administration/team-managers-guide",
+                "page": "team_managers_guide",
+            },
+        ],
+    },
     {"name": "Fixtures", "route": "/fixtures", "page": "fixtures"},
 ]
 
@@ -117,6 +176,44 @@ def page_context(request: Request, current_page: str, **extra: Any) -> dict[str,
 
 def sanitise_html(raw: str) -> str:
     return nh3.clean(raw, tags=_ALLOWED_TAGS, attributes=_ALLOWED_ATTRS)
+
+
+def post_summary(content: str, post_id: int, length: int = 300) -> str:
+    """Return an HTML summary of post content truncated at a word boundary.
+
+    If the post is longer than length, it is truncated and an inline
+    '... see more' link pointing to /news/{post_id} is appended.
+    Unclosed HTML tags are safely balanced via sanitise_html.
+    """
+    if not content:
+        return ""
+
+    plain = re.sub(r"<[^>]+>", "", content).strip()
+    if len(content) <= length or (
+        len(plain) <= length and len(content) <= length + 100
+    ):
+        return content
+
+    sliced = content[:length]
+    sliced = re.sub(r"<[^>]*$", "", sliced)
+    if " " in sliced:
+        sliced = sliced.rsplit(" ", 1)[0]
+    sliced = re.sub(r"<[^>]*$", "", sliced)
+    sliced = sliced.rstrip(".,;:!? \t\n")
+
+    clean_body = sanitise_html(sliced)
+    link = (
+        f'... <a href="/news/{post_id}" aria-label="See more of this post">see more</a>'
+    )
+
+    closing_tags = ("</p>", "</blockquote>", "</li>", "</div>")
+    for tag in closing_tags:
+        if clean_body.endswith(tag):
+            idx = len(clean_body) - len(tag)
+            body_without_tag = clean_body[:idx].rstrip(".,;:!? \t\n")
+            return body_without_tag + link + tag
+
+    return f"{clean_body}{link}"
 
 
 def geocode_address(address: str) -> tuple[float, float] | None:
