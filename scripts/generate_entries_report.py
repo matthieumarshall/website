@@ -15,10 +15,10 @@ It also writes a season summary bar chart split into junior and adult cohorts.
 from __future__ import annotations
 
 import argparse
-from io import StringIO
 import re
+from collections.abc import Iterable
+from io import StringIO
 from pathlib import Path
-from typing import Iterable
 
 import duckdb
 import matplotlib.pyplot as plt

@@ -55,36 +55,7 @@
       </tr>
     </thead>
     <tbody id="entries-table-body">
-      {% if batches %}
-        {% for batch in batches %}
-          <tr>
-            <td>{{ batch.season_name }}</td>
-            <td>{{ batch.club_name }}</td>
-            <td>{{ batch.manager_username }}</td>
-            <td>
-              {% if batch.status == 'paid' %}
-                <span class="badge text-bg-success">Paid</span>
-              {% elif batch.status == 'payment_initiated' %}
-                <span class="badge text-bg-info">BACS pending</span>
-              {% elif batch.status == 'pending_payment' %}
-                <span class="badge text-bg-warning">Awaiting payment</span>
-              {% else %}
-                <span class="badge text-bg-danger">Failed</span>
-              {% endif %}
-            </td>
-            <td>{{ batch.fixtures_remaining_at_entry }}</td>
-            <td>£{{ "%.2f"|format(batch.total_pence / 100) }}</td>
-            <td>{{ batch.created_at.strftime('%d %b %Y') if batch.created_at else '—' }}</td>
-            <td>
-              <a href="/admin/entries/{{ batch.season_id }}" class="btn btn-outline-secondary btn-sm">View season</a>
-            </td>
-          </tr>
-        {% endfor %}
-      {% else %}
-        <tr>
-          <td colspan="8" class="text-muted text-center py-4">No entries found.</td>
-        </tr>
-      {% endif %}
+      {% include "admin/entries/_batches_table_body.html" %}
     </tbody>
   </table>
 </div>

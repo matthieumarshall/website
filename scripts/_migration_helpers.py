@@ -27,9 +27,9 @@ def open_db() -> duckdb.DuckDBPyConnection:
     # Import here to ensure the package is on sys.path when running via
     # `uv run python scripts/...`
     sys.path.insert(0, str(_ROOT / "src"))
-    from website.database import _get_db_path, run_migrations  # noqa: PLC0415
+    from website.db import get_db_path, run_migrations  # noqa: PLC0415
 
-    db_path = _get_db_path()
+    db_path = get_db_path()
     con = duckdb.connect(db_path)
     run_migrations(con)
     return con
@@ -148,7 +148,7 @@ def get_or_create_fixture(
     con: duckdb.DuckDBPyConnection,
     season_id: int,
     round_num: int,
-    fixture_date: "date",
+    fixture_date: date,
     venue_raw: str,
 ) -> int:
     """Return the fixture id for *fixture_date* in *season_id*, creating it if absent.

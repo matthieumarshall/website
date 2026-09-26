@@ -1,8 +1,8 @@
 import duckdb
 import pytest
 
-from website.database import run_migrations
 from cli.seed_season import _create_season
+from website.db import run_migrations
 
 
 @pytest.fixture()

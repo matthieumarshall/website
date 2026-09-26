@@ -4,7 +4,6 @@ import base64
 
 from playwright.sync_api import Page
 
-
 # Minimal valid 1×1 white pixel PNG — used as upload payload so no real file is needed.
 _MINIMAL_PNG_B64 = (
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk"

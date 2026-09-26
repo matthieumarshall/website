@@ -1,10 +1,10 @@
 import duckdb
 import pytest
 
-from website import repository
-from website.database import run_migrations
-from website.models import Fixture, Season
 from cli.seed_results import _import_results, _normalise_category
+from website import repository
+from website.db import run_migrations
+from website.models import Fixture, Season
 
 _VALID_CSV = (
     "position,athlete_name,time,category,gender\n"

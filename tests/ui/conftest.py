@@ -10,7 +10,6 @@ import time
 import duckdb
 import pytest
 from playwright.sync_api import sync_playwright
-
 from seed_data import seed_full_dataset
 
 

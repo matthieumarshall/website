@@ -21,6 +21,7 @@ sys.path.insert(0, str(_ROOT / "scripts"))
 sys.path.insert(0, str(_ROOT / "src"))
 
 import _migration_helpers as mh  # noqa: E402
+
 from website import repository  # noqa: E402
 
 _RESULTS_ROOT = _ROOT / "data" / "original_website" / "files" / "results"

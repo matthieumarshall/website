@@ -10,25 +10,24 @@ Tests cover:
 - Logging and error handling
 """
 
+# Add scripts to path for imports
+import sys
 from datetime import date
 from pathlib import Path
 
 import duckdb
 import pytest
 
-# Add scripts to path for imports
-import sys
-
 _ROOT = Path(__file__).parent.parent.parent
 _SCRIPTS = _ROOT / "scripts"
 sys.path.insert(0, str(_SCRIPTS))
 
 # Import migration helpers and logger
+import migrate_standings  # type: ignore  # noqa: E402
 from _import_logger import ImportLogger  # type: ignore  # noqa: E402
 from _migration_helpers import (  # type: ignore  # noqa: E402
     create_season_if_missing,
 )
-import migrate_standings  # type: ignore  # noqa: E402
 
 
 # Test data helpers

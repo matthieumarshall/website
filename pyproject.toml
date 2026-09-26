@@ -8,6 +8,135 @@ where = ["src"]
 [tool.ty.environment]
 extra-paths = ["tests/ui"]
 
+# ---------------------------------------------------------------------------
+# Ruff: lint + format.  The full rule set applies to the application package
+# (src/website); tests, scripts and the seed CLI keep a lighter baseline.
+# ---------------------------------------------------------------------------
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+extend-exclude = [".specify", "specs"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W", "F",  # pycodestyle, pyflakes
+    "I",            # isort
+    "UP",           # pyupgrade
+    "B",            # bugbear
+    "SIM",          # simplify
+    "C4",           # comprehensions
+    "N",            # pep8 naming
+    "ANN",          # type annotations on every signature
+    "D",            # docstrings (google convention)
+    "RUF",          # ruff-specific
+    "PL",           # pylint (complexity / size limits)
+    "C90",          # mccabe complexity
+    "FAST",         # FastAPI idioms (Annotated dependencies)
+    "PERF",         # performance anti-patterns
+    "S",            # bandit security rules
+    "T20",          # no print()
+    "TID",          # tidy imports (no relative imports)
+    "PTH",          # pathlib over os.path
+    "RET",          # return statements
+    "ARG",          # unused arguments
+    "BLE",          # no blind `except Exception`
+    "ERA",          # no commented-out code
+]
+ignore = [
+    "D105",  # magic methods
+    "D107",  # __init__ (documented on the class)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"src/website/**/__init__.py" = ["D104"]
+"src/website/repository/*.py" = ["S608"]  # SQL built only from constant fragments
+"tests/**" = [
+    "ANN", "D", "S", "PL", "N", "ARG", "PTH", "ERA", "BLE", "T20", "C90",
+    "RET", "SIM", "PERF", "RUF", "FAST", "B017", "E501", "TID252",
+]
+"scripts/**" = [
+    "ANN", "D", "S", "PL", "N", "ARG", "PTH", "ERA", "BLE", "T20", "C90",
+    "RET", "SIM", "PERF", "RUF", "FAST", "E501", "B",
+]
+"src/cli/**" = [
+    "ANN", "D", "S", "PL", "N", "ARG", "PTH", "ERA", "BLE", "T20", "C90",
+    "RET", "SIM", "PERF", "RUF", "E501",
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.pylint]
+max-args = 8
+max-branches = 12
+max-returns = 6
+max-statements = 50
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+# ---------------------------------------------------------------------------
+# mypy: strict typing for the application package, with the pydantic plugin.
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.10"
+files = ["src/website"]
+mypy_path = "src"
+strict = true
+warn_unreachable = true
+plugins = ["pydantic.mypy"]
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+[[tool.mypy.overrides]]
+module = ["pyresults", "pyresults.*", "fastapi_permissions", "slowapi", "slowapi.*", "fpdf", "fpdf.*", "weasyprint", "nh3"]
+ignore_missing_imports = true
+
+# ---------------------------------------------------------------------------
+# import-linter: enforce the layered architecture (see src/website/README.md).
+# ---------------------------------------------------------------------------
+[tool.importlinter]
+root_package = "website"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Layers: web -> services -> repository -> models"
+type = "layers"
+layers = [
+    "website.main",
+    "website.web",
+    "website.services",
+    "website.integrations | website.repository",
+    "website.models",
+]
+
+[[tool.importlinter.contracts]]
+name = "Business layers are framework-independent"
+type = "forbidden"
+source_modules = [
+    "website.models",
+    "website.repository",
+    "website.services",
+    "website.integrations",
+    "website.db",
+    "website.errors",
+    "website.content",
+    "website.richtext",
+]
+forbidden_modules = ["fastapi", "starlette", "jinja2", "slowapi", "fastapi_permissions"]
+
+[[tool.importlinter.contracts]]
+name = "Only services use external integrations"
+type = "forbidden"
+source_modules = ["website.repository", "website.models"]
+forbidden_modules = ["website.integrations", "httpx", "stripe"]
+
 [project]
 name = "website"
 version = "0.1.0"
@@ -37,6 +166,7 @@ dependencies = [
     "pandas>=2.3.3",
     "seaborn>=0.13.2",
     "matplotlib>=3.10.9",
+    "pydantic>=2.13",
 ]
 
 [project.optional-dependencies]
@@ -59,6 +189,9 @@ dev = [
     "djlint>=1.36.4",
     "pdfplumber>=0.11.9",
     "markdown>=3.5",
+    "mypy>=1.18",
+    "import-linter>=2.5",
+    "diff-cover>=9.7",
 ]
 
 ci = [

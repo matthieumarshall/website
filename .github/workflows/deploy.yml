@@ -40,6 +40,9 @@ jobs:
     name: Deploy to Fasthosts VPS
     runs-on: ubuntu-latest
     environment: prod
+    permissions:
+      actions: read  # to confirm CI passed for the commit being deployed
+      contents: read
 
     steps:
       - name: Set up SSH key and known hosts
@@ -87,6 +90,22 @@ jobs:
         run: |
           echo "VPS is already on the latest commit of main (${{ steps.check.outputs.deployed }}). Nothing to deploy." | tee -a "$GITHUB_STEP_SUMMARY"
 
+      # Only deploy a commit whose CI/CD pipeline run succeeded.
+      - name: Require a green CI run for the commit
+        if: steps.check.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.check.outputs.latest }}
+        run: |
+          passed=$(gh run list --repo "${{ github.repository }}" \
+            --workflow ci-cd.yml --commit "$SHA" --status success \
+            --json databaseId --jq 'length')
+          if [ "$passed" -eq 0 ]; then
+            echo "CI has not passed for $SHA; refusing to deploy." \
+              | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
       # Install uv on the VPS if it is not already present.
       # This is a no-op on subsequent deploys (uv self-updates are skipped).
       - name: Ensure uv is installed on VPS
@@ -118,11 +137,12 @@ jobs:
              export PATH="$HOME/.local/bin:$PATH"
              cd ~/website
 
-             echo "--- Pulling latest code from main ---"
-             git pull origin main
+             echo "--- Updating to the CI-verified commit ---"
+             git fetch origin main
+             git merge --ff-only ${{ steps.check.outputs.latest }}
 
              echo "--- Syncing production dependencies ---"
-             uv sync --no-dev
+             uv sync --locked --no-dev
 
              echo "--- Stopping service (releases DuckDB file lock) ---"
              sudo systemctl stop oxcross

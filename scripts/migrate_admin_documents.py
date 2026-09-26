@@ -16,14 +16,14 @@ Run from the project root:
 from __future__ import annotations
 
 import argparse
+
+# Ensure UTF-8 output on Windows terminals that default to cp1252
+import io as _io
 import re
 import shutil
 import sys
 import uuid
 from pathlib import Path
-
-# Ensure UTF-8 output on Windows terminals that default to cp1252
-import io as _io
 
 if isinstance(sys.stdout, _io.TextIOWrapper) and sys.stdout.encoding.lower() != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")

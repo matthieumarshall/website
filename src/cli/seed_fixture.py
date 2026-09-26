@@ -31,7 +31,7 @@ from pathlib import Path
 import duckdb
 
 from website import repository
-from website.database import _get_db_path, run_migrations
+from website.db import get_db_path, run_migrations
 from website.models import Fixture
 
 
@@ -82,7 +82,7 @@ def create_fixture(
     address: str,
     travel_instructions: str,
 ) -> None:
-    db_path = _get_db_path()
+    db_path = get_db_path()
     if db_path != ":memory:":
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect(db_path)

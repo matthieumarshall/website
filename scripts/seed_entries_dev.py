@@ -21,11 +21,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 import duckdb
 
-from website.auth import hash_password
-from website.database import run_migrations
 from website import repository
+from website.db import run_migrations
 from website.models import UserRole
-
+from website.passwords import hash_password
 
 DB_PATH = Path(__file__).parent.parent / "data" / "app.duckdb"
 
