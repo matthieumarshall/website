@@ -2,7 +2,7 @@ import duckdb
 import pytest
 
 from website import repository
-from website.database import run_migrations
+from website.db import run_migrations
 from cli.seed_rules import _seed_rules, _SLUG
 
 

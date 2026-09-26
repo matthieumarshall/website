@@ -5,6 +5,11 @@ from unittest.mock import MagicMock
 import pytest
 
 from website import repository
+from website.services.entries import EntryService
+
+
+def _entry_service(db):  # noqa: ANN001, ANN202
+    return EntryService(db, athletes=MagicMock(), payments=MagicMock())
 
 
 class TestClubAllocation:
@@ -266,8 +271,6 @@ class TestAllocationChecking:
 
     def test_check_allocation_passes_within_limit(self, test_db):
         """Verify check passes when within limit."""
-        from website import entries
-
         # Setup
         test_db.execute("INSERT INTO seasons(name) VALUES(?)", ["TestSeason5"])
         season_id = test_db.execute(
@@ -286,13 +289,11 @@ class TestAllocationChecking:
         repository.upsert_club_allocation(test_db, season_id, club_id, 10)
 
         # Check should pass for 5 athletes
-        result = entries.check_allocation(season_id, club_id, 5, test_db)
+        result = _entry_service(test_db).check_allocation(season_id, club_id, 5)
         assert result is True
 
     def test_check_allocation_fails_at_limit(self, test_db):
         """Verify check fails when at limit."""
-        from website import entries
-
         # Setup
         test_db.execute("INSERT INTO seasons(name) VALUES(?)", ["TestSeason6"])
         season_id = test_db.execute(
@@ -311,13 +312,11 @@ class TestAllocationChecking:
         repository.upsert_club_allocation(test_db, season_id, club_id, 10)
 
         # Check should fail for 11 athletes
-        result = entries.check_allocation(season_id, club_id, 11, test_db)
+        result = _entry_service(test_db).check_allocation(season_id, club_id, 11)
         assert result is False
 
     def test_check_allocation_fails_above_limit(self, test_db):
         """Verify check fails when above limit."""
-        from website import entries
-
         # Setup
         test_db.execute("INSERT INTO seasons(name) VALUES(?)", ["TestSeason7"])
         season_id = test_db.execute(
@@ -336,13 +335,11 @@ class TestAllocationChecking:
         repository.upsert_club_allocation(test_db, season_id, club_id, 10)
 
         # Check should fail for 20 athletes
-        result = entries.check_allocation(season_id, club_id, 20, test_db)
+        result = _entry_service(test_db).check_allocation(season_id, club_id, 20)
         assert result is False
 
     def test_check_allocation_fails_if_not_set(self, test_db):
         """Verify check fails if allocation is not set."""
-        from website import entries
-
         # Setup
         test_db.execute("INSERT INTO seasons(name) VALUES(?)", ["TestSeason8"])
         season_id = test_db.execute(
@@ -358,7 +355,7 @@ class TestAllocationChecking:
         ).fetchone()[0]
 
         # Don't set allocation - check should fail
-        result = entries.check_allocation(season_id, club_id, 1, test_db)
+        result = _entry_service(test_db).check_allocation(season_id, club_id, 1)
         assert result is False
 
 
@@ -447,11 +444,11 @@ class TestAllocationDisplay:
 
         allocations = repository.list_club_allocations_for_season(test_db, season_id)
         assert len(allocations) >= 2
-        club_a_alloc = next((a for a in allocations if a["club_id"] == club_a_id), None)
+        club_a_alloc = next((a for a in allocations if a.club_id == club_a_id), None)
         assert club_a_alloc is not None
-        assert club_a_alloc["allocated_slots"] == 30
-        assert club_a_alloc["current_used"] == 2
-        assert club_a_alloc["remaining"] == 28
+        assert club_a_alloc.allocated_slots == 30
+        assert club_a_alloc.current_used == 2
+        assert club_a_alloc.remaining == 28
 
     def test_list_paid_athlete_entries_for_season(self, test_db):
         """Verify list returns only paid athlete entries."""
@@ -538,6 +535,6 @@ class TestAllocationDisplay:
         athletes = repository.list_paid_athlete_entries_for_season(test_db, season_id)
         # Should only have Charlie (from paid batch)
         assert len(athletes) == 1
-        assert athletes[0]["athlete_name"] == "Charlie"
-        assert athletes[0]["race_number"] == 5
-        assert athletes[0]["ea_urn"] == 2001
+        assert athletes[0].athlete_name == "Charlie"
+        assert athletes[0].race_number == 5
+        assert athletes[0].ea_urn == 2001

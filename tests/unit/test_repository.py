@@ -2,8 +2,8 @@ import duckdb
 import pytest
 
 from website import repository
-from website.auth import hash_password
-from website.database import run_migrations
+from website.passwords import hash_password
+from website.db import run_migrations
 from website.models import PaginatedPosts, Post, User, UserRole
 
 
@@ -571,11 +571,11 @@ class TestClubContentRepository:
         club = repository.create_club(db, "Active Club", "ACT", "111")
         assert club.is_active is True
         repository.toggle_club_active(db, club.id)
-        fetched = repository.get_club_by_id(club.id, db)
+        fetched = repository.get_club_by_id(db, club.id)
         assert fetched is not None
         assert fetched.is_active is False
         repository.toggle_club_active(db, club.id)
-        fetched = repository.get_club_by_id(club.id, db)
+        fetched = repository.get_club_by_id(db, club.id)
         assert fetched is not None
         assert fetched.is_active is True
 
@@ -631,12 +631,10 @@ class TestWinnerOverridesRepository:
         assert updated.total_score == 8
 
         public_winners = repository.list_public_winners(db)
-        match = next(
-            (w for w in public_winners if w["winner_name"] == "Runner Two"), None
-        )
+        match = next((w for w in public_winners if w.winner_name == "Runner Two"), None)
         assert match is not None
-        assert match["is_override"] is True
-        assert match["override_id"] == override.id
+        assert match.is_override is True
+        assert match.override_id == override.id
 
         repository.delete_winner_override(db, override.id)
         assert repository.get_winner_override(db, override.id) is None

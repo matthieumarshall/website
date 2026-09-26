@@ -16,7 +16,7 @@ import sys
 import duckdb
 
 from website import repository
-from website.database import _get_db_path, run_migrations
+from website.db import get_db_path, run_migrations
 from website.models import Season
 
 
@@ -32,7 +32,7 @@ def _create_season(con: duckdb.DuckDBPyConnection, season_name: str) -> Season:
 
 
 def create_season(season_name: str) -> None:
-    db_path = _get_db_path()
+    db_path = get_db_path()
     con = duckdb.connect(db_path)
     try:
         run_migrations(con)

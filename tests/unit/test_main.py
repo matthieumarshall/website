@@ -9,9 +9,20 @@ import pytest
 from fastapi.testclient import TestClient
 
 from website import repository
-from website.auth import hash_password
-from website.helpers import SIDEBAR_ITEMS
-from website.models import UserRole
+from website.content import SIDEBAR_ITEMS
+from website.main import app
+from website.models import EAAthlete, UserRole
+from website.passwords import hash_password
+from website.services.uploads import DOCUMENT_POLICY, IMAGE_POLICY, FileStore
+from website.web.deps import get_athlete_directory, get_document_store, get_image_store
+
+
+class _FakeAthleteDirectory:
+    def __init__(self, athletes: list[dict[str, object]]) -> None:
+        self._athletes = [EAAthlete.model_validate(a) for a in athletes]
+
+    def fetch_club_athletes(self, ea_club_id: str) -> list[EAAthlete]:
+        return self._athletes
 
 
 class TestHomeRoute:
@@ -63,35 +74,35 @@ class TestLoginPageRoute:
 
 class TestSidebarItems:
     def test_sidebar_items_is_list(self) -> None:
-        assert isinstance(SIDEBAR_ITEMS, list)
+        assert isinstance(SIDEBAR_ITEMS, tuple)
 
     def test_sidebar_items_has_nine_entries(self) -> None:
         assert len(SIDEBAR_ITEMS) == 9
 
     def test_all_items_have_required_fields(self) -> None:
         for item in SIDEBAR_ITEMS:
-            assert "name" in item
-            assert "route" in item
-            assert "page" in item
-            if "children" in item:
-                for child in item["children"]:
-                    assert "name" in child
-                    assert "route" in child
-                    assert "page" in child
+            assert item.name
+            assert item.route
+            assert item.page
+            if item.children:
+                for child in item.children:
+                    assert child.name
+                    assert child.route
+                    assert child.page
 
     def test_all_routes_start_with_slash(self) -> None:
         for item in SIDEBAR_ITEMS:
-            assert item["route"].startswith("/")
-            if "children" in item:
-                for child in item["children"]:
-                    assert child["route"].startswith("/")
+            assert item.route.startswith("/")
+            if item.children:
+                for child in item.children:
+                    assert child.route.startswith("/")
 
     def test_news_is_first_item(self) -> None:
-        assert SIDEBAR_ITEMS[0]["page"] == "news"
-        assert SIDEBAR_ITEMS[0]["route"] == "/news"
+        assert SIDEBAR_ITEMS[0].page == "news"
+        assert SIDEBAR_ITEMS[0].route == "/news"
 
     def test_expected_pages_present(self) -> None:
-        pages = {item["page"] for item in SIDEBAR_ITEMS}
+        pages = {item.page for item in SIDEBAR_ITEMS}
         assert pages == {
             "news",
             "results",
@@ -106,11 +117,11 @@ class TestSidebarItems:
 
     def test_administration_has_sub_pages(self) -> None:
         admin_item = next(
-            item for item in SIDEBAR_ITEMS if item["page"] == "administration"
+            item for item in SIDEBAR_ITEMS if item.page == "administration"
         )
-        assert "children" in admin_item
-        assert len(admin_item["children"]) == 6
-        sub_names = [child["name"] for child in admin_item["children"]]
+        assert admin_item.children
+        assert len(admin_item.children) == 6
+        sub_names = [child.name for child in admin_item.children]
         assert sub_names == [
             "Documents",
             "Links",
@@ -119,7 +130,7 @@ class TestSidebarItems:
             "Suppliers List",
             "Team Managers Guide",
         ]
-        sub_pages = {child["page"] for child in admin_item["children"]}
+        sub_pages = {child.page for child in admin_item.children}
         assert sub_pages == {
             "administration",
             "links",
@@ -246,9 +257,7 @@ class TestPublicPageRoutes:
         for _, route in self._pages:
             response = test_client.get(route)
             for item in SIDEBAR_ITEMS:
-                assert item["name"] in response.text, (
-                    f"'{item['name']}' not found on {route}"
-                )
+                assert item.name in response.text, f"'{item.name}' not found on {route}"
 
     def test_only_one_active_link_per_page(self, test_client: TestClient) -> None:
         for _, route in self._pages:
@@ -358,9 +367,8 @@ class TestEntryBatchGuardsAndAllocation:
             test_db, season_id, club_id, allocated_slots=1
         )
 
-        monkeypatch.setattr(
-            "website.main.entries_module.fetch_club_athletes",
-            lambda _ea_club_id: [
+        athletes = _FakeAthleteDirectory(
+            [
                 {
                     "IndividualRef": 20001,
                     "FirstName": "Alice",
@@ -375,8 +383,9 @@ class TestEntryBatchGuardsAndAllocation:
                     "DateOfBirth": "2010-07-15",
                     "RegistrationStatus": "Registered",
                 },
-            ],
+            ]
         )
+        app.dependency_overrides[get_athlete_directory] = lambda: athletes
 
         add_page = test_client.get(f"/entries/{season_id}/add")
         csrf_match = re.search(r'name="csrf_token"\s+value="([^"]+)"', add_page.text)
@@ -646,7 +655,9 @@ class TestAdministrationManage:
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: Path,
     ) -> None:
-        monkeypatch.setattr("website.main._ADMIN_DOCS_DIR", tmp_path)
+        app.dependency_overrides[get_document_store] = lambda: FileStore(
+            tmp_path, DOCUMENT_POLICY
+        )
         section = repository.create_administration_section(
             test_db, slug="agendas", title="Agendas", description="", sort_order=0
         )
@@ -1647,7 +1658,6 @@ class TestFixtureImageAltText:
         test_db: duckdb.DuckDBPyConnection,
         tmp_path,  # noqa: ANN001
     ) -> None:
-        import website.main as main_module
         from website import repository
 
         season = repository.create_season(test_db, "Upload Alt Season")
@@ -1660,8 +1670,9 @@ class TestFixtureImageAltText:
         csrf_token = match.group(1)
 
         # Redirect file writes to a temporary directory to avoid polluting data/
-        old_dir = main_module._FIXTURE_MAPS_DIR
-        main_module._FIXTURE_MAPS_DIR = tmp_path
+        app.dependency_overrides[get_image_store] = lambda: FileStore(
+            tmp_path, IMAGE_POLICY
+        )
         try:
             resp = content_creator_client.post(
                 f"/fixtures/seasons/{season.id}/fixtures/{fixture.id}/images",
@@ -1669,7 +1680,7 @@ class TestFixtureImageAltText:
                 data={"csrf_token": csrf_token},
             )
         finally:
-            main_module._FIXTURE_MAPS_DIR = old_dir
+            app.dependency_overrides.pop(get_image_store)
 
         assert resp.status_code == 200
         assert "Course map for Upload Round, Upload Alt Season" in resp.text
@@ -1680,7 +1691,6 @@ class TestFixtureImageAltText:
         test_db: duckdb.DuckDBPyConnection,
         tmp_path,  # noqa: ANN001
     ) -> None:
-        import website.main as main_module
         from website import repository
 
         season = repository.create_season(test_db, "Delete Alt Season")
@@ -1695,15 +1705,16 @@ class TestFixtureImageAltText:
         assert match
         csrf_token = match.group(1)
 
-        old_dir = main_module._FIXTURE_MAPS_DIR
-        main_module._FIXTURE_MAPS_DIR = tmp_path
+        app.dependency_overrides[get_image_store] = lambda: FileStore(
+            tmp_path, IMAGE_POLICY
+        )
         try:
             resp = content_creator_client.post(
                 f"/fixtures/seasons/{season.id}/fixtures/{fixture.id}/images/{img1.id}/delete",
                 data={"csrf_token": csrf_token},
             )
         finally:
-            main_module._FIXTURE_MAPS_DIR = old_dir
+            app.dependency_overrides.pop(get_image_store)
 
         assert resp.status_code == 200
         assert "Course map for Delete Round, Delete Alt Season" in resp.text
@@ -2298,7 +2309,7 @@ class TestClubsInPageEditing:
         assert 'id="club-row-' in resp.text
         row = test_db.execute("SELECT id FROM clubs WHERE oxl_code='INL'").fetchone()
         assert row is not None
-        club = repository.get_club_by_id(row[0], test_db)
+        club = repository.get_club_by_id(test_db, row[0])
         assert club is not None
         assert club.name == "Inline Harriers"
 
@@ -2338,7 +2349,7 @@ class TestClubsInPageEditing:
             data={"csrf_token": csrf},
         )
         assert toggle_resp.status_code == 200
-        updated = repository.get_club_by_id(club.id, test_db)
+        updated = repository.get_club_by_id(test_db, club.id)
         assert updated is not None
         assert updated.is_active is False
 

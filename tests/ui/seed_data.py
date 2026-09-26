@@ -10,8 +10,8 @@ from datetime import date, timedelta
 
 import duckdb
 
-from website.auth import hash_password
-from website.database import run_migrations
+from website.passwords import hash_password
+from website.db import run_migrations
 from website.models import AthleteEntryRow, UserRole
 from website import repository
 
@@ -327,7 +327,7 @@ def seed_full_dataset(con: duckdb.DuckDBPyConnection) -> SeededIds:
         status="paid",
         stripe_payment_method="card",
     )
-    repository.assign_race_numbers(ui_batch.id, con)
+    repository.assign_race_numbers(con, ui_batch.id)
 
     return SeededIds(
         season_id=season.id,

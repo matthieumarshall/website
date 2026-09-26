@@ -1,18 +1,16 @@
-"""Tests for website.helpers module."""
+"""Tests for CSRF, rich-text, timetable and geocoding helpers."""
 
 import types
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 from fastapi import HTTPException
 
-from website.helpers import (
-    geocode_address,
-    parse_timetable_from_json,
-    post_summary,
-    safe_referer_path,
-    validate_csrf,
-)
+from website.integrations.geocoding import geocode_address
+from website.models.fixtures import parse_timetable_json as parse_timetable_from_json
+from website.richtext import post_summary, safe_referer_path
+from website.web.csrf import validate_csrf
 
 
 def _make_request(session: dict | None = None) -> object:
@@ -81,24 +79,31 @@ class TestSafeRefererPath:
 class TestGeocodeAddress:
     def test_returns_none_on_network_exception(self) -> None:
         mock_client = MagicMock()
-        mock_client.__enter__ = MagicMock(side_effect=Exception("network failure"))
+        mock_client.__enter__ = MagicMock(
+            side_effect=httpx.ConnectError("network failure")
+        )
         mock_client.__exit__ = MagicMock(return_value=False)
 
-        with patch("website.helpers.httpx.Client", return_value=mock_client):
+        with patch(
+            "website.integrations.geocoding.httpx.Client", return_value=mock_client
+        ):
             result = geocode_address("some invalid address")
 
         assert result is None
 
     def test_returns_none_on_http_error(self) -> None:
         mock_response = MagicMock()
-        mock_response.raise_for_status.side_effect = Exception("HTTP 500")
+        mock_response.raise_for_status.side_effect = httpx.HTTPError("HTTP 500")
 
         mock_client_instance = MagicMock()
         mock_client_instance.get.return_value = mock_response
         mock_client_instance.__enter__ = MagicMock(return_value=mock_client_instance)
         mock_client_instance.__exit__ = MagicMock(return_value=False)
 
-        with patch("website.helpers.httpx.Client", return_value=mock_client_instance):
+        with patch(
+            "website.integrations.geocoding.httpx.Client",
+            return_value=mock_client_instance,
+        ):
             result = geocode_address("bad address")
 
         assert result is None
@@ -113,7 +118,10 @@ class TestGeocodeAddress:
         mock_client_instance.__enter__ = MagicMock(return_value=mock_client_instance)
         mock_client_instance.__exit__ = MagicMock(return_value=False)
 
-        with patch("website.helpers.httpx.Client", return_value=mock_client_instance):
+        with patch(
+            "website.integrations.geocoding.httpx.Client",
+            return_value=mock_client_instance,
+        ):
             result = geocode_address("London")
 
         assert result == (51.5, -0.1)
@@ -128,7 +136,10 @@ class TestGeocodeAddress:
         mock_client_instance.__enter__ = MagicMock(return_value=mock_client_instance)
         mock_client_instance.__exit__ = MagicMock(return_value=False)
 
-        with patch("website.helpers.httpx.Client", return_value=mock_client_instance):
+        with patch(
+            "website.integrations.geocoding.httpx.Client",
+            return_value=mock_client_instance,
+        ):
             result = geocode_address("NonExistentPlace12345")
 
         assert result is None
