@@ -9,6 +9,7 @@ from fastapi import HTTPException
 from website.helpers import (
     geocode_address,
     parse_timetable_from_json,
+    post_summary,
     safe_referer_path,
     validate_csrf,
 )
@@ -176,3 +177,55 @@ class TestParseTimetableFromJson:
     def test_returns_empty_list_for_null_input(self) -> None:
         result = parse_timetable_from_json(None)  # type: ignore[arg-type]  # ty:ignore[invalid-argument-type]
         assert result == []
+
+
+# ---------------------------------------------------------------------------
+# post_summary
+# ---------------------------------------------------------------------------
+
+
+class TestPostSummary:
+    def test_empty_or_none_returns_empty_string(self) -> None:
+        assert post_summary("", 1) == ""
+        assert post_summary(None, 1) == ""  # type: ignore[arg-type]  # ty:ignore[invalid-argument-type]
+
+    def test_short_post_returns_original_content(self) -> None:
+        content = "<p>This is a short post under 300 characters.</p>"
+        assert post_summary(content, 1) == content
+        assert "see more" not in post_summary(content, 1)
+
+    def test_long_post_truncates_at_word_boundary_and_adds_link(self) -> None:
+        words = ["cross", "country", "league", "oxfordshire", "runners"] * 20
+        long_text = "<p>" + " ".join(words) + "</p>"
+        assert len(long_text) > 300
+
+        result = post_summary(long_text, 10, length=200)
+        assert 'href="/news/10"' in result
+        assert "see more</a>" in result
+        assert 'aria-label="See more of this post"' in result
+        assert result.endswith("</p>")
+        # Check it does not cut a word in half
+        body = result.replace(
+            '<a href="/news/10" aria-label="See more of this post">see more</a>', ""
+        )
+        assert not body.endswith("crossc")
+
+    def test_long_post_with_nested_tags_balances_html(self) -> None:
+        content = (
+            "<p>Announcement: "
+            + "word " * 50
+            + "<strong>important finish</strong> more details to follow.</p>"
+        )
+        result = post_summary(content, 7, length=250)
+        assert 'href="/news/7"' in result
+        assert "see more</a>" in result
+        # Ensure tags are balanced and clean
+        assert result.count("<p>") == result.count("</p>")
+        assert result.count("<strong>") == result.count("</strong>")
+        assert result.endswith("</p>")
+
+    def test_plain_text_without_paragraph_tags(self) -> None:
+        plain_text = "word " * 100
+        result = post_summary(plain_text, 5, length=100)
+        assert 'href="/news/5"' in result
+        assert "see more</a>" in result

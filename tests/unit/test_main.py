@@ -844,6 +844,61 @@ class TestNewsCrud:
         assert resp.status_code == 200
         assert "Test Post" in resp.text
 
+    def test_short_post_has_no_see_more_link(
+        self, content_creator_client: TestClient
+    ) -> None:
+        create_page = content_creator_client.get("/news/create")
+        match = re.search(r'name="csrf_token"\s+value="([^"]+)"', create_page.text)
+        assert match
+        resp = content_creator_client.post(
+            "/news/create",
+            data={
+                "title": "Short Summary Post",
+                "content": "<p>A short announcement that easily fits in summary.</p>",
+                "csrf_token": match.group(1),
+            },
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+        assert "Short Summary Post" in resp.text
+        assert "see more" not in resp.text
+
+    def test_long_post_has_see_more_link_navigating_to_full_post(
+        self, content_creator_client: TestClient, test_db: duckdb.DuckDBPyConnection
+    ) -> None:
+        create_page = content_creator_client.get("/news/create")
+        match = re.search(r'name="csrf_token"\s+value="([^"]+)"', create_page.text)
+        assert match
+        long_content = (
+            "<p>Welcome to the new season of the cross country league. "
+            + "We have many exciting fixtures scheduled across various venues. " * 10
+            + "</p>"
+        )
+        content_creator_client.post(
+            "/news/create",
+            data={
+                "title": "Long Fixture Announcement",
+                "content": long_content,
+                "csrf_token": match.group(1),
+            },
+            follow_redirects=True,
+        )
+        row = test_db.execute(
+            "SELECT id FROM posts WHERE title = ?", ["Long Fixture Announcement"]
+        ).fetchone()
+        assert row is not None
+        post_id = row[0]
+
+        news_page = content_creator_client.get("/news")
+        assert news_page.status_code == 200
+        assert f'href="/news/{post_id}"' in news_page.text
+        assert "see more</a>" in news_page.text
+
+        detail_page = content_creator_client.get(f"/news/{post_id}")
+        assert detail_page.status_code == 200
+        assert "Long Fixture Announcement" in detail_page.text
+        assert "scheduled across various venues" in detail_page.text
+
     def test_delete_post(
         self, content_creator_client: TestClient, test_db: duckdb.DuckDBPyConnection
     ) -> None:

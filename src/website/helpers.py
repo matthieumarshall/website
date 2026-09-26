@@ -1,5 +1,6 @@
 import json as _json
 import logging
+import re
 import secrets
 from typing import Any
 from urllib.parse import urlparse
@@ -47,7 +48,7 @@ _ALLOWED_TAGS = {
     "span",
 }
 _ALLOWED_ATTRS = {
-    "a": {"href", "title", "target"},
+    "a": {"href", "title", "target", "aria-label"},
     "img": {"src", "alt", "width", "height"},
     "td": {"colspan", "rowspan", "data-row", "data-cell"},
     "th": {"colspan", "rowspan", "scope"},
@@ -175,6 +176,44 @@ def page_context(request: Request, current_page: str, **extra: Any) -> dict[str,
 
 def sanitise_html(raw: str) -> str:
     return nh3.clean(raw, tags=_ALLOWED_TAGS, attributes=_ALLOWED_ATTRS)
+
+
+def post_summary(content: str, post_id: int, length: int = 300) -> str:
+    """Return an HTML summary of post content truncated at a word boundary.
+
+    If the post is longer than length, it is truncated and an inline
+    '... see more' link pointing to /news/{post_id} is appended.
+    Unclosed HTML tags are safely balanced via sanitise_html.
+    """
+    if not content:
+        return ""
+
+    plain = re.sub(r"<[^>]+>", "", content).strip()
+    if len(content) <= length or (
+        len(plain) <= length and len(content) <= length + 100
+    ):
+        return content
+
+    sliced = content[:length]
+    sliced = re.sub(r"<[^>]*$", "", sliced)
+    if " " in sliced:
+        sliced = sliced.rsplit(" ", 1)[0]
+    sliced = re.sub(r"<[^>]*$", "", sliced)
+    sliced = sliced.rstrip(".,;:!? \t\n")
+
+    clean_body = sanitise_html(sliced)
+    link = (
+        f'... <a href="/news/{post_id}" aria-label="See more of this post">see more</a>'
+    )
+
+    closing_tags = ("</p>", "</blockquote>", "</li>", "</div>")
+    for tag in closing_tags:
+        if clean_body.endswith(tag):
+            idx = len(clean_body) - len(tag)
+            body_without_tag = clean_body[:idx].rstrip(".,;:!? \t\n")
+            return body_without_tag + link + tag
+
+    return f"{clean_body}{link}"
 
 
 def geocode_address(address: str) -> tuple[float, float] | None:

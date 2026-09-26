@@ -43,7 +43,7 @@ Planned islands:
 - `admin` and `content_creator` roles — **DONE**
 - Account page (shows username + role badge) — **DONE**
 - `club_manager` role (team manager equivalent) — **DONE** (`require_club_manager` dependency in `identity.py`)
-- User control centre / admin user management (CRUD users, assign roles, reset credentials within the website) — *planned*
+- User control centre / admin user management (CRUD users, assign roles, reset credentials within the website) — *not started*
 
 ---
 
@@ -52,7 +52,7 @@ Planned islands:
 ### 2.1 Posts / News CRUD
 - News listing page with pagination — **DONE**
 - Post detail view — **DONE**
-- Post "see more.." link - *not started*
+- Post "see more.." link — **DONE**
 - Create / edit / delete posts (content creator / admin only) — **DONE**
 - Rich-text editor (Quill) — **DONE**
 - Image upload (MIME allowlist, 5 MB cap, staff only) — **DONE**

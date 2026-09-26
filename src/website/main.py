@@ -43,6 +43,7 @@ from website.helpers import (
     geocode_address,
     page_context,
     parse_timetable_from_json,
+    post_summary,
     safe_referer_path,
     sanitise_html,
     validate_http_url,
@@ -215,6 +216,7 @@ app.mount(
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 templates.env.filters["fromjson"] = json.loads
+templates.env.filters["post_summary"] = post_summary
 cast(dict[str, object], templates.env.globals)["STRIPE_PUBLISHABLE_KEY"] = (
     os.environ.get("STRIPE_PUBLISHABLE_KEY", "")
 )
