@@ -32,7 +32,7 @@ def admin_club_managers_list(
 
 
 @router.post("", response_class=HTMLResponse)
-def admin_club_managers_create(  # noqa: PLR0913 — FastAPI dependencies
+def admin_club_managers_create(
     request: Request,
     form: Annotated[ClubManagerForm, Form()],
     _: RequireAdmin,

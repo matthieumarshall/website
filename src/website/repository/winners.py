@@ -28,7 +28,7 @@ def list_winner_overrides(
     return fetch_all(
         db,
         WinnerOverride,
-        f"{_OVERRIDE_SELECT}{where}"  # noqa: S608  # nosec B608 — constant clause
+        f"{_OVERRIDE_SELECT}{where}"  # nosec B608 — constant clause
         " ORDER BY s.name DESC, wo.winner_type, wo.category, wo.id",
     )
 
@@ -39,7 +39,7 @@ def get_winner_override(db: Connection, override_id: int) -> WinnerOverride | No
         db,
         WinnerOverride,
         f"{_OVERRIDE_SELECT} WHERE wo.id = ?",
-        [override_id],  # noqa: S608
+        [override_id],
     )
 
 

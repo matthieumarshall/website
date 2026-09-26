@@ -3,7 +3,7 @@
 import json
 from collections.abc import Mapping
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 from fastapi import Request
 from fastapi.responses import HTMLResponse
@@ -34,9 +34,7 @@ class Renderer:
         env.filters["fromjson"] = json.loads
         env.filters["post_summary"] = post_summary
         # Jinja types its globals narrowly; any value is allowed at runtime.
-        cast("dict[str, object]", env.globals)["STRIPE_PUBLISHABLE_KEY"] = (
-            stripe_publishable_key
-        )
+        cast(Any, env.globals)["STRIPE_PUBLISHABLE_KEY"] = stripe_publishable_key
 
     @staticmethod
     def context(

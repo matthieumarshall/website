@@ -2,10 +2,9 @@ import duckdb
 import pytest
 
 from website import repository
-from website.passwords import hash_password
 from website.db import run_migrations
 from website.models import PaginatedPosts, Post, User, UserRole
-
+from website.passwords import hash_password
 
 # ---------------------------------------------------------------------------
 # Fixtures

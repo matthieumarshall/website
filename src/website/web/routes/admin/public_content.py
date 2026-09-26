@@ -97,7 +97,7 @@ def admin_winners_list(
 
 
 @router.post("/winners", response_class=HTMLResponse)
-def admin_winners_create(  # noqa: PLR0913 — FastAPI dependencies
+def admin_winners_create(
     request: Request,
     form: Annotated[WinnerOverrideForm, Form()],
     _: RequireStaff,

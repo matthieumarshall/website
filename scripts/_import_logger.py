@@ -7,7 +7,7 @@ JSON-lines formatted logs, and human-readable summary reports.
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 
 class ImportLogger:
@@ -22,7 +22,7 @@ class ImportLogger:
         stats: Statistics tracking (counts by level and stage)
     """
 
-    def __init__(self, log_file: Optional[Path] = None) -> None:
+    def __init__(self, log_file: Path | None = None) -> None:
         """Initialize the import logger.
 
         Args:
@@ -180,7 +180,7 @@ class ImportLogger:
         """Print the summary report to stdout."""
         print(self.summary())
 
-    def write_summary(self, path: Optional[Path] = None) -> None:
+    def write_summary(self, path: Path | None = None) -> None:
         """Write summary report to a file.
 
         Args:

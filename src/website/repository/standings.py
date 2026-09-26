@@ -32,15 +32,14 @@ def load_individual_standings(
         return fetch_all(
             db,
             IndividualStanding,
-            f"{_INDIVIDUAL_SELECT} WHERE season_id = ? AND category = ?"  # noqa: S608
+            f"{_INDIVIDUAL_SELECT} WHERE season_id = ? AND category = ?"
             " ORDER BY position ASC",
             [season_id, category],
         )
     return fetch_all(
         db,
         IndividualStanding,
-        f"{_INDIVIDUAL_SELECT} WHERE season_id = ?"  # noqa: S608
-        " ORDER BY category ASC, position ASC",
+        f"{_INDIVIDUAL_SELECT} WHERE season_id = ? ORDER BY category ASC, position ASC",
         [season_id],
     )
 
@@ -53,15 +52,14 @@ def load_team_standings(
         return fetch_all(
             db,
             TeamStanding,
-            f"{_TEAM_SELECT} WHERE season_id = ? AND category = ?"  # noqa: S608
+            f"{_TEAM_SELECT} WHERE season_id = ? AND category = ?"
             " ORDER BY position ASC",
             [season_id, category],
         )
     return fetch_all(
         db,
         TeamStanding,
-        f"{_TEAM_SELECT} WHERE season_id = ?"  # noqa: S608
-        " ORDER BY category ASC, position ASC",
+        f"{_TEAM_SELECT} WHERE season_id = ? ORDER BY category ASC, position ASC",
         [season_id],
     )
 
@@ -86,7 +84,7 @@ def season_has_standings(db: Connection, season_id: int) -> bool:
     for table in ("individual_standings", "team_standings"):
         count = fetch_count(
             db,
-            f"SELECT COUNT(*) FROM {table} WHERE season_id = ?",  # noqa: S608  # nosec B608 — table name from a constant tuple
+            f"SELECT COUNT(*) FROM {table} WHERE season_id = ?",  # nosec B608 — table name from a constant tuple
             [season_id],
         )
         if count > 0:

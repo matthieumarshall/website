@@ -15,10 +15,10 @@ from pathlib import Path
 
 import duckdb
 
-from website.passwords import hash_password
+from website import repository
 from website.db import get_db_path, run_migrations
 from website.models import User, UserRole
-from website import repository
+from website.passwords import hash_password
 
 
 def _add_user(

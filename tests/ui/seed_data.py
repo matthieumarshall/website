@@ -10,10 +10,10 @@ from datetime import date, timedelta
 
 import duckdb
 
-from website.passwords import hash_password
+from website import repository
 from website.db import run_migrations
 from website.models import AthleteEntryRow, UserRole
-from website import repository
+from website.passwords import hash_password
 
 
 @dataclass

@@ -1,10 +1,10 @@
 import duckdb
 import pytest
 
+from cli.seed_fixture import _create_fixture
 from website import repository
 from website.db import run_migrations
 from website.models import Season
-from cli.seed_fixture import _create_fixture
 
 
 @pytest.fixture()

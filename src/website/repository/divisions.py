@@ -29,13 +29,13 @@ def list_division_assignments(
         return fetch_all(
             db,
             DivisionAssignment,
-            f"{_ASSIGNMENT_SELECT} WHERE da.season_id = ?{_ASSIGNMENT_ORDER}",  # noqa: S608
+            f"{_ASSIGNMENT_SELECT} WHERE da.season_id = ?{_ASSIGNMENT_ORDER}",
             [season_id],
         )
     return fetch_all(
         db,
         DivisionAssignment,
-        f"{_ASSIGNMENT_SELECT}{_ASSIGNMENT_ORDER}",  # noqa: S608
+        f"{_ASSIGNMENT_SELECT}{_ASSIGNMENT_ORDER}",
     )
 
 
@@ -46,7 +46,7 @@ def get_division_assignment(
     return fetch_one(
         db,
         DivisionAssignment,
-        f"{_ASSIGNMENT_SELECT} WHERE da.id = ?",  # noqa: S608
+        f"{_ASSIGNMENT_SELECT} WHERE da.id = ?",
         [assignment_id],
     )
 
@@ -80,7 +80,7 @@ def create_division_assignment(
     return require(assignment, "division assignment")
 
 
-def update_division_assignment(  # noqa: PLR0913 — one parameter per column
+def update_division_assignment(
     db: Connection,
     assignment_id: int,
     season_id: int,

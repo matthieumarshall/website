@@ -11,7 +11,8 @@ CONTENT_SECURITY_POLICY = (
     "default-src 'self'; "
     "style-src 'self' 'unsafe-inline'; "
     "script-src 'self'; "
-    "img-src 'self' data: https://tile.openstreetmap.org https://*.tile.openstreetmap.org; "
+    "img-src 'self' data: "
+    "https://tile.openstreetmap.org https://*.tile.openstreetmap.org; "
     "font-src 'self'; "
     "frame-ancestors 'none'"
 )

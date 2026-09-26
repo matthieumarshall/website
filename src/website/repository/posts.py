@@ -25,11 +25,11 @@ def list_posts(
     """Return one page of posts, newest first."""
     # `where` is chosen from two constant strings, never from user input.
     where = "WHERE p.published = true" if published_only else ""
-    total = fetch_count(db, f"SELECT COUNT(*) FROM posts p {where}")  # noqa: S608  # nosec B608
+    total = fetch_count(db, f"SELECT COUNT(*) FROM posts p {where}")  # nosec B608
     posts = fetch_all(
         db,
         Post,
-        f"{_POST_SELECT} {where} ORDER BY p.created_at DESC LIMIT ? OFFSET ?",  # noqa: S608  # nosec B608
+        f"{_POST_SELECT} {where} ORDER BY p.created_at DESC LIMIT ? OFFSET ?",  # nosec B608
         [per_page, (page - 1) * per_page],
     )
     return PaginatedPosts.build(posts=posts, page=page, per_page=per_page, total=total)
@@ -37,7 +37,7 @@ def list_posts(
 
 def get_post_by_id(db: Connection, post_id: int) -> Post | None:
     """Return the post with *post_id*, or None."""
-    return fetch_one(db, Post, f"{_POST_SELECT} WHERE p.id = ?", [post_id])  # noqa: S608
+    return fetch_one(db, Post, f"{_POST_SELECT} WHERE p.id = ?", [post_id])
 
 
 def create_post(db: Connection, title: str, content: str, author_id: int) -> Post:
@@ -49,7 +49,7 @@ def create_post(db: Connection, title: str, content: str, author_id: int) -> Pos
     post = fetch_one(
         db,
         Post,
-        f"{_POST_SELECT} WHERE p.author_id = ? ORDER BY p.created_at DESC LIMIT 1",  # noqa: S608
+        f"{_POST_SELECT} WHERE p.author_id = ? ORDER BY p.created_at DESC LIMIT 1",
         [author_id],
     )
     return require(post, "post")

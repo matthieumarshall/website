@@ -35,7 +35,7 @@ class TestEAHeaders:
             os.environ,
             {"EA_CALL_KEY": "test_key", "EA_CALL_SECRET": "test_secret\xa3"},
         ):
-            headers = getattr(entries, "_ea_headers")()
+            headers = entries._ea_headers()
 
         secret = next(
             value
@@ -55,7 +55,7 @@ class TestEAHeaders:
     def test_unsuccessful_response_status_raises(
         self, response_status: str, expected_error: type[DomainError]
     ) -> None:
-        validate_response_status = getattr(entries, "_validate_ea_response_status")
+        validate_response_status = entries._validate_ea_response_status
         with pytest.raises(expected_error):
             validate_response_status({"ResponseStatus": response_status})
 
@@ -108,12 +108,13 @@ class TestEAStaging:
             with patch(
                 "website.integrations.england_athletics.pkcs12.load_key_and_certificates"
             ) as mock_pkcs:
-                from cryptography.hazmat.primitives.asymmetric import rsa
-                from cryptography import x509
-                from cryptography.x509.oid import NameOID
-                from cryptography.hazmat.primitives import hashes
-                from cryptography.hazmat.backends import default_backend
                 from datetime import datetime, timedelta
+
+                from cryptography import x509
+                from cryptography.hazmat.backends import default_backend
+                from cryptography.hazmat.primitives import hashes
+                from cryptography.hazmat.primitives.asymmetric import rsa
+                from cryptography.x509.oid import NameOID
 
                 # Create mock certificate and key
                 private_key = rsa.generate_private_key(
@@ -199,12 +200,13 @@ class TestEAStaging:
             with patch(
                 "website.integrations.england_athletics.pkcs12.load_key_and_certificates"
             ) as mock_pkcs:
-                from cryptography.hazmat.primitives.asymmetric import rsa
-                from cryptography import x509
-                from cryptography.x509.oid import NameOID
-                from cryptography.hazmat.primitives import hashes
-                from cryptography.hazmat.backends import default_backend
                 from datetime import datetime, timedelta
+
+                from cryptography import x509
+                from cryptography.hazmat.backends import default_backend
+                from cryptography.hazmat.primitives import hashes
+                from cryptography.hazmat.primitives.asymmetric import rsa
+                from cryptography.x509.oid import NameOID
 
                 private_key = rsa.generate_private_key(
                     public_exponent=65537,
@@ -308,12 +310,13 @@ class TestEAStaging:
             with patch(
                 "website.integrations.england_athletics.pkcs12.load_key_and_certificates"
             ) as mock_pkcs:
-                from cryptography.hazmat.primitives.asymmetric import rsa
-                from cryptography import x509
-                from cryptography.x509.oid import NameOID
-                from cryptography.hazmat.primitives import hashes
-                from cryptography.hazmat.backends import default_backend
                 from datetime import datetime, timedelta
+
+                from cryptography import x509
+                from cryptography.hazmat.backends import default_backend
+                from cryptography.hazmat.primitives import hashes
+                from cryptography.hazmat.primitives.asymmetric import rsa
+                from cryptography.x509.oid import NameOID
 
                 private_key = rsa.generate_private_key(
                     public_exponent=65537,
@@ -415,12 +418,13 @@ class TestEAStaging:
             with patch(
                 "website.integrations.england_athletics.pkcs12.load_key_and_certificates"
             ) as mock_pkcs:
-                from cryptography.hazmat.primitives.asymmetric import rsa
-                from cryptography import x509
-                from cryptography.x509.oid import NameOID
-                from cryptography.hazmat.primitives import hashes
-                from cryptography.hazmat.backends import default_backend
                 from datetime import datetime, timedelta
+
+                from cryptography import x509
+                from cryptography.hazmat.backends import default_backend
+                from cryptography.hazmat.primitives import hashes
+                from cryptography.hazmat.primitives.asymmetric import rsa
+                from cryptography.x509.oid import NameOID
 
                 private_key = rsa.generate_private_key(
                     public_exponent=65537,

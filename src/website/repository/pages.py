@@ -9,7 +9,7 @@ _PAGE_SELECT = "SELECT id, slug, content, updated_at, updated_by_id FROM static_
 
 def get_static_page(db: Connection, slug: str) -> StaticPage | None:
     """Return the static page with *slug*, or None."""
-    return fetch_one(db, StaticPage, f"{_PAGE_SELECT} WHERE slug = ?", [slug])  # noqa: S608
+    return fetch_one(db, StaticPage, f"{_PAGE_SELECT} WHERE slug = ?", [slug])
 
 
 def upsert_static_page(

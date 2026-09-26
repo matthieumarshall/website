@@ -7,7 +7,7 @@ Routes declare what they need with an ``Annotated`` alias, for example::
 
 from typing import Annotated
 
-from fastapi_permissions import Allow, All, Authenticated, configure_permissions
+from fastapi_permissions import All, Allow, Authenticated, configure_permissions
 
 from website.models import Post
 from website.web.identity import get_active_principals

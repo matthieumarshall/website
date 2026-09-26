@@ -48,10 +48,10 @@ def validate_licenses(licenses_file):
         with open(licenses_file) as f:
             data = json.load(f)
     except FileNotFoundError:
-        print("[!] License file not found: {}".format(licenses_file))
+        print(f"[!] License file not found: {licenses_file}")
         return False
     except json.JSONDecodeError:
-        print("[!] Invalid JSON in license file: {}".format(licenses_file))
+        print(f"[!] Invalid JSON in license file: {licenses_file}")
         return False
 
     violations = []
@@ -85,11 +85,11 @@ def validate_licenses(licenses_file):
         print("\n[?] UNKNOWN LICENSES (may need review):")
         print("=" * 60)
         for u in unknown:
-            print("  - {}".format(u))
+            print(f"  - {u}")
         print()
 
     print("\n[+] All licenses are compatible")
-    print("Total packages checked: {}".format(len(data)))
+    print(f"Total packages checked: {len(data)}")
     return True
 
 

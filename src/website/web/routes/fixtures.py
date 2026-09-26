@@ -151,7 +151,7 @@ def fixtures_create_fixture(
 
 
 @router.get(f"{_FIXTURE}/edit", response_class=HTMLResponse)
-def fixtures_edit_form(  # noqa: PLR0913 — FastAPI dependencies
+def fixtures_edit_form(
     season_id: int,
     fixture_id: int,
     request: Request,
@@ -166,7 +166,7 @@ def fixtures_edit_form(  # noqa: PLR0913 — FastAPI dependencies
 
 
 @router.post(f"{_FIXTURE}/edit")
-def fixtures_update_fixture(  # noqa: PLR0913 — FastAPI dependencies
+def fixtures_update_fixture(
     season_id: int,
     fixture_id: int,
     form: Annotated[FixtureForm, Form()],
@@ -193,7 +193,7 @@ def fixtures_delete_fixture(
 
 
 @router.get(f"{_FIXTURE}/copy", response_class=HTMLResponse)
-def fixtures_copy_form(  # noqa: PLR0913 — FastAPI dependencies
+def fixtures_copy_form(
     season_id: int,
     fixture_id: int,
     request: Request,
@@ -232,7 +232,7 @@ def fixtures_copy_submit(
 
 
 @router.post(f"{_FIXTURE}/images")
-async def fixture_upload_image(  # noqa: PLR0913 — FastAPI dependencies
+async def fixture_upload_image(
     season_id: int,
     fixture_id: int,
     request: Request,
@@ -249,7 +249,7 @@ async def fixture_upload_image(  # noqa: PLR0913 — FastAPI dependencies
 
 
 @router.post(f"{_FIXTURE}/images/{{image_id}}/delete")
-async def fixture_delete_image(  # noqa: PLR0913 — FastAPI dependencies
+async def fixture_delete_image(
     season_id: int,
     fixture_id: int,
     image_id: int,

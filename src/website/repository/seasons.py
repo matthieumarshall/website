@@ -9,18 +9,18 @@ _SEASON_SELECT = "SELECT id, name, created_at FROM seasons"
 
 def list_seasons(db: Connection) -> list[Season]:
     """Return all seasons, most recent name first."""
-    return fetch_all(db, Season, f"{_SEASON_SELECT} ORDER BY name DESC")  # noqa: S608
+    return fetch_all(db, Season, f"{_SEASON_SELECT} ORDER BY name DESC")
 
 
 def get_season_by_id(db: Connection, season_id: int) -> Season | None:
     """Return the season with *season_id*, or None."""
-    return fetch_one(db, Season, f"{_SEASON_SELECT} WHERE id = ?", [season_id])  # noqa: S608
+    return fetch_one(db, Season, f"{_SEASON_SELECT} WHERE id = ?", [season_id])
 
 
 def create_season(db: Connection, name: str) -> Season:
     """Insert a season and return it."""
     db.execute("INSERT INTO seasons (name) VALUES (?)", [name])
-    season = fetch_one(db, Season, f"{_SEASON_SELECT} WHERE name = ?", [name])  # noqa: S608
+    season = fetch_one(db, Season, f"{_SEASON_SELECT} WHERE name = ?", [name])
     return require(season, "season")
 
 

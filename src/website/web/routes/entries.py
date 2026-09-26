@@ -52,7 +52,7 @@ def entries_create_batch(
 
 
 @router.get(f"{_BATCH}/preview", response_class=HTMLResponse)
-def entries_batch_preview(  # noqa: PLR0913 — FastAPI dependencies
+def entries_batch_preview(
     request: Request,
     season_id: int,
     batch_id: int,
@@ -93,7 +93,7 @@ def entries_batch_checkout(
 
 
 @router.get(f"{_BATCH}/success", response_class=HTMLResponse)
-def entries_batch_success(  # noqa: PLR0913 — FastAPI dependencies
+def entries_batch_success(
     request: Request,
     season_id: int,
     batch_id: int,

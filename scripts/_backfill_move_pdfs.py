@@ -33,8 +33,8 @@ def main():
     args = parser.parse_args()
 
     sys.path.insert(0, str(_ROOT / "src"))
-    from website.db import get_db_path
     from website import repository
+    from website.db import get_db_path
 
     db_path = get_db_path()
     con = duckdb.connect(str(db_path))

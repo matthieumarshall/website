@@ -38,6 +38,7 @@ _EA_STAGING_BASE = (
 _EA_LIVE_BASE = "https://TrinityAPI.myathletics.uk/TrinityAPIService.svc/"
 _HTTP_OK = 200
 _HTTP_FORBIDDEN = 403
+_SERVER_ERRORS = range(500, 600)
 _AUTH_FAILED = (
     "England Athletics API authentication failed. Contact the league administrator."
 )
@@ -107,7 +108,8 @@ def _resolve_existing_cert_path(cert_path: str) -> Path | None:
         for path in _path_candidates(dotenv_cert_path):
             if path.exists():
                 logger.warning(
-                    "EA_CERT_PATH from shell env was not found; using .env value instead"
+                    "EA_CERT_PATH from shell env was not found; "
+                    "using .env value instead"
                 )
                 return path
     return None
@@ -269,9 +271,10 @@ def _fetch_from_ea_api(
         cert=(cert_file_path, key_file_path), http1=True, timeout=10.0
     ) as client:
         resp = client.get(url, headers=headers, params=params)
-        if 500 <= resp.status_code < 600:  # noqa: PLR2004 — HTTP 5xx range
+        if _SERVER_ERRORS.start <= resp.status_code < _SERVER_ERRORS.stop:
             raise TemporaryAPIError(
-                f"EA API returned temporary error: {resp.status_code} {resp.reason_phrase}"
+                "EA API returned temporary error: "
+                f"{resp.status_code} {resp.reason_phrase}"
             )
         return resp
 
@@ -355,6 +358,13 @@ def _write_temp_pem(data: bytes) -> str:
         return temp.name
 
 
+def _delete_quietly(path: Path) -> None:
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        logger.warning("Could not delete temporary EA PEM file %s", path)
+
+
 @contextmanager
 def _client_certificate_files(credentials: _Credentials) -> Iterator[tuple[str, str]]:
     """Yield (cert, key) PEM file paths extracted from the PFX; delete them after."""
@@ -366,10 +376,7 @@ def _client_certificate_files(credentials: _Credentials) -> Iterator[tuple[str, 
         yield paths
     finally:
         for path in paths:
-            try:
-                Path(path).unlink(missing_ok=True)
-            except OSError:
-                logger.warning("Could not delete temporary EA PEM file %s", path)
+            _delete_quietly(Path(path))
 
 
 def _request_club_athletes(

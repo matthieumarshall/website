@@ -74,7 +74,7 @@ def admin_clubs_edit(
 
 
 @router.post("/{club_id}", response_class=HTMLResponse)
-def admin_clubs_update(  # noqa: PLR0913 — FastAPI dependencies
+def admin_clubs_update(
     request: Request,
     club_id: int,
     form: Annotated[ClubForm, Form()],

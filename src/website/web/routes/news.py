@@ -69,7 +69,7 @@ def news_detail(
     return ui.page(request, "post_detail.html", _PAGE, post=post, can_edit=can_edit)
 
 
-@router.get("/news/{post_id}/edit", response_class=HTMLResponse)
+@router.get("/news/{post_id}/edit", response_class=HTMLResponse)  # noqa: FAST003 — used by get_post_resource
 def news_edit_form(
     request: Request, resource: PostEditor, ui: RendererDep
 ) -> HTMLResponse:
@@ -80,7 +80,7 @@ def news_edit_form(
     )
 
 
-@router.post("/news/{post_id}/edit", response_class=HTMLResponse)
+@router.post("/news/{post_id}/edit", response_class=HTMLResponse)  # noqa: FAST003 — used by get_post_resource
 def news_edit_submit(
     form: Annotated[PostForm, Form()],
     resource: PostEditor,
@@ -92,7 +92,7 @@ def news_edit_submit(
     return RedirectResponse(url=f"/news/{resource.post.id}", status_code=302)
 
 
-@router.post("/news/{post_id}/delete")
+@router.post("/news/{post_id}/delete")  # noqa: FAST003 — used by get_post_resource
 def news_delete(
     resource: PostDeleter, _csrf: CsrfProtected, posts: Posts
 ) -> RedirectResponse:

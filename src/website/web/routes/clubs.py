@@ -58,7 +58,7 @@ def clubs_inline_row(
 
 
 @router.post("/{club_id}/inline-edit", response_class=HTMLResponse)
-def clubs_inline_edit(  # noqa: PLR0913 — FastAPI dependencies
+def clubs_inline_edit(
     request: Request,
     club_id: int,
     form: Annotated[ClubForm, Form()],

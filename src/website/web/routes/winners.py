@@ -60,7 +60,7 @@ def winners_tables_panel(
 
 
 @router.post("/inline-add", response_class=HTMLResponse)
-def winners_inline_add(  # noqa: PLR0913 — FastAPI dependencies
+def winners_inline_add(
     request: Request,
     form: Annotated[WinnerOverrideForm, Form()],
     _: RequireStaff,
@@ -96,7 +96,7 @@ def winners_override_inline_form(
 
 
 @router.post("/overrides/{override_id}/inline-edit", response_class=HTMLResponse)
-def winners_override_inline_edit(  # noqa: PLR0913 — FastAPI dependencies
+def winners_override_inline_edit(
     request: Request,
     override_id: int,
     form: Annotated[WinnerOverrideForm, Form()],

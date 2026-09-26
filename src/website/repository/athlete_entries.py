@@ -139,7 +139,8 @@ def upsert_club_allocation(
         raise ValueError("allocated_slots must be greater than 0")
     db.execute(
         """
-        INSERT INTO club_allocations (season_id, club_id, allocated_slots, created_at, updated_at)
+        INSERT INTO club_allocations
+            (season_id, club_id, allocated_slots, created_at, updated_at)
         VALUES (?, ?, ?, now(), now())
         ON CONFLICT(season_id, club_id) DO UPDATE SET
             allocated_slots = excluded.allocated_slots,
@@ -153,7 +154,8 @@ def get_club_allocation(db: Connection, season_id: int, club_id: int) -> int | N
     """Return allocated slots for a club in a season, or None if not set."""
     value = fetch_value(
         db,
-        "SELECT allocated_slots FROM club_allocations WHERE season_id = ? AND club_id = ?",
+        "SELECT allocated_slots FROM club_allocations"
+        " WHERE season_id = ? AND club_id = ?",
         [season_id, club_id],
     )
     return value if isinstance(value, int) else None

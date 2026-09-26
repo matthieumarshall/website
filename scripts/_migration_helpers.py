@@ -148,7 +148,7 @@ def get_or_create_fixture(
     con: duckdb.DuckDBPyConnection,
     season_id: int,
     round_num: int,
-    fixture_date: "date",
+    fixture_date: date,
     venue_raw: str,
 ) -> int:
     """Return the fixture id for *fixture_date* in *season_id*, creating it if absent.

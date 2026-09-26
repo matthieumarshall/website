@@ -143,7 +143,7 @@ class EntryService:
     def __init__(
         self, db: Connection, athletes: AthleteDirectory, payments: PaymentGateway
     ) -> None:
-        """Bind the service to a database, an athlete directory and a payment gateway."""
+        """Bind the service to a database, athlete directory and payment gateway."""
         self._db = db
         self._athletes = athletes
         self._payments = payments

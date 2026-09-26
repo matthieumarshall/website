@@ -86,7 +86,7 @@ def divisions_inline_assign(
 
 
 @router.post("/assignments/{assignment_id}/inline-delete", response_class=HTMLResponse)
-def divisions_inline_delete(  # noqa: PLR0913 — FastAPI dependencies
+def divisions_inline_delete(
     request: Request,
     assignment_id: int,
     form: Annotated[SeasonScopeForm, Form()],
@@ -101,7 +101,7 @@ def divisions_inline_delete(  # noqa: PLR0913 — FastAPI dependencies
 
 
 @router.post("/assignments/{assignment_id}/inline-move", response_class=HTMLResponse)
-def divisions_inline_move(  # noqa: PLR0913 — FastAPI dependencies
+def divisions_inline_move(
     request: Request,
     assignment_id: int,
     form: Annotated[DivisionMoveForm, Form()],

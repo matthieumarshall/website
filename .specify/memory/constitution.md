@@ -78,7 +78,7 @@ Security validation happens in layers: automated, human, and third-party audits.
 - Passwords: Hashed via `bcrypt` (no plaintext storage)
 - CSRF: Double-submit cookie pattern on all forms
 - XSS: Jinja2 autoescape=true (default)
-- Database: Parameterised queries only (FastAPI SQLAlchemy ORM enforces this)
+- Database: Parameterised queries only (DuckDB, SQL confined to `src/website/repository/`)
 - Headers: CSP, X-Frame-Options, X-Content-Type-Options set
 - External Resources: No CDN; all assets self-hosted
 
@@ -157,7 +157,7 @@ Technology decisions are preserved from prior work. This section documents what'
 **Backend:**
 - FastAPI (async Python web framework, type hints built-in)
 - DuckDB (analytical SQL, lightweight, in-process)
-- SQLAlchemy ORM (type-safe database access)
+- DuckDB with plain SQL migrations; pydantic models for every row (type-safe data access)
 - Pydantic (data validation, JSON serialization)
 
 **Frontend:**
@@ -199,10 +199,10 @@ Technology decisions are preserved from prior work. This section documents what'
 ### Local Development
 
 1. Clone repo and create feature branch (auto-named by `speckit.git.feature`)
-2. Set up: `uv venv && source .venv/bin/activate && uv pip install -r requirements.txt`
+2. Set up: `just sync` (or `uv sync --all-extras`)
 3. Configure: Copy `.env.example` to `.env`, fill in local values
 4. Run tests: `pytest` (includes coverage report)
-5. Run server: `python -m uvicorn src.main:app --reload`
+5. Run server: `just serve` (`uvicorn website.main:app --reload`)
 6. Before commit: `pre-commit run --all-files` (auto-fixes what it can)
 
 ### Before Pushing a PR

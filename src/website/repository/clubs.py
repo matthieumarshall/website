@@ -18,7 +18,7 @@ _CLUB_SELECT = (
 
 def list_clubs(db: Connection) -> list[Club]:
     """Return every club, alphabetically."""
-    return fetch_all(db, Club, f"{_CLUB_SELECT} ORDER BY name")  # noqa: S608
+    return fetch_all(db, Club, f"{_CLUB_SELECT} ORDER BY name")
 
 
 def list_public_clubs(db: Connection) -> list[Club]:
@@ -28,10 +28,10 @@ def list_public_clubs(db: Connection) -> list[Club]:
 
 def get_club_by_id(db: Connection, club_id: int) -> Club | None:
     """Return the club with *club_id*, or None."""
-    return fetch_one(db, Club, f"{_CLUB_SELECT} WHERE id = ?", [club_id])  # noqa: S608
+    return fetch_one(db, Club, f"{_CLUB_SELECT} WHERE id = ?", [club_id])
 
 
-def create_club(  # noqa: PLR0913 — one parameter per club column
+def create_club(
     db: Connection,
     name: str,
     oxl_code: str,
@@ -57,7 +57,7 @@ def create_club(  # noqa: PLR0913 — one parameter per club column
             is_oxfordshire_member,
         ],
     )
-    club = fetch_one(db, Club, f"{_CLUB_SELECT} WHERE oxl_code = ?", [oxl_code])  # noqa: S608
+    club = fetch_one(db, Club, f"{_CLUB_SELECT} WHERE oxl_code = ?", [oxl_code])
     return require(club, "club")
 
 

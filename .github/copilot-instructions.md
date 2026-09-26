@@ -22,7 +22,7 @@ The backend owns all routing, auth, and data access. The frontend is thin: Jinja
 
 - **Dependency management**: always use `uv`. Add runtime deps with `uv add <pkg>`, dev/test deps with `uv add --dev <pkg>` or `uv add --optional dev <pkg>`.
 - **SOLID in practice**:
-  - One responsibility per module: `auth.py` for password hashing/verification, `identity.py` for session/user/principal retrieval, `database.py` for DuckDB connection setup, `models.py` for dataclass/Pydantic schemas, `helpers.py` for shared request helpers (CSRF, page context, sanitisation), `main.py` for route wiring only.
+  - Layered package (see `src/website/README.md`): `web/` (routers, dependencies, rendering) → `services/` (business rules) → `repository/` (SQL) → `models/` (pydantic). `integrations/` wraps external APIs. `main.py` only builds the app. `import-linter` enforces the layering.
   - Depend on abstractions: pass a `duckdb.DuckDBPyConnection` via `Depends(get_db)`, not global state.
   - Prefer small, focused functions over large route handlers; extract business logic out of route functions.
 - **Type hints** on all function signatures.
@@ -33,9 +33,9 @@ The backend owns all routing, auth, and data access. The frontend is thin: Jinja
 
 The data layer uses **DuckDB** with a persistent database file (`data/app.duckdb`).
 
-- **Connection**: a single shared DuckDB connection is opened at application startup (in the lifespan handler) and stored on `app.state.db`. The `get_db()` dependency in `database.py` yields a **cursor** from that shared connection — this avoids OS-level file-lock conflicts (especially on Windows) while still giving each request an isolated cursor. The cursor is closed in a `try/finally` block after the request completes.
+- **Connection**: a single shared DuckDB connection is opened at application startup (in the lifespan handler) and stored on `app.state.db`. The `get_db()` dependency in `web/deps.py` yields a **cursor** from that shared connection — this avoids OS-level file-lock conflicts (especially on Windows) while still giving each request an isolated cursor. The cursor is closed in a `try/finally` block after the request completes.
 - **Queries**: use DuckDB's parameterised queries (`cur.execute(sql, [params])`) — never f-strings or string concatenation in SQL.
-- **Writes**: use `INSERT INTO … VALUES (?, ?)` via DuckDB; keep write helpers in `repository.py`.
+- **Writes**: use `INSERT INTO … VALUES (?, ?)` via DuckDB; keep write helpers in the matching `repository/<domain>.py` module.
 - **Schema evolution**: version schema changes with plain SQL migration scripts in `migrations/` (e.g. `0001_add_users.sql`). Apply them in order; do not use Alembic (no SQLAlchemy ORM in this project).
 - **Testing**: use an in-memory DuckDB database (`:memory:`) in unit tests; never read or write the real `data/` directory in tests.
 - **`data/` hygiene**: `*.duckdb` files and `data/uploads/` are gitignored. Do not commit database files.
@@ -64,7 +64,7 @@ Follow OWASP Top 10 mitigations by default:
 | **SQL injection** | DuckDB parameterised queries only (`con.execute(sql, [params])`). Never use f-strings or `%`-formatting in SQL. |
 | **XSS** | Jinja2 auto-escaping is always on. Avoid `| safe` on user-supplied data. When rendering server-sanitised HTML (e.g. post content cleaned by `nh3`), `| safe` is acceptable — but never apply it to raw user input. |
 | **CSRF** | All state-changing POST routes validate a CSRF token via `_validate_csrf(request, form_token)`. Templates receive the token through `_page_context` and render it as `<input type="hidden" name="csrf_token" value="{{ csrf_token }}">`. |
-| **Security headers** | `SecurityHeadersMiddleware` in `main.py` sets CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, and (in production) HSTS on every response. |
+| **Security headers** | `SecurityHeadersMiddleware` in `web/middleware.py` sets CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, and (in production) HSTS on every response. |
 | **No CDN** | All static assets (Bootstrap CSS/JS) are self-hosted under `static/`. Never add CDN links — they leak user IPs to third parties. |
 | **GDPR** | A cookie notice banner is rendered by `base.html` unless dismissed. A `/privacy-policy` route explains data handling. Any new data collection or cookies must be added to `templates/privacy.html` before deployment. See `templates/privacy.html` for the current data inventory. |
 | **SAST** | `bandit -r src/ -ll` must pass with zero findings (or documented `# nosec` suppressions). Runs in pre-commit and CI. |

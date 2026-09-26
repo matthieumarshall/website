@@ -15,9 +15,9 @@ from fastapi.testclient import TestClient
 from website import repository
 from website.db import run_migrations
 from website.main import app
+from website.models import UserRole
 from website.passwords import hash_password
 from website.web.deps import get_db
-from website.models import UserRole
 
 
 @pytest.fixture

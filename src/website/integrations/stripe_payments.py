@@ -9,6 +9,9 @@ from pydantic import BaseModel, ConfigDict
 
 from website.errors import InvalidRequestError, ServiceUnavailableError
 
+_TIMES = "×"  # noqa: RUF001 — intended: shown on Stripe line items
+_DASH = "—"  # em dash
+
 
 class CheckoutSession(NamedTuple):
     """The hosted checkout page URL and its Stripe session id."""
@@ -69,7 +72,7 @@ def _line_item(
         "price_data": {
             "currency": "gbp",
             "product_data": {
-                "name": f"{label} entry × {count} — {request.club_name}",
+                "name": f"{label} entry {_TIMES} {count} {_DASH} {request.club_name}",
                 "description": f"Season: {request.season_name}",
             },
             "unit_amount": unit_pence,
@@ -128,6 +131,9 @@ def verify_webhook(payload: bytes, sig_header: str) -> stripe.Event:
     """
     webhook_secret = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
     try:
-        return stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
+        event: stripe.Event = stripe.Webhook.construct_event(  # type: ignore[no-untyped-call]
+            payload, sig_header, webhook_secret
+        )
     except stripe.SignatureVerificationError as exc:
         raise InvalidRequestError("Invalid Stripe signature") from exc
+    return event

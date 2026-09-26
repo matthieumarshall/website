@@ -68,16 +68,19 @@ Log in at [http://localhost:8000/login](http://localhost:8000/login) with userna
 ## Project Structure
 
 ```
-src/website/          # FastAPI application
-├── __init__.py
-├── main.py           # FastAPI app and route wiring
-├── database.py       # DuckDB connection setup
-├── auth.py           # Password hashing/verification
-├── identity.py       # Session and principal retrieval
-├── models.py         # Pydantic schemas
-├── repository.py     # Data access layer
-├── helpers.py        # Shared request utilities
-└── export.py         # Export functionality
+src/website/          # FastAPI application (layered; see src/website/README.md)
+├── main.py           # create_app() factory: middleware, mounts, routers
+├── config.py         # Settings read from the environment
+├── db.py             # DuckDB connection and migration runner
+├── errors.py         # Domain exceptions (mapped to HTTP in web/handlers.py)
+├── web/              # Routers (web/routes/), dependencies, rendering, CSRF, ACLs
+├── services/         # Business rules, one service class per area
+├── integrations/     # England Athletics, Stripe and geocoding adapters
+├── repository/       # SQL data access, one module per domain
+├── models/           # Pydantic models (including form models)
+├── content.py        # Navigation, admin guides, link categories
+├── richtext.py       # HTML sanitising and summaries
+└── export.py         # CSV/PDF export
 
 migrations/           # SQL schema migrations (applied in order)
 templates/            # Jinja2 HTML templates
@@ -99,6 +102,22 @@ tests/
 
 data/                 # DuckDB database and uploads (gitignored)
 ```
+
+## Quality Checks
+
+Every commit runs pre-commit (`just lint` runs it on all files). The hooks are:
+
+| Check | Command | Enforces |
+|-------|---------|----------|
+| Lint + format | `uv run ruff check .` / `uv run ruff format .` | Style, docstrings, annotations, complexity (`pyproject.toml`) |
+| Types | `uv run mypy`, `uv run ty check` | `mypy --strict` with the pydantic plugin on `src/website` |
+| Architecture | `uv run lint-imports` | Layering: web → services → repository → models |
+| Module size | `uv run python scripts/check_file_length.py src` | No module over 1000 lines (warns over 500) |
+| Tests (pre-push) | `uv run pytest tests/unit -x -q` | Unit tests pass before every push (`just test-unit` adds the coverage gate) |
+
+`just check` runs the type, architecture and size checks together. CI also
+requires 90% coverage of the lines changed in a pull request (`diff-cover`).
+Run `uv run pre-commit install` once to install both the commit and push hooks.
 
 ## License
 

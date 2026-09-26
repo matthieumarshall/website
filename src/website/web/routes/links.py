@@ -64,7 +64,7 @@ def links_inline_item(
 
 
 @router.post("/{link_id}/inline-edit", response_class=HTMLResponse)
-def links_inline_edit(  # noqa: PLR0913 — FastAPI dependencies
+def links_inline_edit(
     request: Request,
     link_id: int,
     form: Annotated[LinkForm, Form()],

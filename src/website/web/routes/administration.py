@@ -80,7 +80,7 @@ def administration_delete_section(
 
 
 @router.post("/manage/sections/{section_id}/documents", response_class=HTMLResponse)
-async def administration_upload_document(  # noqa: PLR0913 — FastAPI dependencies
+async def administration_upload_document(
     section_id: int,
     request: Request,
     display_name: Annotated[str, Form()],

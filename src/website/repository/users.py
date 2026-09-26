@@ -9,12 +9,12 @@ _USER_SELECT = "SELECT id, username, hashed_password, role FROM users"
 
 def get_user_by_username(db: Connection, username: str) -> User | None:
     """Return the user with *username*, or None."""
-    return fetch_one(db, User, f"{_USER_SELECT} WHERE username = ?", [username])  # noqa: S608
+    return fetch_one(db, User, f"{_USER_SELECT} WHERE username = ?", [username])
 
 
 def get_user_by_id(db: Connection, user_id: int) -> User | None:
     """Return the user with *user_id*, or None."""
-    return fetch_one(db, User, f"{_USER_SELECT} WHERE id = ?", [user_id])  # noqa: S608
+    return fetch_one(db, User, f"{_USER_SELECT} WHERE id = ?", [user_id])
 
 
 def create_user(

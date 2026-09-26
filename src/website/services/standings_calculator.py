@@ -185,7 +185,7 @@ def _build_season_config(round_numbers: list[str]) -> CompetitionConfig:
 def _parse_time(time_str: str) -> timedelta:
     """Parse "0 days 00:29:27", "00:29:27" or "29:27"; timedelta(0) if invalid."""
     if " days " in time_str:
-        time_str = time_str.split(" days ")[-1]
+        time_str = time_str.rsplit(" days ", maxsplit=1)[-1]
     parts = time_str.strip().split(":")
     try:
         if len(parts) == _TIME_PARTS_HMS:

@@ -1,9 +1,9 @@
 import duckdb
 import pytest
 
+from cli.seed_user import _add_user
 from website.db import run_migrations
 from website.models import UserRole
-from cli.seed_user import _add_user
 
 
 @pytest.fixture()

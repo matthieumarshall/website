@@ -84,7 +84,7 @@ def admin_links_edit(
 
 
 @router.post("/{link_id}", response_class=HTMLResponse)
-def admin_links_update(  # noqa: PLR0913 — FastAPI dependencies
+def admin_links_update(
     request: Request,
     link_id: int,
     form: Annotated[LinkForm, Form()],

@@ -24,13 +24,13 @@ def race_sort_key(name: str) -> tuple[int, int, str]:
 
 def list_races_for_fixture(db: Connection, fixture_id: int) -> list[Race]:
     """Return a fixture's races, juniors by age group first."""
-    races = fetch_all(db, Race, f"{_RACE_SELECT} WHERE fixture_id = ?", [fixture_id])  # noqa: S608
+    races = fetch_all(db, Race, f"{_RACE_SELECT} WHERE fixture_id = ?", [fixture_id])
     return sorted(races, key=lambda race: race_sort_key(race.name))
 
 
 def get_race_by_id(db: Connection, race_id: int) -> Race | None:
     """Return the race with *race_id*, or None."""
-    return fetch_one(db, Race, f"{_RACE_SELECT} WHERE id = ?", [race_id])  # noqa: S608
+    return fetch_one(db, Race, f"{_RACE_SELECT} WHERE id = ?", [race_id])
 
 
 def create_race(
@@ -44,7 +44,7 @@ def create_race(
     race = fetch_one(
         db,
         Race,
-        f"{_RACE_SELECT} WHERE fixture_id = ? ORDER BY created_at DESC LIMIT 1",  # noqa: S608
+        f"{_RACE_SELECT} WHERE fixture_id = ? ORDER BY created_at DESC LIMIT 1",
         [fixture_id],
     )
     return require(race, "race")
@@ -55,7 +55,7 @@ def list_results_for_race(db: Connection, race_id: int) -> list[Result]:
     return fetch_all(
         db,
         Result,
-        f"{_RESULT_SELECT} WHERE race_id = ? ORDER BY position ASC",  # noqa: S608
+        f"{_RESULT_SELECT} WHERE race_id = ? ORDER BY position ASC",
         [race_id],
     )
 
@@ -107,7 +107,7 @@ def create_result(  # noqa: PLR0913 — one parameter per result column
     result = fetch_one(
         db,
         Result,
-        f"{_RESULT_SELECT} WHERE race_id = ? ORDER BY id DESC LIMIT 1",  # noqa: S608
+        f"{_RESULT_SELECT} WHERE race_id = ? ORDER BY id DESC LIMIT 1",
         [race_id],
     )
     return require(result, "result")

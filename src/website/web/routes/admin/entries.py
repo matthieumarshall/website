@@ -15,7 +15,7 @@ _PAGE = "admin"
 
 
 @router.get("", response_class=HTMLResponse)
-def admin_entries_overview(  # noqa: PLR0913 — FastAPI dependencies
+def admin_entries_overview(
     request: Request,
     _: RequireAdmin,
     service: EntryAdmin,

@@ -58,7 +58,7 @@ def _documents_for(db: Connection, section_id: int) -> list[AdministrationDocume
     rows = fetch_all(
         db,
         _DocumentRow,
-        f"{_DOCUMENT_SELECT} WHERE d.section_id = ?"  # noqa: S608
+        f"{_DOCUMENT_SELECT} WHERE d.section_id = ?"
         " ORDER BY d.sort_order DESC, d.display_name ASC",
         [section_id],
     )
@@ -76,7 +76,7 @@ def list_administration_sections(db: Connection) -> list[AdministrationSection]:
     rows = fetch_all(
         db,
         _SectionRow,
-        f"{_SECTION_SELECT} ORDER BY sort_order ASC, title ASC",  # noqa: S608
+        f"{_SECTION_SELECT} ORDER BY sort_order ASC, title ASC",
     )
     return [_with_documents(db, row) for row in rows]
 
@@ -85,7 +85,7 @@ def get_administration_section(
     db: Connection, section_id: int
 ) -> AdministrationSection | None:
     """Return a section with its documents, or None."""
-    row = fetch_one(db, _SectionRow, f"{_SECTION_SELECT} WHERE id = ?", [section_id])  # noqa: S608
+    row = fetch_one(db, _SectionRow, f"{_SECTION_SELECT} WHERE id = ?", [section_id])
     return _with_documents(db, row) if row else None
 
 
@@ -98,7 +98,7 @@ def create_administration_section(
         " VALUES (?, ?, ?, ?)",
         [slug, title, description, sort_order],
     )
-    row = fetch_one(db, _SectionRow, f"{_SECTION_SELECT} WHERE slug = ?", [slug])  # noqa: S608
+    row = fetch_one(db, _SectionRow, f"{_SECTION_SELECT} WHERE slug = ?", [slug])
     return AdministrationSection(
         **require(row, "administration section").model_dump(), documents=[]
     )
@@ -123,7 +123,7 @@ def delete_administration_section(db: Connection, section_id: int) -> None:
     db.execute("DELETE FROM administration_sections WHERE id = ?", [section_id])
 
 
-def create_administration_document(  # noqa: PLR0913 — one parameter per column
+def create_administration_document(
     db: Connection,
     section_id: int,
     display_name: str,
@@ -142,7 +142,7 @@ def create_administration_document(  # noqa: PLR0913 — one parameter per colum
     row = fetch_one(
         db,
         _DocumentRow,
-        f"{_DOCUMENT_SELECT} WHERE d.section_id = ?"  # noqa: S608
+        f"{_DOCUMENT_SELECT} WHERE d.section_id = ?"
         " ORDER BY d.uploaded_at DESC LIMIT 1",
         [section_id],
     )
@@ -153,7 +153,7 @@ def delete_administration_document(
     db: Connection, doc_id: int
 ) -> DeletedDocument | None:
     """Delete a document record, returning where its file is stored."""
-    row = fetch_one(db, _DocumentRow, f"{_DOCUMENT_SELECT} WHERE d.id = ?", [doc_id])  # noqa: S608
+    row = fetch_one(db, _DocumentRow, f"{_DOCUMENT_SELECT} WHERE d.id = ?", [doc_id])
     if row is None:
         return None
     db.execute("DELETE FROM administration_documents WHERE id = ?", [doc_id])

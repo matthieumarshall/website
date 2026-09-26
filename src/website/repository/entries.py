@@ -27,7 +27,7 @@ def get_season_entry_config(db: Connection, season_id: int) -> SeasonEntryConfig
     )
 
 
-def upsert_season_entry_config(  # noqa: PLR0913 — one parameter per column
+def upsert_season_entry_config(
     db: Connection,
     season_id: int,
     entries_open: bool,
@@ -66,7 +66,7 @@ def upsert_season_entry_config(  # noqa: PLR0913 — one parameter per column
         )
 
 
-def create_entry_batch(  # noqa: PLR0913 — one parameter per column
+def create_entry_batch(
     db: Connection,
     season_id: int,
     club_id: int,
@@ -78,7 +78,8 @@ def create_entry_batch(  # noqa: PLR0913 — one parameter per column
     db.execute(
         """
         INSERT INTO entry_batches
-            (season_id, club_id, manager_user_id, fixtures_remaining_at_entry, total_pence)
+            (season_id, club_id, manager_user_id,
+             fixtures_remaining_at_entry, total_pence)
         VALUES (?, ?, ?, ?, ?)
         """,
         [season_id, club_id, manager_user_id, fixtures_remaining_at_entry, total_pence],
@@ -86,7 +87,7 @@ def create_entry_batch(  # noqa: PLR0913 — one parameter per column
     batch = fetch_one(
         db,
         EntryBatch,
-        f"{_BATCH_SELECT} WHERE season_id = ? AND club_id = ? AND manager_user_id = ?"  # noqa: S608
+        f"{_BATCH_SELECT} WHERE season_id = ? AND club_id = ? AND manager_user_id = ?"
         " ORDER BY id DESC LIMIT 1",
         [season_id, club_id, manager_user_id],
     )
@@ -95,7 +96,7 @@ def create_entry_batch(  # noqa: PLR0913 — one parameter per column
 
 def get_entry_batch(db: Connection, batch_id: int) -> EntryBatch | None:
     """Return the batch with *batch_id*, or None."""
-    return fetch_one(db, EntryBatch, f"{_BATCH_SELECT} WHERE id = ?", [batch_id])  # noqa: S608
+    return fetch_one(db, EntryBatch, f"{_BATCH_SELECT} WHERE id = ?", [batch_id])
 
 
 def get_entry_batch_by_stripe_session(
@@ -105,7 +106,7 @@ def get_entry_batch_by_stripe_session(
     return fetch_one(
         db,
         EntryBatch,
-        f"{_BATCH_SELECT} WHERE stripe_checkout_session_id = ?",  # noqa: S608
+        f"{_BATCH_SELECT} WHERE stripe_checkout_session_id = ?",
         [session_id],
     )
 
@@ -126,7 +127,7 @@ def update_batch_status(
             stripe_payment_intent_id = COALESCE(?, stripe_payment_intent_id),
             stripe_payment_method = COALESCE(?, stripe_payment_method)
         WHERE id = ?
-        """,  # noqa: S608  # nosec B608 — `paid_at` is one of two constant strings
+        """,  # nosec B608 — `paid_at` is one of two constant strings
         [status, stripe_payment_intent_id, stripe_payment_method, batch_id],
     )
 
@@ -168,6 +169,6 @@ def list_entry_batches_for_season(
         JOIN users u ON u.id = eb.manager_user_id
         WHERE {where}
         ORDER BY eb.created_at DESC
-        """,  # noqa: S608  # nosec B608 — `where` is built from constant clauses; values are bound params
+        """,  # nosec B608 — `where` is built from constant clauses; values are bound params
         query_params,
     )

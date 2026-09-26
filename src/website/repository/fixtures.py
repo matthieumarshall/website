@@ -36,7 +36,7 @@ def list_fixtures_for_season(db: Connection, season_id: int) -> list[Fixture]:
     return fetch_all(
         db,
         Fixture,
-        f"{_FIXTURE_SELECT} WHERE season_id = ? ORDER BY date ASC",  # noqa: S608
+        f"{_FIXTURE_SELECT} WHERE season_id = ? ORDER BY date ASC",
         [season_id],
     )
 
@@ -51,7 +51,7 @@ def list_fixture_dates(db: Connection, season_id: int) -> list[dt.date]:
 
 def get_fixture_by_id(db: Connection, fixture_id: int) -> Fixture | None:
     """Return the fixture with *fixture_id*, or None."""
-    return fetch_one(db, Fixture, f"{_FIXTURE_SELECT} WHERE id = ?", [fixture_id])  # noqa: S608
+    return fetch_one(db, Fixture, f"{_FIXTURE_SELECT} WHERE id = ?", [fixture_id])
 
 
 def create_fixture(  # noqa: PLR0913 — one parameter per fixture column
@@ -99,7 +99,7 @@ def create_fixture(  # noqa: PLR0913 — one parameter per fixture column
     fixture = fetch_one(
         db,
         Fixture,
-        f"{_FIXTURE_SELECT} WHERE season_id = ? ORDER BY created_at DESC LIMIT 1",  # noqa: S608
+        f"{_FIXTURE_SELECT} WHERE season_id = ? ORDER BY created_at DESC LIMIT 1",
         [season_id],
     )
     return require(fixture, "fixture")
@@ -163,14 +163,14 @@ def list_fixture_images(db: Connection, fixture_id: int) -> list[FixtureImage]:
     return fetch_all(
         db,
         FixtureImage,
-        f"{_IMAGE_SELECT} WHERE fixture_id = ? ORDER BY uploaded_at ASC",  # noqa: S608
+        f"{_IMAGE_SELECT} WHERE fixture_id = ? ORDER BY uploaded_at ASC",
         [fixture_id],
     )
 
 
 def get_fixture_image_by_id(db: Connection, image_id: int) -> FixtureImage | None:
     """Return the fixture image with *image_id*, or None."""
-    return fetch_one(db, FixtureImage, f"{_IMAGE_SELECT} WHERE id = ?", [image_id])  # noqa: S608
+    return fetch_one(db, FixtureImage, f"{_IMAGE_SELECT} WHERE id = ?", [image_id])
 
 
 def create_fixture_image(
@@ -184,7 +184,7 @@ def create_fixture_image(
     image = fetch_one(
         db,
         FixtureImage,
-        f"{_IMAGE_SELECT} WHERE fixture_id = ? ORDER BY uploaded_at DESC LIMIT 1",  # noqa: S608
+        f"{_IMAGE_SELECT} WHERE fixture_id = ? ORDER BY uploaded_at DESC LIMIT 1",
         [fixture_id],
     )
     return require(image, "fixture image")

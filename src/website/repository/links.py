@@ -25,16 +25,16 @@ def list_external_links(
     return fetch_all(
         db,
         ExternalLink,
-        f"{_LINK_SELECT}{where} ORDER BY category, sort_order, title",  # noqa: S608  # nosec B608 — constant clause
+        f"{_LINK_SELECT}{where} ORDER BY category, sort_order, title",  # nosec B608 — constant clause
     )
 
 
 def get_external_link(db: Connection, link_id: int) -> ExternalLink | None:
     """Return the link with *link_id*, or None."""
-    return fetch_one(db, ExternalLink, f"{_LINK_SELECT} WHERE id = ?", [link_id])  # noqa: S608
+    return fetch_one(db, ExternalLink, f"{_LINK_SELECT} WHERE id = ?", [link_id])
 
 
-def create_external_link(  # noqa: PLR0913 — one parameter per link column
+def create_external_link(
     db: Connection,
     title: str,
     url: str,
@@ -56,13 +56,13 @@ def create_external_link(  # noqa: PLR0913 — one parameter per link column
     link = fetch_one(
         db,
         ExternalLink,
-        f"{_LINK_SELECT} WHERE title = ? AND url = ? ORDER BY id DESC LIMIT 1",  # noqa: S608
+        f"{_LINK_SELECT} WHERE title = ? AND url = ? ORDER BY id DESC LIMIT 1",
         [title, url],
     )
     return require(link, "external link")
 
 
-def update_external_link(  # noqa: PLR0913 — one parameter per link column
+def update_external_link(
     db: Connection,
     link_id: int,
     title: str,
