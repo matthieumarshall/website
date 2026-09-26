@@ -1,51 +1,93 @@
 {% extends "base.html" %}
 {% block title %}Divisions — Oxfordshire Cross Country League{% endblock %}
 {% block content %}
-<div class="mb-4">
-  <h1 class="h3 mb-1">Divisions</h1>
-  {% if season %}
-  <p class="text-muted mb-0">Senior team divisions for the {{ season.name }} season.</p>
-  {% else %}
-  <p class="text-muted mb-0">The current senior team divisions have not been published yet.</p>
+<div class="mb-4 d-flex flex-wrap align-items-center justify-content-between gap-2">
+  <div>
+    <h1 class="h3 mb-1">Divisions</h1>
+    {% if season %}
+    <p class="text-muted mb-0">Senior team divisions for the {{ season.name }} season.</p>
+    {% else %}
+    <p class="text-muted mb-0">The current senior team divisions have not been published yet.</p>
+    {% endif %}
+  </div>
+  {% if is_staff %}
+  <div class="d-flex gap-2">
+    <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#assign-club-collapse" aria-expanded="false" aria-controls="assign-club-collapse">
+      + Assign Club
+    </button>
+    <a href="/admin/divisions" class="btn btn-outline-secondary btn-sm">Admin Table</a>
+  </div>
   {% endif %}
 </div>
 
-{% if season and assignments %}
-  <div class="row g-4">
-    {% for gender in ('women', 'men') %}
-    <section class="col-12 col-lg-6" aria-labelledby="{{ gender }}-divisions-heading">
-      <h2 id="{{ gender }}-divisions-heading" class="h5">{{ 'Women' if gender == 'women' else 'Men' }}</h2>
-      {% for division in (1, 2, 3) %}
-      <div class="card mb-3">
-        <div class="card-header"><h3 class="h6 mb-0">Division {{ division }}</h3></div>
-        {% set clubs = assignments[gender][division] %}
-        {% if clubs %}
-        <ul class="list-group list-group-flush">
-          {% for club in clubs %}
-          <li class="list-group-item">
-            {% if club.website_url %}
-            <a href="{{ club.website_url }}" target="_blank" rel="noopener noreferrer">{{ club.name }}</a>
-            {% else %}
-            {{ club.name }}
-            {% endif %}
-          </li>
-          {% endfor %}
-        </ul>
-        {% else %}
-        <div class="card-body"><p class="text-muted mb-0">No clubs assigned.</p></div>
-        {% endif %}
-      </div>
-      {% endfor %}
-    </section>
-    {% endfor %}
+{% if is_staff %}
+<div class="collapse mb-4" id="assign-club-collapse">
+  <div class="card shadow-sm border-primary">
+    <div class="card-body">
+      <h2 class="h6 mb-3">Assign club to division</h2>
+      <form hx-post="/divisions/inline-assign"
+            hx-target="#divisions-panel"
+            hx-on::after-request="if(event.detail.successful) { this.reset(); const c = bootstrap.Collapse.getInstance(document.getElementById('assign-club-collapse')); if(c) c.hide(); }">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="row g-2 align-items-end">
+          <div class="col-12 col-md-3">
+            <label for="assign_season_id" class="form-label small mb-1">Season</label>
+            <select id="assign_season_id" name="season_id" class="form-select form-select-sm" required>
+              {% for s in seasons %}
+              <option value="{{ s.id }}" {% if season and season.id == s.id %}selected{% endif %}>{{ s.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12 col-md-3">
+            <label for="assign_club_id" class="form-label small mb-1">Club</label>
+            <select id="assign_club_id" name="club_id" class="form-select form-select-sm" required>
+              {% for c in all_clubs %}
+              <option value="{{ c.id }}">{{ c.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-6 col-md-2">
+            <label for="assign_gender" class="form-label small mb-1">Competition</label>
+            <select id="assign_gender" name="gender" class="form-select form-select-sm">
+              <option value="women">Women</option>
+              <option value="men">Men</option>
+            </select>
+          </div>
+          <div class="col-6 col-md-2">
+            <label for="assign_division" class="form-label small mb-1">Division</label>
+            <select id="assign_division" name="division" class="form-select form-select-sm">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-2">
+            <button type="submit" class="btn btn-primary btn-sm w-100">Assign</button>
+          </div>
+        </div>
+      </form>
+    </div>
   </div>
-  <div class="alert alert-info" role="note">
-    Clubs move between divisions on a two-up, two-down basis according to the league rules.
-    Junior team scores are not divided.
-  </div>
-{% else %}
-  <div class="alert alert-info" role="status">
-    Division assignments are awaiting publication by the league administrator.
-  </div>
+</div>
 {% endif %}
+
+{% if seasons|length > 1 %}
+<div class="row align-items-center mb-4">
+  <div class="col-auto">
+    <label for="season-select" class="col-form-label fw-semibold">Season:</label>
+  </div>
+  <div class="col-auto">
+    <select id="season-select" name="season_id" class="form-select"
+            hx-get="/divisions/panel"
+            hx-target="#divisions-panel"
+            hx-push-url="true">
+      {% for s in seasons %}
+      <option value="{{ s.id }}" {% if season and season.id == s.id %}selected{% endif %}>{{ s.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+</div>
+{% endif %}
+
+{% include "_divisions_panel.html" %}
 {% endblock %}

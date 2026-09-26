@@ -1,9 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Manage Winner Records — Oxfordshire Cross Country League{% endblock %}
 {% block content %}
-<div class="mb-4">
-  <h1 class="h3 mb-1">Manage Winner Records</h1>
-  <p class="text-muted mb-0">Correct official standings or add verified legacy winners without changing the standings tables.</p>
+<div class="mb-4 d-flex flex-wrap align-items-center justify-content-between gap-2">
+  <div>
+    <h1 class="h3 mb-1">Manage Winner Records</h1>
+    <p class="text-muted mb-0">Correct official standings or add verified legacy winners without changing the standings tables.</p>
+  </div>
+  <div>
+    <a href="/winners" class="btn btn-outline-secondary btn-sm">View public page</a>
+  </div>
 </div>
 {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
 <div class="card mb-4"><div class="card-body">
@@ -21,5 +26,5 @@
     <div class="col-12"><button type="submit" class="btn btn-primary">Save winner record</button></div>
   </form>
 </div></div>
-{% if overrides %}<div class="table-responsive" tabindex="0"><table class="table table-hover align-middle"><thead class="table-light"><tr><th scope="col">Season</th><th scope="col">Type/category</th><th scope="col">Winner</th><th scope="col">Mode</th><th scope="col">Status</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead><tbody>{% for item in overrides %}<tr><td>{{ item.season_name }}</td><td>{{ item.winner_type|title }} / {{ item.category }}</td><td>{{ item.winner_name }}{% if item.club %} ({{ item.club }}){% endif %}</td><td>{{ item.mode }}</td><td>{{ 'Active' if item.is_active else 'Inactive' }}</td><td><form method="post" action="/admin/winners/{{ item.id }}/toggle"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit" class="btn btn-outline-secondary btn-sm">{{ 'Deactivate' if item.is_active else 'Activate' }}</button></form></td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="text-muted">No winner overrides have been added.</p>{% endif %}
+{% if overrides %}<div class="table-responsive" tabindex="0"><table class="table table-hover align-middle"><thead class="table-light"><tr><th scope="col">Season</th><th scope="col">Type/category</th><th scope="col">Winner</th><th scope="col">Mode</th><th scope="col">Status</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead><tbody>{% for item in overrides %}<tr><td>{{ item.season_name }}</td><td>{{ item.winner_type|title }} / {{ item.category }}</td><td>{{ item.winner_name }}{% if item.club %} ({{ item.club }}){% endif %}</td><td>{{ item.mode }}</td><td>{{ 'Active' if item.is_active else 'Inactive' }}</td><td class="text-nowrap"><form method="post" action="/admin/winners/{{ item.id }}/toggle" class="d-inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit" class="btn btn-outline-secondary btn-sm">{{ 'Deactivate' if item.is_active else 'Activate' }}</button></form> <form method="post" action="/admin/winners/{{ item.id }}/delete" class="d-inline" onsubmit="return confirm('Delete this winner record?');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit" class="btn btn-outline-danger btn-sm">Delete</button></form></td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="text-muted">No winner overrides have been added.</p>{% endif %}
 {% endblock %}
