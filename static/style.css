@@ -101,6 +101,15 @@ body {
   border-right: 1px solid var(--bs-border-color);
 }
 
+@media (min-width: 768px) {
+  .sidebar {
+    position: sticky;
+    top: 0;
+    max-height: 100vh;
+    overflow-y: auto;
+  }
+}
+
 .sidebar .nav-link {
   color: var(--brand-primary);
   padding: 0.5rem 0.75rem;
