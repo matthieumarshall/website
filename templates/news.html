@@ -24,7 +24,7 @@
         </time>
       </p>
       <div class="post-preview">
-        {{ post.content | truncate(300, true, '…') | safe }}
+        {{ post.content | post_summary(post.id, 300) | safe }}
       </div>
     </div>
     {% if current_user and (current_user.role == UserRole.admin.value or (current_user.role == UserRole.content_creator.value and current_user.id == post.author_id)) %}

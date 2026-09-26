@@ -3,7 +3,13 @@
 import csv
 import io
 
-from website.export import build_csv, build_pdf, filter_results
+from website.export import (
+    build_csv,
+    build_document_pdf,
+    build_pdf,
+    build_rules_pdf,
+    filter_results,
+)
 from website.models import Result
 
 from .test_results import (
@@ -259,3 +265,21 @@ def test_csv_export_with_category_filter(test_client, test_db):
     assert resp.status_code == 200
     assert "Ben Cole" in resp.text
     assert "Jon Davies" not in resp.text
+
+
+def test_build_document_pdf_returns_valid_pdf():
+    pdf = build_document_pdf("Test Title", "<p>Hello world</p>")
+    assert isinstance(pdf, bytes)
+    assert pdf[:4] == b"%PDF"
+
+
+def test_build_document_pdf_handles_empty_content():
+    pdf = build_document_pdf("Empty Guide", "")
+    assert isinstance(pdf, bytes)
+    assert pdf[:4] == b"%PDF"
+
+
+def test_build_rules_pdf():
+    pdf = build_rules_pdf("<h1>Rules</h1><p>Section 1</p>")
+    assert isinstance(pdf, bytes)
+    assert pdf[:4] == b"%PDF"

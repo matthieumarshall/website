@@ -43,7 +43,7 @@ Planned islands:
 - `admin` and `content_creator` roles — **DONE**
 - Account page (shows username + role badge) — **DONE**
 - `club_manager` role (team manager equivalent) — **DONE** (`require_club_manager` dependency in `identity.py`)
-- User control centre / admin user management (CRUD users, assign roles, reset credentials within the website) — *planned*
+- User control centre / admin user management (CRUD users, assign roles, reset credentials within the website) — *not started*
 
 ---
 
@@ -52,6 +52,7 @@ Planned islands:
 ### 2.1 Posts / News CRUD
 - News listing page with pagination — **DONE**
 - Post detail view — **DONE**
+- Post "see more.." link — **DONE**
 - Create / edit / delete posts (content creator / admin only) — **DONE**
 - Rich-text editor (Quill) — **DONE**
 - Image upload (MIME allowlist, 5 MB cap, staff only) — **DONE**
@@ -92,6 +93,8 @@ Planned islands:
 - What3Words location support. User provides three words in separate small text boxes and we convert that ourselves to a what3words style clickable url — **DONE**
 - Course map image uploads (support multiple images per fixture) — **DONE** (`static/fixture-images.js` preview and reordering, multi-upload support)
 - Weather forecast integration — *planned* (fetch weather forecast for fixture coordinates/date via a free, open API such as Open-Meteo in advance, and persist/freeze as static historical weather data once race day has passed)
+- Upload and display Event license, Risk assessment and Medical Assessment - *not started*
+- Copy details from a different fixture, including within that season and previous year - *not started*
 
 ---
 
