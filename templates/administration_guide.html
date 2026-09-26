@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} — Oxfordshire Cross Country League{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* Sticky TOC sidebar */
+  #toc {
+    position: sticky;
+    top: 1rem;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+    font-size: 0.875rem;
+  }
+  .toc-list {
+    list-style: none;
+    padding-left: 0;
+    margin: 0;
+  }
+  .toc-list li a {
+    display: block;
+    padding: 0.2rem 0.4rem;
+    color: var(--bs-body-color);
+    text-decoration: none;
+    border-left: 2px solid transparent;
+    line-height: 1.3;
+  }
+  .toc-list li a:hover,
+  .toc-list li a.active {
+    color: var(--bs-primary);
+    border-left-color: var(--bs-primary);
+    background: rgba(0, 0, 0, 0.04);
+  }
+  .toc-list li.toc-h2 { padding-left: 0.75rem; }
+  .toc-list li.toc-h3 { padding-left: 1.5rem; }
+
+  /* Guide content typography */
+  #rules-content h1 { font-size: 1.5rem; margin-top: 2rem; color: var(--brand-primary); }
+  #rules-content h2 { font-size: 1.25rem; margin-top: 1.5rem; color: var(--brand-primary); }
+  #rules-content h3 { font-size: 1.1rem; margin-top: 1.25rem; color: var(--brand-primary); }
+  #rules-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: 0.9rem;
+  }
+  #rules-content th,
+  #rules-content td {
+    border: 1px solid #dee2e6;
+    padding: 0.4rem 0.6rem;
+    vertical-align: top;
+  }
+  #rules-content th {
+    background: #f8f9fa;
+    font-weight: 600;
+  }
+
+  @media print {
+    #toc, .btn, nav.sidebar, .breadcrumb { display: none !important; }
+    main { padding: 0 !important; }
+    #rules-content { max-width: 100%; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<nav aria-label="Breadcrumb" class="mb-3">
+  <ol class="breadcrumb mb-0 small">
+    <li class="breadcrumb-item"><a href="/administration">Administration</a></li>
+    <li class="breadcrumb-item active" aria-current="page">{{ title }}</li>
+  </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h1 class="h3 mb-0">{{ title }}</h1>
+  <div class="d-flex gap-2">
+    {% if is_admin %}
+    <a href="/administration/{{ slug }}/edit" class="btn btn-outline-secondary btn-sm">Edit</a>
+    {% endif %}
+    <a href="/administration/{{ slug }}/export/pdf"
+       class="btn btn-outline-primary btn-sm"
+       aria-label="Export {{ title }} as PDF">
+      Export PDF
+    </a>
+  </div>
+</div>
+
+{% if content %}
+<div class="d-lg-none mb-3">
+  <button
+    class="btn btn-outline-secondary w-100 text-start"
+    type="button"
+    data-bs-toggle="collapse"
+    data-bs-target="#toc-collapse-mobile"
+    aria-label="Toggle table of contents"
+    aria-expanded="false"
+    aria-controls="toc-collapse-mobile"
+  >
+    📋 Contents
+  </button>
+  <div class="collapse mt-2" id="toc-collapse-mobile">
+    <nav class="border rounded p-3 bg-body-tertiary" aria-label="Page contents">
+      <ul id="toc-list-mobile" class="toc-list mb-0"></ul>
+    </nav>
+  </div>
+</div>
+{% endif %}
+
+<div class="row g-4">
+  {# Main content column #}
+  <div class="col-lg-9">
+    {% if content %}
+    <div id="rules-content">{{ content | safe }}</div>
+    {% else %}
+    <p class="text-muted">
+      No content yet.
+      {% if is_admin %}
+        <a href="/administration/{{ slug }}/edit">Add content</a>
+      {% endif %}
+    </p>
+    {% endif %}
+  </div>
+
+  {% if content %}
+  {# Sticky TOC sidebar — shown on desktop #}
+  <div class="col-lg-3 d-none d-lg-block">
+    <nav id="toc" aria-label="Page contents">
+      <h6 class="text-muted text-uppercase fw-semibold mb-2" style="font-size:0.75rem;letter-spacing:.05em;">Contents</h6>
+      <ul id="toc-list-desktop" class="toc-list"></ul>
+    </nav>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/rules-toc.js"></script>
+{% endblock %}

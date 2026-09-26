@@ -121,6 +121,51 @@ body {
   font-weight: 500;
 }
 
+.sidebar-dropdown-toggle {
+  cursor: pointer;
+  user-select: none;
+}
+
+.sidebar-dropdown-toggle:hover .sidebar-chevron,
+.sidebar-dropdown-toggle:focus .sidebar-chevron {
+  color: var(--brand-primary);
+}
+
+.sidebar-chevron {
+  display: inline-block;
+  transition: transform 150ms ease-in-out;
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+.sidebar-dropdown-toggle[aria-expanded="true"] .sidebar-chevron {
+  transform: rotate(180deg);
+}
+
+.sidebar-submenu {
+  list-style: none;
+  padding-left: 0.75rem;
+  margin: 0.125rem 0 0.25rem 0;
+}
+
+.sidebar-submenu .nav-link {
+  font-size: 0.875rem;
+  padding: 0.35rem 0.65rem;
+  color: var(--brand-primary);
+}
+
+.sidebar-submenu .nav-link:hover,
+.sidebar-submenu .nav-link:focus {
+  background-color: rgba(var(--brand-primary-rgb), 0.08);
+  color: var(--brand-primary);
+}
+
+.sidebar-submenu .nav-link.active {
+  background-color: var(--brand-accent);
+  color: #fff;
+  font-weight: 500;
+}
+
 /* ============================================================================
    6. POST CONTENT — Article and preview styling
    ========================================================================== */

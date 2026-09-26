@@ -65,18 +65,26 @@ class TestSidebarItems:
     def test_sidebar_items_is_list(self) -> None:
         assert isinstance(SIDEBAR_ITEMS, list)
 
-    def test_sidebar_items_has_ten_entries(self) -> None:
-        assert len(SIDEBAR_ITEMS) == 10
+    def test_sidebar_items_has_nine_entries(self) -> None:
+        assert len(SIDEBAR_ITEMS) == 9
 
     def test_all_items_have_required_fields(self) -> None:
         for item in SIDEBAR_ITEMS:
             assert "name" in item
             assert "route" in item
             assert "page" in item
+            if "children" in item:
+                for child in item["children"]:
+                    assert "name" in child
+                    assert "route" in child
+                    assert "page" in child
 
     def test_all_routes_start_with_slash(self) -> None:
         for item in SIDEBAR_ITEMS:
             assert item["route"].startswith("/")
+            if "children" in item:
+                for child in item["children"]:
+                    assert child["route"].startswith("/")
 
     def test_news_is_first_item(self) -> None:
         assert SIDEBAR_ITEMS[0]["page"] == "news"
@@ -91,10 +99,34 @@ class TestSidebarItems:
             "divisions",
             "winners",
             "clubs",
-            "links",
             "rules_and_constitution",
             "administration",
             "fixtures",
+        }
+
+    def test_administration_has_sub_pages(self) -> None:
+        admin_item = next(
+            item for item in SIDEBAR_ITEMS if item["page"] == "administration"
+        )
+        assert "children" in admin_item
+        assert len(admin_item["children"]) == 6
+        sub_names = [child["name"] for child in admin_item["children"]]
+        assert sub_names == [
+            "Documents",
+            "Links",
+            "Athlete Registration Guide",
+            "Race Directors Guide",
+            "Suppliers List",
+            "Team Managers Guide",
+        ]
+        sub_pages = {child["page"] for child in admin_item["children"]}
+        assert sub_pages == {
+            "administration",
+            "links",
+            "athlete_registration_guide",
+            "race_directors_guide",
+            "suppliers_list",
+            "team_managers_guide",
         }
 
 
@@ -678,6 +710,103 @@ class TestAdministrationManage:
         sections = repository.list_administration_sections(test_db)
         section_docs = next(s for s in sections if s.slug == "agendas").documents
         assert not any(d.id == doc.id for d in section_docs)
+
+
+class TestAdministrationGuides:
+    """Tests for the 4 editable administration guide pages and their PDF export."""
+
+    _GUIDE_SLUGS = [
+        ("athlete-registration-guide", "Athlete Registration Guide"),
+        ("race-directors-guide", "Race Directors Guide"),
+        ("suppliers-list", "Suppliers List"),
+        ("team-managers-guide", "Team Managers Guide"),
+    ]
+
+    def test_public_can_view_all_guides(self, test_client: TestClient) -> None:
+        for slug, title in self._GUIDE_SLUGS:
+            resp = test_client.get(f"/administration/{slug}")
+            assert resp.status_code == 200, f"Failed to load /administration/{slug}"
+            assert title in resp.text
+            assert f"/administration/{slug}/export/pdf" in resp.text
+            assert "Export PDF" in resp.text
+            # Anonymous user should not see Edit button
+            assert f"/administration/{slug}/edit" not in resp.text
+
+    def test_edit_button_visible_to_admin_and_content_creator(
+        self, admin_client: TestClient, content_creator_client: TestClient
+    ) -> None:
+        for slug, _ in self._GUIDE_SLUGS:
+            resp_admin = admin_client.get(f"/administration/{slug}")
+            assert resp_admin.status_code == 200
+            assert f"/administration/{slug}/edit" in resp_admin.text
+
+            resp_creator = content_creator_client.get(f"/administration/{slug}")
+            assert resp_creator.status_code == 200
+            assert f"/administration/{slug}/edit" in resp_creator.text
+
+    def test_edit_form_requires_auth(self, test_client: TestClient) -> None:
+        for slug, _ in self._GUIDE_SLUGS:
+            resp = test_client.get(
+                f"/administration/{slug}/edit", follow_redirects=False
+            )
+            assert resp.status_code in (302, 403)
+
+    def test_edit_form_loads_for_admin(self, admin_client: TestClient) -> None:
+        for slug, title in self._GUIDE_SLUGS:
+            resp = admin_client.get(f"/administration/{slug}/edit")
+            assert resp.status_code == 200
+            assert f"Edit {title}" in resp.text
+            assert f'action="/administration/{slug}/edit"' in resp.text
+
+    def test_edit_guide_submit(
+        self,
+        admin_client: TestClient,
+        test_client: TestClient,
+        test_db: duckdb.DuckDBPyConnection,
+    ) -> None:
+        slug = "athlete-registration-guide"
+        form_page = admin_client.get(f"/administration/{slug}/edit")
+        csrf = re.search(r'name="csrf_token"\s+value="([^"]+)"', form_page.text)
+        assert csrf is not None
+        new_content = (
+            "<h2>Updated Athlete Registration Guide</h2>"
+            "<p>Step-by-step instructions.</p>"
+        )
+        post_resp = admin_client.post(
+            f"/administration/{slug}/edit",
+            data={"csrf_token": csrf.group(1), "content": new_content},
+            follow_redirects=False,
+        )
+        assert post_resp.status_code == 303
+        assert post_resp.headers["location"] == f"/administration/{slug}"
+
+        # Public view reflects updated content
+        view_resp = test_client.get(f"/administration/{slug}")
+        assert "Updated Athlete Registration Guide" in view_resp.text
+        assert "Step-by-step instructions." in view_resp.text
+
+        # Database reflects updated content
+        page = repository.get_static_page(test_db, slug)
+        assert page is not None
+        assert "Updated Athlete Registration Guide" in page.content
+
+    def test_export_pdf_returns_valid_pdf(self, test_client: TestClient) -> None:
+        for slug, _ in self._GUIDE_SLUGS:
+            resp = test_client.get(f"/administration/{slug}/export/pdf")
+            assert resp.status_code == 200
+            assert resp.headers["content-type"] == "application/pdf"
+            assert f"filename={slug}.pdf" in resp.headers.get("content-disposition", "")
+            assert resp.content.startswith(b"%PDF")
+
+    def test_unknown_guide_slug_returns_404(
+        self, test_client: TestClient, admin_client: TestClient
+    ) -> None:
+        assert test_client.get("/administration/unknown-guide").status_code == 404
+        assert admin_client.get("/administration/unknown-guide/edit").status_code == 404
+        assert (
+            test_client.get("/administration/unknown-guide/export/pdf").status_code
+            == 404
+        )
 
 
 class TestNewsCrud:

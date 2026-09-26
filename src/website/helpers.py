@@ -56,20 +56,78 @@ _ALLOWED_ATTRS = {
     "span": {"class", "data-row", "data-cell"},
 }
 
-SIDEBAR_ITEMS: list[dict[str, str]] = [
+ADMIN_GUIDES: dict[str, dict[str, str]] = {
+    "athlete-registration-guide": {
+        "title": "Athlete Registration Guide",
+        "slug": "athlete-registration-guide",
+        "page": "athlete_registration_guide",
+        "route": "/administration/athlete-registration-guide",
+        "filename": "athlete-registration-guide.pdf",
+    },
+    "race-directors-guide": {
+        "title": "Race Directors Guide",
+        "slug": "race-directors-guide",
+        "page": "race_directors_guide",
+        "route": "/administration/race-directors-guide",
+        "filename": "race-directors-guide.pdf",
+    },
+    "suppliers-list": {
+        "title": "Suppliers List",
+        "slug": "suppliers-list",
+        "page": "suppliers_list",
+        "route": "/administration/suppliers-list",
+        "filename": "suppliers-list.pdf",
+    },
+    "team-managers-guide": {
+        "title": "Team Managers Guide",
+        "slug": "team-managers-guide",
+        "page": "team_managers_guide",
+        "route": "/administration/team-managers-guide",
+        "filename": "team-managers-guide.pdf",
+    },
+}
+
+SIDEBAR_ITEMS: list[dict[str, Any]] = [
     {"name": "Home / News", "route": "/news", "page": "news"},
     {"name": "Results", "route": "/results", "page": "results"},
     {"name": "Standings", "route": "/standings", "page": "standings"},
     {"name": "Divisions", "route": "/divisions", "page": "divisions"},
     {"name": "Past Winners", "route": "/winners", "page": "winners"},
     {"name": "Member Clubs", "route": "/clubs", "page": "clubs"},
-    {"name": "Links", "route": "/links", "page": "links"},
     {
         "name": "Rules and Constitution",
         "route": "/rules-and-constitution",
         "page": "rules_and_constitution",
     },
-    {"name": "Administration", "route": "/administration", "page": "administration"},
+    {
+        "name": "Administration",
+        "route": "/administration",
+        "page": "administration",
+        "children": [
+            {"name": "Documents", "route": "/administration", "page": "administration"},
+            {"name": "Links", "route": "/links", "page": "links"},
+            {
+                "name": "Athlete Registration Guide",
+                "route": "/administration/athlete-registration-guide",
+                "page": "athlete_registration_guide",
+            },
+            {
+                "name": "Race Directors Guide",
+                "route": "/administration/race-directors-guide",
+                "page": "race_directors_guide",
+            },
+            {
+                "name": "Suppliers List",
+                "route": "/administration/suppliers-list",
+                "page": "suppliers_list",
+            },
+            {
+                "name": "Team Managers Guide",
+                "route": "/administration/team-managers-guide",
+                "page": "team_managers_guide",
+            },
+        ],
+    },
     {"name": "Fixtures", "route": "/fixtures", "page": "fixtures"},
 ]
 

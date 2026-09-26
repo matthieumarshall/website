@@ -71,21 +71,74 @@ class TestSidebarNavigation:
         assert active_link is not None
         assert active_link.get_attribute("href") == "/rules-and-constitution"
 
-    def test_navigate_to_administration(self, browser):
-        """Clicking Administration navigates to /administration"""
+    def test_administration_opens_sub_list(self, browser):
+        """Clicking Administration opens the sub list of pages"""
+        browser.goto("http://localhost:8000/news")
+        submenu = browser.query_selector("#admin-submenu")
+        assert submenu is not None
+        # Submenu starts collapsed on news page
+        browser.click("nav[aria-label='Main navigation'] a:has-text('Administration')")
+        browser.wait_for_selector("#admin-submenu.show")
+        expected_subpages = [
+            "Documents",
+            "Links",
+            "Athlete Registration Guide",
+            "Race Directors Guide",
+            "Suppliers List",
+            "Team Managers Guide",
+        ]
+        for name in expected_subpages:
+            sub_link = browser.query_selector(f"#admin-submenu a:has-text('{name}')")
+            assert sub_link is not None, f"Submenu link '{name}' not found"
+
+    def test_navigate_to_administration_documents(self, browser):
+        """Clicking Administration to open sub list, then Documents, navigates to /administration"""
         browser.goto("http://localhost:8000/news")
         browser.click("nav[aria-label='Main navigation'] a:has-text('Administration')")
+        browser.wait_for_selector("#admin-submenu.show")
+        browser.click("#admin-submenu a:has-text('Documents')")
         browser.wait_for_url("**/administration")
         assert "/administration" in browser.url
 
+    def test_navigate_to_links(self, browser):
+        """Clicking Administration to open sub list, then Links, navigates to /links"""
+        browser.goto("http://localhost:8000/news")
+        browser.click("nav[aria-label='Main navigation'] a:has-text('Administration')")
+        browser.wait_for_selector("#admin-submenu.show")
+        browser.click("#admin-submenu a:has-text('Links')")
+        browser.wait_for_url("**/links")
+        assert "/links" in browser.url
+
+    def test_navigate_to_athlete_registration_guide(self, browser):
+        """Clicking Administration to open sub list, then Athlete Registration Guide, navigates to guide"""
+        browser.goto("http://localhost:8000/news")
+        browser.click("nav[aria-label='Main navigation'] a:has-text('Administration')")
+        browser.wait_for_selector("#admin-submenu.show")
+        browser.click("#admin-submenu a:has-text('Athlete Registration Guide')")
+        browser.wait_for_url("**/administration/athlete-registration-guide")
+        assert "/administration/athlete-registration-guide" in browser.url
+
     def test_administration_link_is_active_on_administration_page(self, browser):
-        """The Administration link has the active class on /administration"""
+        """The Documents link has the active class on /administration and submenu is open"""
         browser.goto("http://localhost:8000/administration")
         active_link = browser.query_selector(
             "nav[aria-label='Main navigation'] a.active"
         )
         assert active_link is not None
         assert active_link.get_attribute("href") == "/administration"
+        submenu = browser.query_selector("#admin-submenu.show")
+        assert submenu is not None
+
+    def test_links_link_is_active_on_links_page(self, browser):
+        """The Links link has the active class on /links and submenu is open"""
+        browser.goto("http://localhost:8000/links")
+        active_link = browser.query_selector(
+            "nav[aria-label='Main navigation'] a.active"
+        )
+        assert active_link is not None
+        assert active_link.get_attribute("href") == "/links"
+        submenu = browser.query_selector("#admin-submenu.show")
+        assert submenu is not None
 
     def test_navigate_to_fixtures(self, browser):
         """Clicking Fixtures navigates to /fixtures"""
@@ -116,6 +169,8 @@ class TestSidebarNavigation:
             "/results",
             "/rules-and-constitution",
             "/administration",
+            "/links",
+            "/administration/athlete-registration-guide",
             "/fixtures",
         ]
         for route in public_routes:

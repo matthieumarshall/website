@@ -55,12 +55,42 @@
           <nav class="sidebar py-3 px-2" aria-label="Main navigation">
             <ul class="nav flex-column">
               {% for item in sidebar_items %}
+              {% if item.children %}
+                {% set child_pages = item.children | map(attribute='page') | list %}
+                {% set is_sub_active = current_page in child_pages or current_page.startswith('admin_administration') or current_page.startswith('admin_links') %}
+                <li class="nav-item">
+                  <a
+                    class="nav-link sidebar-dropdown-toggle d-flex justify-content-between align-items-center"
+                    href="#admin-submenu"
+                    data-bs-toggle="collapse"
+                    role="button"
+                    aria-expanded="{{ 'true' if is_sub_active else 'false' }}"
+                    aria-controls="admin-submenu"
+                  >
+                    <span>{{ item.name }}</span>
+                    <span class="sidebar-chevron" aria-hidden="true">▾</span>
+                  </a>
+                  <div class="collapse{{ ' show' if is_sub_active else '' }}" id="admin-submenu">
+                    <ul class="nav flex-column sidebar-submenu">
+                      {% for child in item.children %}
+                      <li class="nav-item">
+                        <a
+                          class="nav-link{{ ' active' if current_page == child.page else '' }}"
+                          href="{{ child.route }}"
+                        >{{ child.name }}</a>
+                      </li>
+                      {% endfor %}
+                    </ul>
+                  </div>
+                </li>
+              {% else %}
               <li class="nav-item">
                 <a
                   class="nav-link{{ ' active' if current_page == item.page else '' }}"
                   href="{{ item.route }}"
                 >{{ item.name }}</a>
               </li>
+              {% endif %}
               {% endfor %}
 
               {% if current_user and current_user.role in (UserRole.admin.value, UserRole.content_creator.value) %}
