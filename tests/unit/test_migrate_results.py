@@ -8,14 +8,13 @@ Tests cover:
 - Logging and error handling
 """
 
+# Add scripts to path for imports
+import sys
 from datetime import date
 from pathlib import Path
 
 import duckdb
 import pytest
-
-# Add scripts to path for imports
-import sys
 
 _ROOT = Path(__file__).parent.parent.parent
 _SCRIPTS = _ROOT / "scripts"
@@ -489,8 +488,8 @@ def test_import_log_creation_json_format(test_data_generator) -> None:
 
     Each log record should be valid JSON with timestamp, level, stage, and details.
     """
-    from pathlib import Path
     import tempfile
+    from pathlib import Path
 
     with tempfile.TemporaryDirectory() as tmpdir:
         log_file = Path(tmpdir) / "import.log"
@@ -555,8 +554,8 @@ def test_full_import_workflow_results(test_db: duckdb.DuckDBPyConnection) -> Non
     5. Skip duplicates (or replace with --force)
     6. Log all issues
     """
-    from pathlib import Path
     import tempfile
+    from pathlib import Path
 
     with tempfile.TemporaryDirectory() as tmpdir:
         log_file = Path(tmpdir) / "import_results.log"

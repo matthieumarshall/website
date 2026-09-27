@@ -6,7 +6,6 @@ All tests rely on the seeded "UI Test Season 2026" data created in conftest.py.
 
 from playwright.sync_api import Page
 
-
 BASE = "http://localhost:8000"
 
 

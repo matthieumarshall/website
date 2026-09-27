@@ -1,16 +1,21 @@
-"""Unit tests for website.entries — age category, eligibility, fixtures remaining."""
+"""Unit tests for entry rules — age category, eligibility, fixtures remaining."""
 
 from datetime import date, datetime, timezone
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import duckdb
 
-from website.entries import (
-    compute_fixtures_remaining,
+from website.services.entries import EntryService
+from website.services.entry_rules import (
     get_oxl_age_category,
     is_entry_open_for_fixture,
     is_junior,
 )
+
+
+def compute_fixtures_remaining(season_id: int, db: duckdb.DuckDBPyConnection) -> int:
+    return EntryService(db, MagicMock(), MagicMock()).fixtures_remaining(season_id)
+
 
 # ---------------------------------------------------------------------------
 # get_oxl_age_category
@@ -144,7 +149,7 @@ class TestIsEntryOpenForFixture:
         # Pin now to 11:59 UTC on fixture day
         fixture_date = date(2025, 6, 15)
         mock_now = datetime(2025, 6, 15, 11, 59, tzinfo=timezone.utc)
-        with patch("website.entries.datetime") as mock_dt:
+        with patch("website.services.entry_rules.datetime") as mock_dt:
             mock_dt.now.return_value = mock_now
             mock_dt.combine.side_effect = datetime.combine
             assert is_entry_open_for_fixture(fixture_date) is True
@@ -153,7 +158,7 @@ class TestIsEntryOpenForFixture:
         # Pin now to exactly 12:00 UTC on fixture day (deadline reached)
         fixture_date = date(2025, 6, 15)
         mock_now = datetime(2025, 6, 15, 12, 0, tzinfo=timezone.utc)
-        with patch("website.entries.datetime") as mock_dt:
+        with patch("website.services.entry_rules.datetime") as mock_dt:
             mock_dt.now.return_value = mock_now
             mock_dt.combine.side_effect = datetime.combine
             assert is_entry_open_for_fixture(fixture_date) is False
@@ -205,7 +210,7 @@ class TestGetEnteredEaUrns:
 
     def _make_db_with_entry(self) -> duckdb.DuckDBPyConnection:
         """Return a minimal in-memory DB with one athlete_entries row."""
-        from website.database import run_migrations
+        from website.db import run_migrations
 
         con = duckdb.connect(":memory:")
         run_migrations(con)

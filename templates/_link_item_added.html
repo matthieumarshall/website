@@ -1,0 +1,5 @@
+{# Out-of-band response to /links/inline-add: removes the "no links" placeholder
+   for the category and appends the new link to that category's group.
+   Expects: link, category, is_staff. #}
+<div id="no-links-{{ category }}" hx-swap-oob="delete"></div>
+<div hx-swap-oob="beforeend:#links-group-{{ category }}">{% include "_link_item.html" %}</div>

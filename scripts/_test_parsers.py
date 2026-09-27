@@ -1,8 +1,9 @@
 import sys
 
 sys.path.insert(0, "scripts")
-from migrate_results import _parse_per_page_pdf
 from pathlib import Path
+
+from migrate_results import _parse_per_page_pdf
 
 fp = Path(
     "data/original_website/files/results/2010-2020/2019-2020/20191103-Rnd1-BicesterHeritage-min.pdf"

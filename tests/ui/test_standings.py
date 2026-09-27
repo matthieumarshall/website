@@ -2,7 +2,6 @@
 
 from playwright.sync_api import Page
 
-
 BASE = "http://localhost:8000"
 
 

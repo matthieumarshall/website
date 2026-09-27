@@ -1,6 +1,6 @@
 """Tests for authentication utilities"""
 
-from website.auth import hash_password, verify_password
+from website.passwords import hash_password, verify_password
 
 
 class TestAuthFunctions:

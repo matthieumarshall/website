@@ -1,9 +1,9 @@
 import duckdb
 import pytest
 
+from cli.seed_rules import _SLUG, _seed_rules
 from website import repository
-from website.database import run_migrations
-from cli.seed_rules import _seed_rules, _SLUG
+from website.db import run_migrations
 
 
 @pytest.fixture()

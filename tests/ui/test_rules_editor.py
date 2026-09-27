@@ -1,6 +1,6 @@
 """UI tests for the Rules and Constitution editor."""
 
-from playwright.sync_api import Page, ConsoleMessage, Error
+from playwright.sync_api import ConsoleMessage, Error, Page
 
 
 class TestRulesEditor:

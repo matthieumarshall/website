@@ -5,7 +5,6 @@ import duckdb
 from website import repository
 from website.models import Race, Result
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
