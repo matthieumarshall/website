@@ -1,15 +1,37 @@
-"""Unit tests for website.receipts — HTML and PDF generation."""
+"""Unit tests for entry receipts — building, and HTML and PDF rendering."""
 
 from datetime import datetime, timezone
-from unittest.mock import MagicMock
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import duckdb
 import pytest
 
-from website.database import run_migrations
 from website import repository
-from website.auth import hash_password
+from website.db import run_migrations
+from website.errors import NotFoundError
 from website.models import UserRole
+from website.passwords import hash_password
+from website.services.entries import EntryService
+from website.web.receipts import ReceiptRenderer
+from website.web.rendering import Renderer
+
+_TEMPLATES = Path("templates")
+
+
+def _db() -> duckdb.DuckDBPyConnection:
+    con = duckdb.connect(":memory:")
+    run_migrations(con)
+    return con
+
+
+def _html_receipt(batch_id: int, con: duckdb.DuckDBPyConnection) -> str:
+    receipt = EntryService(con, MagicMock(), MagicMock()).receipt(batch_id)
+    return _renderer().html(receipt)
+
+
+def _renderer() -> ReceiptRenderer:
+    return ReceiptRenderer(Renderer(_TEMPLATES).templates.env, _TEMPLATES)
 
 
 # ---------------------------------------------------------------------------
@@ -83,107 +105,48 @@ def _seed_paid_batch(db: duckdb.DuckDBPyConnection) -> int:
 # ---------------------------------------------------------------------------
 
 
-class TestGenerateHtmlReceipt:
-    def test_returns_html_string(self):
-        con = duckdb.connect(":memory:")
-        run_migrations(con)
-        batch_id = _seed_paid_batch(con)
-
-        from website.receipts import generate_html_receipt
-
-        html = generate_html_receipt(batch_id, con)
+class TestHtmlReceipt:
+    def test_returns_html_string(self) -> None:
+        con = _db()
+        html = _html_receipt(_seed_paid_batch(con), con)
         assert isinstance(html, str)
         assert len(html) > 0
 
-    def test_html_contains_club_name(self):
-        con = duckdb.connect(":memory:")
-        run_migrations(con)
+    def test_html_contains_club_name(self) -> None:
+        con = _db()
+        assert "Oxford City AC" in _html_receipt(_seed_paid_batch(con), con)
+
+    def test_html_contains_athlete_name(self) -> None:
+        con = _db()
+        assert "Alice Jones" in _html_receipt(_seed_paid_batch(con), con)
+
+    def test_not_found_for_nonexistent_batch(self) -> None:
+        with pytest.raises(NotFoundError):
+            _html_receipt(9999, _db())
+
+    def test_not_found_for_unpaid_batch(self) -> None:
+        con = _db()
         batch_id = _seed_paid_batch(con)
-
-        from website.receipts import generate_html_receipt
-
-        html = generate_html_receipt(batch_id, con)
-        assert "Oxford City AC" in html
-
-    def test_html_contains_athlete_name(self):
-        con = duckdb.connect(":memory:")
-        run_migrations(con)
-        batch_id = _seed_paid_batch(con)
-
-        from website.receipts import generate_html_receipt
-
-        html = generate_html_receipt(batch_id, con)
-        assert "Alice Jones" in html
-
-    def test_404_for_nonexistent_batch(self):
-        from fastapi import HTTPException
-
-        from website.receipts import generate_html_receipt
-
-        con = duckdb.connect(":memory:")
-        run_migrations(con)
-
-        with pytest.raises(HTTPException) as exc_info:
-            generate_html_receipt(9999, con)
-        assert exc_info.value.status_code == 404
-
-    def test_404_for_unpaid_batch(self):
-        from fastapi import HTTPException
-
-        from website.receipts import generate_html_receipt
-
-        con = duckdb.connect(":memory:")
-        run_migrations(con)
-        batch_id = _seed_paid_batch(con)
-        # Reset to pending
         con.execute(
             "UPDATE entry_batches SET status='pending_payment', paid_at=NULL WHERE id=?",
             [batch_id],
         )
-
-        with pytest.raises(HTTPException) as exc_info:
-            generate_html_receipt(batch_id, con)
-        assert exc_info.value.status_code == 404
+        with pytest.raises(NotFoundError):
+            _html_receipt(batch_id, con)
 
 
-class TestGeneratePdfReceipt:
-    def test_returns_bytes_with_mocked_weasyprint(self):
-        import sys
-        from types import ModuleType
-
-        con = duckdb.connect(":memory:")
-        run_migrations(con)
-        batch_id = _seed_paid_batch(con)
-
+class TestPdfReceipt:
+    def test_returns_bytes_with_mocked_weasyprint(self) -> None:
+        con = _db()
+        receipt = EntryService(con, MagicMock(), MagicMock()).receipt(
+            _seed_paid_batch(con)
+        )
         fake_pdf = b"%PDF-1.4 fake content"
-        mock_html_instance = MagicMock()
-        mock_html_instance.write_pdf.return_value = fake_pdf
-        mock_weasyprint = ModuleType("weasyprint")
-        setattr(mock_weasyprint, "HTML", MagicMock(return_value=mock_html_instance))
+        html_cls = MagicMock()
+        html_cls.return_value.write_pdf.return_value = fake_pdf
 
-        # Inject mock module and clear any cached import of receipts
-        original_weasyprint = sys.modules.get("weasyprint")
-        original_receipts = sys.modules.get("website.receipts")
-        sys.modules["weasyprint"] = mock_weasyprint
-        # Remove cached receipts so it re-imports with mock weasyprint
-        if "website.receipts" in sys.modules:
-            del sys.modules["website.receipts"]
-
-        try:
-            from website.receipts import generate_pdf_receipt
-
-            result = generate_pdf_receipt(batch_id, con)
-        finally:
-            # Restore original modules
-            if original_weasyprint is None:
-                sys.modules.pop("weasyprint", None)
-            else:
-                sys.modules["weasyprint"] = original_weasyprint
-            if original_receipts is None:
-                sys.modules.pop("website.receipts", None)
-            else:
-                sys.modules["website.receipts"] = original_receipts
+        with patch.dict("sys.modules", {"weasyprint": MagicMock(HTML=html_cls)}):
+            result = _renderer().pdf(receipt)
 
         assert result == fake_pdf
-        mock_html_cls = getattr(mock_weasyprint, "HTML")
-        mock_html_cls.assert_called_once()
+        html_cls.assert_called_once()

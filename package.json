@@ -12,8 +12,5 @@
     "lint:html": "uv run djlint templates/ --lint",
     "test:ui": "playwright test",
     "test:a11y": "playwright test"
-  },
-  "dependencies": {
-    "quill-better-table": "^1.2.10"
   }
 }

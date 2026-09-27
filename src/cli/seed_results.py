@@ -26,7 +26,7 @@ from pathlib import Path
 import duckdb
 
 from website import repository
-from website.database import _get_db_path, run_migrations
+from website.db import get_db_path, run_migrations
 
 _REQUIRED_HEADERS = {"position", "athlete_name", "time", "category", "gender"}
 _OPTIONAL_HEADERS = {"race_number", "category_position", "gender_position", "club"}
@@ -246,7 +246,7 @@ def _import_results(
 def import_results(
     season_name: str, fixture_title: str, race_name: str, csv_path: Path
 ) -> None:
-    db_path = _get_db_path()
+    db_path = get_db_path()
     if db_path != ":memory:":
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect(db_path)

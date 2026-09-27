@@ -21,10 +21,15 @@ jobs:
           python-version: "3.10"
 
       - name: Install uv
-        run: pip install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Check uv.lock is up to date
+        run: uv lock --check
 
       - name: Install Python dependencies
-        run: uv sync --all-extras
+        run: uv sync --locked --all-extras
 
       - name: Ruff lint check
         run: uv run ruff check .
@@ -32,8 +37,17 @@ jobs:
       - name: Ruff format check
         run: uv run ruff format --check .
 
+      - name: Type check with mypy (strict)
+        run: uv run mypy
+
       - name: Type check with ty
         run: uv run ty check
+
+      - name: Architecture layer contracts (import-linter)
+        run: uv run lint-imports
+
+      - name: Module size limit
+        run: uv run python scripts/check_file_length.py --max 1000 --warn 500 src
 
       - name: HTML validation (djlint)
         run: uv run djlint templates/ --lint
@@ -54,7 +68,9 @@ jobs:
           python-version: "3.10"
 
       - name: Install uv
-        run: pip install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -62,7 +78,7 @@ jobs:
           node-version: "18"
 
       - name: Install Python dependencies
-        run: uv sync --all-extras
+        run: uv sync --locked --all-extras
 
       - name: Install Node dependencies
         run: npm ci
@@ -178,6 +194,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # diff-cover compares against the base branch
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -185,10 +203,12 @@ jobs:
           python-version: "3.10"
 
       - name: Install uv
-        run: pip install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
 
       - name: Install dependencies
-        run: uv sync --all-extras
+        run: uv sync --locked --all-extras
 
       - name: Restore EA certificate
         run: |
@@ -203,9 +223,17 @@ jobs:
           echo "EA_STAGING=true" >> $GITHUB_ENV
 
       - name: Run pytest with coverage
+        # Fails if total coverage drops below fail_under in .coveragerc.
         run: |
-          echo "Running unit tests with coverage..."
-          uv run pytest tests/unit/ --cov=. --cov-report=html --cov-report=json --cov-report=term-missing --tb=short
+          uv run pytest tests/unit/ --tb=short \
+            --cov=src/website --cov-config=.coveragerc \
+            --cov-report=html --cov-report=json --cov-report=xml --cov-report=term-missing
+
+      - name: Coverage of changed lines (diff-cover)
+        if: github.event_name == 'pull_request'
+        run: |
+          uv run diff-cover coverage.xml \
+            --compare-branch="origin/${{ github.base_ref }}" --fail-under=90
 
       - name: Display coverage summary
         run: |
@@ -225,6 +253,7 @@ jobs:
           path: |
             htmlcov/
             coverage.json
+            coverage.xml
             .coverage
           retention-days: 30
 
@@ -243,7 +272,9 @@ jobs:
           python-version: "3.10"
 
       - name: Install uv
-        run: pip install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -251,7 +282,7 @@ jobs:
           node-version: "18"
 
       - name: Install Python dependencies
-        run: uv sync --all-extras
+        run: uv sync --locked --all-extras
 
       - name: Install Node dependencies
         run: npm ci

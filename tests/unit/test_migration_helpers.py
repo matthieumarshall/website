@@ -4,14 +4,13 @@ Tests cover season auto-creation, fixture auto-creation, deduplication checks,
 and error handling for the import workflow.
 """
 
+# Import helpers
+import sys
 from datetime import date
+from pathlib import Path
 
 import duckdb
 import pytest
-
-# Import helpers
-import sys
-from pathlib import Path
 
 _ROOT = Path(__file__).parent.parent.parent / "scripts"
 sys.path.insert(0, str(_ROOT))

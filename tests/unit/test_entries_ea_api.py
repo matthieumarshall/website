@@ -1,14 +1,21 @@
 # pyright: reportPrivateUsage=false
-"""Tests for England Athletics API integration in entries.py."""
+"""Tests for the England Athletics TRAPI integration."""
 
 import os
 from datetime import date, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
-from fastapi import HTTPException
 
-from website import entries
+from website.errors import DomainError, ServiceUnavailableError, UpstreamError
+from website.integrations import england_athletics as entries
+from website.models import EAAthlete
+from website.services import entry_rules
+
+
+def _as_dicts(athletes: list[EAAthlete]) -> list[dict[str, object]]:
+    """Return athletes keyed as the TRAPI API names its fields."""
+    return [athlete.model_dump(by_alias=True) for athlete in athletes]
 
 
 def _ea_staging_configured() -> bool:
@@ -28,7 +35,7 @@ class TestEAHeaders:
             os.environ,
             {"EA_CALL_KEY": "test_key", "EA_CALL_SECRET": "test_secret\xa3"},
         ):
-            headers = getattr(entries, "_ea_headers")()
+            headers = entries._ea_headers()
 
         secret = next(
             value
@@ -38,21 +45,19 @@ class TestEAHeaders:
         assert secret == b"test_secret\xa3"
 
     @pytest.mark.parametrize(
-        ("response_status", "expected_http_status"),
+        ("response_status", "expected_error"),
         [
-            ("InvalidCall", 503),
-            ("ApiUserCredentialsIncorrect", 503),
-            ("InternalError", 502),
+            ("InvalidCall", ServiceUnavailableError),
+            ("ApiUserCredentialsIncorrect", ServiceUnavailableError),
+            ("InternalError", UpstreamError),
         ],
     )
     def test_unsuccessful_response_status_raises(
-        self, response_status: str, expected_http_status: int
+        self, response_status: str, expected_error: type[DomainError]
     ) -> None:
-        validate_response_status = getattr(entries, "_validate_ea_response_status")
-        with pytest.raises(HTTPException) as exc_info:
+        validate_response_status = entries._validate_ea_response_status
+        with pytest.raises(expected_error):
             validate_response_status({"ResponseStatus": response_status})
-
-        assert exc_info.value.status_code == expected_http_status
 
 
 class TestEAStaging:
@@ -77,7 +82,9 @@ class TestEAStaging:
         }
 
         with (
-            patch("website.entries.httpx.Client") as mock_client_class,
+            patch(
+                "website.integrations.england_athletics.httpx.Client"
+            ) as mock_client_class,
             patch.dict(
                 os.environ,
                 {
@@ -88,7 +95,9 @@ class TestEAStaging:
                     "EA_CERT_PASSWORD": "test_pass",
                 },
             ),
-            patch("website.entries.Path.exists", return_value=True),
+            patch(
+                "website.integrations.england_athletics.Path.exists", return_value=True
+            ),
             patch("builtins.open", create=True) as mock_open,
         ):
             mock_open.return_value.__enter__.return_value.read.return_value = (
@@ -96,13 +105,16 @@ class TestEAStaging:
             )
 
             # Mock the certificate extraction
-            with patch("website.entries.pkcs12.load_key_and_certificates") as mock_pkcs:
-                from cryptography.hazmat.primitives.asymmetric import rsa
-                from cryptography import x509
-                from cryptography.x509.oid import NameOID
-                from cryptography.hazmat.primitives import hashes
-                from cryptography.hazmat.backends import default_backend
+            with patch(
+                "website.integrations.england_athletics.pkcs12.load_key_and_certificates"
+            ) as mock_pkcs:
                 from datetime import datetime, timedelta
+
+                from cryptography import x509
+                from cryptography.hazmat.backends import default_backend
+                from cryptography.hazmat.primitives import hashes
+                from cryptography.hazmat.primitives.asymmetric import rsa
+                from cryptography.x509.oid import NameOID
 
                 # Create mock certificate and key
                 private_key = rsa.generate_private_key(
@@ -140,7 +152,7 @@ class TestEAStaging:
                 mock_client.__exit__.return_value = None
                 mock_client_class.return_value = mock_client
 
-                athletes = entries.fetch_club_athletes("1765")
+                athletes = _as_dicts(entries.fetch_club_athletes("1765"))
 
         assert isinstance(athletes, list)
         assert len(athletes) > 0, "Expected at least one athlete from staging club"
@@ -163,7 +175,9 @@ class TestEAStaging:
         }
 
         with (
-            patch("website.entries.httpx.Client") as mock_client_class,
+            patch(
+                "website.integrations.england_athletics.httpx.Client"
+            ) as mock_client_class,
             patch.dict(
                 os.environ,
                 {
@@ -174,20 +188,25 @@ class TestEAStaging:
                     "EA_CERT_PASSWORD": "test_pass",
                 },
             ),
-            patch("website.entries.Path.exists", return_value=True),
+            patch(
+                "website.integrations.england_athletics.Path.exists", return_value=True
+            ),
             patch("builtins.open", create=True) as mock_open,
         ):
             mock_open.return_value.__enter__.return_value.read.return_value = (
                 b"fake_pfx_data"
             )
 
-            with patch("website.entries.pkcs12.load_key_and_certificates") as mock_pkcs:
-                from cryptography.hazmat.primitives.asymmetric import rsa
-                from cryptography import x509
-                from cryptography.x509.oid import NameOID
-                from cryptography.hazmat.primitives import hashes
-                from cryptography.hazmat.backends import default_backend
+            with patch(
+                "website.integrations.england_athletics.pkcs12.load_key_and_certificates"
+            ) as mock_pkcs:
                 from datetime import datetime, timedelta
+
+                from cryptography import x509
+                from cryptography.hazmat.backends import default_backend
+                from cryptography.hazmat.primitives import hashes
+                from cryptography.hazmat.primitives.asymmetric import rsa
+                from cryptography.x509.oid import NameOID
 
                 private_key = rsa.generate_private_key(
                     public_exponent=65537,
@@ -223,7 +242,7 @@ class TestEAStaging:
                 mock_client.__exit__.return_value = None
                 mock_client_class.return_value = mock_client
 
-                athletes = entries.fetch_club_athletes("1765")
+                athletes = _as_dicts(entries.fetch_club_athletes("1765"))
 
         assert len(athletes) > 0
         athlete = athletes[0]
@@ -266,7 +285,9 @@ class TestEAStaging:
         }
 
         with (
-            patch("website.entries.httpx.Client") as mock_client_class,
+            patch(
+                "website.integrations.england_athletics.httpx.Client"
+            ) as mock_client_class,
             patch.dict(
                 os.environ,
                 {
@@ -277,20 +298,25 @@ class TestEAStaging:
                     "EA_CERT_PASSWORD": "test_pass",
                 },
             ),
-            patch("website.entries.Path.exists", return_value=True),
+            patch(
+                "website.integrations.england_athletics.Path.exists", return_value=True
+            ),
             patch("builtins.open", create=True) as mock_open,
         ):
             mock_open.return_value.__enter__.return_value.read.return_value = (
                 b"fake_pfx_data"
             )
 
-            with patch("website.entries.pkcs12.load_key_and_certificates") as mock_pkcs:
-                from cryptography.hazmat.primitives.asymmetric import rsa
-                from cryptography import x509
-                from cryptography.x509.oid import NameOID
-                from cryptography.hazmat.primitives import hashes
-                from cryptography.hazmat.backends import default_backend
+            with patch(
+                "website.integrations.england_athletics.pkcs12.load_key_and_certificates"
+            ) as mock_pkcs:
                 from datetime import datetime, timedelta
+
+                from cryptography import x509
+                from cryptography.hazmat.backends import default_backend
+                from cryptography.hazmat.primitives import hashes
+                from cryptography.hazmat.primitives.asymmetric import rsa
+                from cryptography.x509.oid import NameOID
 
                 private_key = rsa.generate_private_key(
                     public_exponent=65537,
@@ -326,7 +352,7 @@ class TestEAStaging:
                 mock_client.__exit__.return_value = None
                 mock_client_class.return_value = mock_client
 
-                athletes = entries.fetch_club_athletes("1765")
+                athletes = _as_dicts(entries.fetch_club_athletes("1765"))
 
         statuses = {a["RegistrationStatus"] for a in athletes}
         # Should only contain normalized values
@@ -367,7 +393,9 @@ class TestEAStaging:
         }
 
         with (
-            patch("website.entries.httpx.Client") as mock_client_class,
+            patch(
+                "website.integrations.england_athletics.httpx.Client"
+            ) as mock_client_class,
             patch.dict(
                 os.environ,
                 {
@@ -378,20 +406,25 @@ class TestEAStaging:
                     "EA_CERT_PASSWORD": "test_pass",
                 },
             ),
-            patch("website.entries.Path.exists", return_value=True),
+            patch(
+                "website.integrations.england_athletics.Path.exists", return_value=True
+            ),
             patch("builtins.open", create=True) as mock_open,
         ):
             mock_open.return_value.__enter__.return_value.read.return_value = (
                 b"fake_pfx_data"
             )
 
-            with patch("website.entries.pkcs12.load_key_and_certificates") as mock_pkcs:
-                from cryptography.hazmat.primitives.asymmetric import rsa
-                from cryptography import x509
-                from cryptography.x509.oid import NameOID
-                from cryptography.hazmat.primitives import hashes
-                from cryptography.hazmat.backends import default_backend
+            with patch(
+                "website.integrations.england_athletics.pkcs12.load_key_and_certificates"
+            ) as mock_pkcs:
                 from datetime import datetime, timedelta
+
+                from cryptography import x509
+                from cryptography.hazmat.backends import default_backend
+                from cryptography.hazmat.primitives import hashes
+                from cryptography.hazmat.primitives.asymmetric import rsa
+                from cryptography.x509.oid import NameOID
 
                 private_key = rsa.generate_private_key(
                     public_exponent=65537,
@@ -427,7 +460,7 @@ class TestEAStaging:
                 mock_client.__exit__.return_value = None
                 mock_client_class.return_value = mock_client
 
-                athletes = entries.fetch_club_athletes("1765")
+                athletes = _as_dicts(entries.fetch_club_athletes("1765"))
 
         reference_date = date(2025, 8, 31)  # Standard EA reference date
 
@@ -436,8 +469,8 @@ class TestEAStaging:
             dob_str = athlete.get("DateOfBirth", "")
             if dob_str:
                 try:
-                    dob = date.fromisoformat(dob_str[:10])
-                    category = entries.get_oxl_age_category(dob, reference_date)
+                    dob = date.fromisoformat(str(dob_str)[:10])
+                    category = entry_rules.get_oxl_age_category(dob, reference_date)
                     assert category in {
                         "U9",
                         "U11",
@@ -448,7 +481,7 @@ class TestEAStaging:
                         "Senior",
                         "Veteran",
                     }, f"Invalid category {category}"
-                    is_junior = entries.is_junior(category)
+                    is_junior = entry_rules.is_junior(category)
                     assert isinstance(is_junior, bool)
                 except ValueError:
                     pass  # Skip if DOB is malformed
@@ -463,7 +496,7 @@ class TestEATestMode:
         original = os.environ.get("EA_TEST_MODE")
         try:
             os.environ["EA_TEST_MODE"] = "true"
-            athletes = entries.fetch_club_athletes("9999")  # Dummy club ID
+            athletes = _as_dicts(entries.fetch_club_athletes("9999"))  # Dummy club ID
 
             assert isinstance(athletes, list)
             assert len(athletes) == 8, "Expected 8 test athletes"
@@ -495,7 +528,7 @@ class TestEATestMode:
 
         for dob_str, expected_category in test_cases:
             dob = date.fromisoformat(dob_str)
-            category = entries.get_oxl_age_category(dob, reference_date)
+            category = entry_rules.get_oxl_age_category(dob, reference_date)
             assert category == expected_category, (
                 f"DOB {dob_str}: expected {expected_category}, got {category}"
             )
@@ -530,7 +563,7 @@ class TestEAStagingIntegration:
           - Check if club ID "1765" still exists in staging with athletes
         """
         try:
-            athletes = entries.fetch_club_athletes("1765")
+            athletes = _as_dicts(entries.fetch_club_athletes("1765"))
         except Exception as e:
             pytest.fail(
                 f"Failed to fetch athletes from staging API. "
@@ -563,7 +596,7 @@ class TestEAStagingIntegration:
         documentation and update _normalize_ea_athlete() if the API schema changed.
         """
         try:
-            athletes = entries.fetch_club_athletes("1765")
+            athletes = _as_dicts(entries.fetch_club_athletes("1765"))
         except Exception as e:
             pytest.fail(
                 f"Failed to fetch athletes from staging API: {type(e).__name__}: {e}"

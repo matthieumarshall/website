@@ -29,7 +29,7 @@ except ImportError:
 import duckdb
 
 from website import repository
-from website.database import _get_db_path, run_migrations
+from website.db import get_db_path, run_migrations
 
 _DEFAULT_MD_PATH = Path("docs") / "OXL_League_Manual.md"
 _SLUG = "rules-and-constitution"
@@ -61,7 +61,7 @@ def _seed_rules(con: duckdb.DuckDBPyConnection, md_path: Path) -> str:
 
 
 def seed_rules(md_path: Path) -> None:
-    db_path = _get_db_path()
+    db_path = get_db_path()
     if db_path != ":memory:":
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect(db_path)

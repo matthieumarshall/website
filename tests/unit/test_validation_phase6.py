@@ -4,14 +4,13 @@ Tests verify that the import scripts properly detect and log data quality issues
 including warnings for missing fields, malformed data, and duplicates.
 """
 
+# Add scripts to path for imports
+import sys
 from datetime import date
 from pathlib import Path
 
 import duckdb
 import pytest
-
-# Add scripts to path for imports
-import sys
 
 _ROOT = Path(__file__).parent.parent.parent
 _SCRIPTS = _ROOT / "scripts"
@@ -23,7 +22,6 @@ from _migration_helpers import (  # type: ignore  # noqa: E402
     create_season_if_missing,
     result_exists,
 )
-
 
 # ============================================================================
 # PHASE 6: VALIDATION & LOGGING TESTS (T077-T091)
@@ -397,8 +395,8 @@ def test_import_log_json_format_valid(test_db: duckdb.DuckDBPyConnection) -> Non
     Each log entry should be a valid JSON line.
     """
     import json
-    import tempfile
     import sys
+    import tempfile
 
     log_path = Path(tempfile.gettempdir()) / "test_jsonl_format.jsonl"
     logger = ImportLogger(log_file=log_path)

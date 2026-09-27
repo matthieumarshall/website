@@ -8,10 +8,12 @@ omit =
     __pycache__/*
     .venv/*
     tests/*
-    src/website/seed_user.py
-    src/website/seed_results.py
 
 [report]
+# Ratchet: raise as coverage improves, never lower (constitution minimum is 85).
+fail_under = 90
+show_missing = true
+skip_covered = true
 exclude_lines =
     pragma: no cover
     def __repr__

@@ -9,6 +9,14 @@ from fpdf import FPDF, FontFace
 
 from website.models import Result
 
+# Brand colours matching website CSS tokens
+_PRIMARY = (31, 58, 95)  # --brand-primary  #1f3a5f
+_ACCENT = (107, 79, 58)  # --brand-accent   #6b4f3a
+_BG = (247, 245, 242)  # --brand-bg       #f7f5f2
+_TEXT = (26, 26, 46)  # --brand-text     #1a1a2e
+_FONT_PATH = Path("static/fonts/dm-sans.ttf")
+_FONT_STYLES = ("", "B", "I", "BI")
+
 _COLUMNS = [
     ("Pos", "position"),
     ("Race No", "race_number"),
@@ -81,12 +89,6 @@ def build_pdf(
     pdf.set_auto_page_break(auto=True, margin=10)
     pdf.add_page()
 
-    # Brand colours matching website CSS tokens
-    _PRIMARY = (31, 58, 95)  # --brand-primary  #1f3a5f
-    _ACCENT = (107, 79, 58)  # --brand-accent   #6b4f3a
-    _BG = (247, 245, 242)  # --brand-bg       #f7f5f2
-    _TEXT = (26, 26, 46)  # --brand-text     #1a1a2e
-
     # Title
     pdf.set_font("Helvetica", "B", 14)
     pdf.set_text_color(*_PRIMARY)
@@ -109,7 +111,7 @@ def build_pdf(
     pdf.set_font("Helvetica", "B", 8)
     pdf.set_fill_color(*_PRIMARY)
     pdf.set_text_color(255, 255, 255)
-    for (header, _), w in zip(_COLUMNS, col_widths):
+    for (header, _), w in zip(_COLUMNS, col_widths, strict=True):
         pdf.cell(w, row_height, header, border=1, fill=True)
     pdf.ln()
 
@@ -133,7 +135,7 @@ def build_pdf(
             str(r.gender_position) if r.gender_position is not None else "",
             r.club if r.club else "",
         ]
-        for val, w in zip(values, col_widths):
+        for val, w in zip(values, col_widths, strict=True):
             # Truncate to fit cell; fpdf2 doesn't wrap in cell() without multi_cell
             max_chars = max(1, int(w / 2))
             display = val[:max_chars] if len(val) > max_chars else val
@@ -152,26 +154,17 @@ def build_document_pdf(title: str, html_content: str) -> bytes:
     class _DocPDF(FPDF, HTMLMixin):
         pass
 
-    _FONT_PATH = Path("static/fonts/dm-sans.ttf")
-
     pdf = _DocPDF(orientation="P", unit="mm", format="A4")
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.set_margins(left=20, top=20, right=20)
 
     if _FONT_PATH.exists():
-        # fpdf2.add_font() accepts 'uni' parameter for Unicode support, but type stubs don't recognize it
-        pdf.add_font("DM Sans", style="", fname=str(_FONT_PATH), uni=True)  # type: ignore[unknown-argument]  # ty:ignore[unknown-argument]
-        pdf.add_font("DM Sans", style="B", fname=str(_FONT_PATH), uni=True)  # type: ignore[unknown-argument]  # ty:ignore[unknown-argument]
-        pdf.add_font("DM Sans", style="I", fname=str(_FONT_PATH), uni=True)  # type: ignore[unknown-argument]  # ty:ignore[unknown-argument]
-        pdf.add_font("DM Sans", style="BI", fname=str(_FONT_PATH), uni=True)  # type: ignore[unknown-argument]  # ty:ignore[unknown-argument]
+        # fpdf2 embeds TrueType fonts with full Unicode support.
+        for style in _FONT_STYLES:
+            pdf.add_font("DM Sans", style=style, fname=str(_FONT_PATH))
         pdf.set_font("DM Sans", size=11)
     else:
         pdf.set_font("Helvetica", size=11)
-
-    # Brand colours matching website CSS tokens
-    _PRIMARY = (31, 58, 95)  # --brand-primary  #1f3a5f
-    _ACCENT = (107, 79, 58)  # --brand-accent   #6b4f3a
-    _TEXT = (26, 26, 46)  # --brand-text     #1a1a2e
 
     pdf.add_page()
 

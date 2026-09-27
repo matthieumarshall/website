@@ -27,11 +27,18 @@ serve:
 test-ui:
     uv run pytest tests/ui -v
 
+# Unit tests with coverage (fails below the .coveragerc threshold).
 test-unit:
-    uv run pytest tests/unit -v --tb=short
+    uv run pytest tests/unit --tb=short --cov=src/website --cov-config=.coveragerc --cov-report=term-missing --cov-report=html --cov-report=xml
 
 test:
     uv run pytest tests/ -v --tb=short
+
+# Static checks that guard the architecture: types, layers and module size.
+check:
+    uv run mypy
+    uv run lint-imports
+    uv run python scripts/check_file_length.py src
 
 # Add a user to the database (role: admin or content_creator)
 seed-user username password role="admin":
