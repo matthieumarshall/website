@@ -9,6 +9,7 @@
     <button
       type="button"
       class="btn btn-outline-secondary{% if active_fixture and active_fixture.id == fixture.id %} active{% endif %}"
+      data-fixture-tab="true"
       hx-get="/fixtures/fixture-detail?fixture_id={{ fixture.id }}&season_id={{ selected_season.id }}"
       hx-target="#fixture-detail"
       hx-swap="innerHTML"
