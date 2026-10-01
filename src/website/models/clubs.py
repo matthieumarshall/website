@@ -11,7 +11,7 @@ class Club(BaseModel):
     id: int
     name: str
     oxl_code: str
-    ea_club_id: str
+    ea_club_id: str | None = None
     is_active: bool
     opentrack_code: str | None = None
     website_url: str | None = None
