@@ -36,7 +36,7 @@
           <tr>
             <td class="fw-semibold">{{ club.name }}</td>
             <td><code>{{ club.oxl_code }}</code></td>
-            <td><code>{{ club.ea_club_id }}</code></td>
+            <td>{% if club.ea_club_id and club.ea_club_id.strip() %}<code>{{ club.ea_club_id.strip() }}</code>{% endif %}</td>
             <td>{{ club.opentrack_code or '—' }}</td>
             <td>{% if club.website_url %}<a href="{{ club.website_url }}" target="_blank" rel="noopener noreferrer">Website</a>{% else %}—{% endif %}</td>
             <td>{{ 'Yes' if club.is_oxfordshire_member else 'No' }}</td>

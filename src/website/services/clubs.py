@@ -10,7 +10,7 @@ from website.models.forms import ClubForm
 from website.richtext import validate_http_url
 from website.services._common import blank_to_none, found
 
-REQUIRED_FIELDS_MESSAGE = "Name, OXL code and EA club ID are required."
+REQUIRED_FIELDS_MESSAGE = "Name and OXL code are required."
 DUPLICATE_CODE_MESSAGE = "A club with that OXL code already exists."
 
 
@@ -21,7 +21,7 @@ class ClubDetails(BaseModel):
 
     name: str
     oxl_code: str
-    ea_club_id: str
+    ea_club_id: str | None
     opentrack_code: str | None
     website_url: str | None
     is_oxfordshire_member: bool
@@ -36,8 +36,7 @@ def normalise_club(form: ClubForm) -> ClubDetails:
     """
     name = form.name.strip()
     oxl_code = form.oxl_code.strip().upper()
-    ea_club_id = form.ea_club_id.strip()
-    if not name or not oxl_code or not ea_club_id:
+    if not name or not oxl_code:
         raise ValidationError(REQUIRED_FIELDS_MESSAGE)
     website_url = form.website_url.strip()
     try:
@@ -47,7 +46,7 @@ def normalise_club(form: ClubForm) -> ClubDetails:
     return ClubDetails(
         name=name,
         oxl_code=oxl_code,
-        ea_club_id=ea_club_id,
+        ea_club_id=blank_to_none(form.ea_club_id),
         opentrack_code=blank_to_none(form.opentrack_code),
         website_url=normalised_url,
         is_oxfordshire_member=form.is_oxfordshire_member,

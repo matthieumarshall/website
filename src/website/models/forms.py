@@ -64,7 +64,7 @@ class ClubForm(_Form):
 
     name: str
     oxl_code: str
-    ea_club_id: str
+    ea_club_id: str = ""
     opentrack_code: str = ""
     website_url: str = ""
     is_oxfordshire_member: bool = False

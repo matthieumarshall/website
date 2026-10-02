@@ -52,6 +52,33 @@ class TestClubsInPageEditing:
         assert club is not None
         assert club.name == "Inline Harriers"
 
+    def test_inline_add_club_without_ea_club_id(
+        self,
+        content_creator_client: TestClient,
+        test_db: duckdb.DuckDBPyConnection,
+    ) -> None:
+        csrf = self._csrf(content_creator_client, "/clubs")
+        resp = content_creator_client.post(
+            "/clubs/inline-add",
+            data={
+                "name": "Non EA Club",
+                "oxl_code": "NEA",
+                "ea_club_id": "",
+                "csrf_token": csrf,
+            },
+        )
+        assert resp.status_code == 200
+        assert "Non EA Club" in resp.text
+        # Only oxl_code has a <code> tag, no EA club ID is shown
+        assert resp.text.count("<code>") == 1
+        assert "<td><code>NEA</code></td>" in resp.text
+        assert "<td></td>" in resp.text
+        row = test_db.execute("SELECT id FROM clubs WHERE oxl_code='NEA'").fetchone()
+        assert row is not None
+        club = repository.get_club_by_id(test_db, row[0])
+        assert club is not None
+        assert club.ea_club_id is None
+
     def test_inline_edit_and_toggle_club(
         self,
         content_creator_client: TestClient,
@@ -82,6 +109,25 @@ class TestClubsInPageEditing:
         )
         assert edit_resp.status_code == 200
         assert "Updated Club Name" in edit_resp.text
+
+        # Edit again clearing ea_club_id
+        clear_ea_resp = content_creator_client.post(
+            f"/clubs/{club.id}/inline-edit",
+            data={
+                "name": "Updated Club Name",
+                "oxl_code": "TGL",
+                "ea_club_id": "",
+                "opentrack_code": "",
+                "website_url": "",
+                "is_oxfordshire_member": "off",
+                "is_active": "on",
+                "csrf_token": csrf,
+            },
+        )
+        assert clear_ea_resp.status_code == 200
+        updated = repository.get_club_by_id(test_db, club.id)
+        assert updated is not None
+        assert updated.ea_club_id is None
 
         toggle_resp = content_creator_client.post(
             f"/clubs/{club.id}/inline-toggle",
