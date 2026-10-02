@@ -181,7 +181,7 @@ class EntryService:
 
     def _club_athletes(self, club_id: int) -> list[EAAthlete]:
         club = repository.get_club_by_id(self._db, club_id)
-        if club is None:
+        if club is None or not club.ea_club_id:
             raise OperationFailedError("Club configuration error.")
         return self._athletes.fetch_club_athletes(club.ea_club_id)
 

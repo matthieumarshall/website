@@ -19,7 +19,7 @@
             </div>
             <div class="col-6 col-md-2">
               <label for="ea_club_id-{{ club.id }}" class="form-label small mb-1">EA club ID</label>
-              <input type="text" id="ea_club_id-{{ club.id }}" name="ea_club_id" class="form-control form-control-sm" required value="{{ club.ea_club_id }}">
+              <input type="text" id="ea_club_id-{{ club.id }}" name="ea_club_id" class="form-control form-control-sm" placeholder="Optional" value="{{ club.ea_club_id.strip() if club.ea_club_id else '' }}">
             </div>
             <div class="col-6 col-md-2">
               <label for="opentrack_code-{{ club.id }}" class="form-label small mb-1">OpenTrack code</label>
