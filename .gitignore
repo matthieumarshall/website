@@ -39,6 +39,7 @@ data/uploads/
 !data/uploads/.gitkeep
 data/fixture-maps/
 !data/fixture-maps/.gitkeep
+data/fixture-docs/
 *.duckdb.wal
 *.duckdb.*
 *.bak

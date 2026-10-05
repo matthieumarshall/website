@@ -2,11 +2,11 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Form, Request, UploadFile
+from fastapi import APIRouter, Form, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from website.models.forms import FixtureCopyForm, FixtureForm, SeasonForm
-from website.services.fixtures import FixtureImages
+from website.services.fixtures import COPY_PARTS, FixtureImages
 from website.web.csrf import CsrfProtected
 from website.web.deps import Fixtures, ImageStoreDep, RendererDep
 from website.web.rendering import Renderer
@@ -131,10 +131,23 @@ def fixtures_new_fixture_form(
     _: RequireStaff,
     service: Fixtures,
     ui: RendererDep,
+    copy_from: int | None = None,
+    parts: Annotated[list[str] | None, Query()] = None,
 ) -> HTMLResponse:
-    """HTMX: show the new fixture form (if the season has room)."""
+    """Show the new fixture form, optionally prefilled from another fixture."""
     season = service.season_for_new_fixture(season_id)
-    return ui.page(request, _FORM, _PAGE, season=season, fixture=None)
+    source = service.prefill_from(copy_from, parts) if copy_from else None
+    return ui.page(
+        request,
+        _FORM,
+        _PAGE,
+        season=season,
+        fixture=None,
+        prefill=source,
+        copy_source_id=copy_from,
+        copy_parts=list(COPY_PARTS) if parts is None else parts,
+        copy_groups=service.copy_sources(),
+    )
 
 
 @router.post("/seasons/{season_id}/fixtures")
@@ -210,6 +223,8 @@ def fixtures_copy_form(
         # fixture=None means "create new"; prefill carries the source data
         fixture=None,
         prefill=source,
+        copy_source_id=fixture_id,
+        copy_parts=list(COPY_PARTS),
         season=service.season_or_none(season_id),
         seasons=service.list_seasons(),
         copy_mode=True,

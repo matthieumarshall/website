@@ -62,6 +62,11 @@
       {% include "_fixture_images.html" %}
     </div>
 
+    {# Licence and assessments #}
+    <div id="fixture-documents">
+      {% include "_fixture_documents.html" %}
+    </div>
+
     {% if current_user and current_user.role in (UserRole.admin.value, UserRole.content_creator.value) %}
     <div class="d-flex gap-2 mt-3 pt-3 border-top">
       <a

@@ -2,6 +2,7 @@
 
 import json
 from datetime import date, datetime
+from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -96,6 +97,35 @@ class FixtureImage(BaseModel):
     fixture_id: int
     filename: str
     uploaded_at: datetime
+
+
+class FixtureDocumentType(str, Enum):
+    """The compliance documents a fixture can carry."""
+
+    event_licence = "event_licence"
+    risk_assessment = "risk_assessment"
+    medical_assessment = "medical_assessment"
+
+    @property
+    def label(self) -> str:
+        """Return the human-readable name."""
+        return self.value.replace("_", " ").capitalize()
+
+
+class FixtureDocument(BaseModel):
+    """An uploaded licence or assessment attached to a fixture."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: int
+    fixture_id: int
+    doc_type: FixtureDocumentType
+    filename: str
+    original_name: str
+    file_type: str
+    size_bytes: int
+    uploaded_at: datetime
+    uploaded_by_id: int | None = None
 
 
 class FixtureCreate(BaseModel):

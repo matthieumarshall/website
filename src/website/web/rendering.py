@@ -11,7 +11,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from website.content import SIDEBAR_ITEMS
-from website.models import UserRole
+from website.models import FixtureDocumentType, UserRole
 from website.richtext import post_summary
 from website.web.csrf import get_csrf_token
 from website.web.identity import get_current_user
@@ -48,6 +48,7 @@ class Renderer:
             "csrf_token": get_csrf_token(request),
             "show_cookie_notice": not request.cookies.get(COOKIE_NOTICE_COOKIE),
             "UserRole": UserRole,
+            "FixtureDocumentType": FixtureDocumentType,
             **extra,
         }
 
