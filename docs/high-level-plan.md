@@ -111,6 +111,7 @@ Planned islands:
 - Calculate standings dynamically per season — **DONE**
 - Publish historical standings (static data for past seasons) — **DONE** (supports spaced round-column headers e.g. "R 1", "R 2", sequence-backed IDs)
 - Entries & results reporting and analysis charts — **DONE** (`scripts/generate_entries_report.py` producing per-round and per-season participation trends and cohort breakdowns)
+- Add export to pdf and csv for standings too - *not started*
 
 ### 4.3 Live / External Data
 - Integrate results dynamically from Tempo Events API — *not started*
