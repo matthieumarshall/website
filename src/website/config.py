@@ -28,6 +28,7 @@ class Settings(BaseModel):
     uploads_dir: Path = Path("data/uploads")
     fixture_maps_dir: Path = Path("data/fixture-maps")
     admin_docs_dir: Path = Path("data/uploads/administration")
+    fixture_docs_dir: Path = Path("data/fixture-docs")
     results_pdf_root: Path = _PROJECT_ROOT / "data" / "uploads"
     stripe_publishable_key: str = ""
 
@@ -54,4 +55,9 @@ class Settings(BaseModel):
 
     def data_directories(self) -> tuple[Path, ...]:
         """Return the writable data directories the app serves files from."""
-        return (self.uploads_dir, self.fixture_maps_dir, self.admin_docs_dir)
+        return (
+            self.uploads_dir,
+            self.fixture_maps_dir,
+            self.admin_docs_dir,
+            self.fixture_docs_dir,
+        )

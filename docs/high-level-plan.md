@@ -93,8 +93,8 @@ Planned islands:
 - What3Words location support. User provides three words in separate small text boxes and we convert that ourselves to a what3words style clickable url — **DONE**
 - Course map image uploads (support multiple images per fixture) — **DONE** (`static/fixture-images.js` preview and reordering, multi-upload support)
 - Weather forecast integration — *planned* (fetch weather forecast for fixture coordinates/date via a free, open API such as Open-Meteo in advance, and persist/freeze as static historical weather data once race day has passed)
-- Upload and display Event license, Risk assessment and Medical Assessment - *not started*
-- Copy details from a different fixture, including within that season and previous year - *not started*
+- Add ability to upload and display Event license, Risk assessment and Medical Assessment. Staff (content creators and admin) upload; anyone can view. — **DONE** (`fixture_documents` table, one document per type per fixture; PDFs rewritten losslessly with `pikepdf`, images resized to 2000px and re-encoded as JPEG, original kept if not smaller; magic-byte validation; 10 MB cap; stored under `data/fixture-docs`)
+- Copy details from a different fixture, including within that season and previous year — **DONE** (grouped picker on the new-fixture form lists fixtures from every season, checkboxes choose location / timetable / travel instructions / course maps; course map files are duplicated; the date is never copied)
 
 ---
 

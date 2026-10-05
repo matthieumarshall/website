@@ -29,6 +29,41 @@
 </div>
 {% endif %}
 
+{% if not fixture and not copy_mode and copy_groups %}
+<form
+  method="get"
+  action="/fixtures/seasons/{{ season.id }}/fixtures/new"
+  id="fixture-copy-picker"
+  class="card card-body mb-4"
+>
+  <fieldset>
+    <legend class="fs-6 fw-semibold">Copy details from an existing fixture</legend>
+    <div class="mb-2">
+      <label for="copy-from-select" class="form-label">Fixture</label>
+      <select id="copy-from-select" name="copy_from" class="form-select" required>
+        <option value="">Choose a fixture…</option>
+        {% for group in copy_groups %}
+        <optgroup label="{{ group.season.name }}">
+          {% for f in group.fixtures %}
+          <option value="{{ f.id }}" {% if copy_source_id == f.id %}selected{% endif %}>{{ f.title }} — {{ f.date.strftime('%d %b %Y') }}</option>
+          {% endfor %}
+        </optgroup>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="mb-2" role="group" aria-label="Details to copy">
+      {% for key, label in [('location', 'Location and address'), ('timetable', 'Timetable'), ('travel', 'Travel instructions'), ('maps', 'Course maps')] %}
+      <div class="form-check form-check-inline">
+        <input class="form-check-input" type="checkbox" name="parts" id="copy-part-{{ key }}" value="{{ key }}" {% if key in copy_parts %}checked{% endif %}>
+        <label class="form-check-label" for="copy-part-{{ key }}">{{ label }}</label>
+      </div>
+      {% endfor %}
+    </div>
+    <button type="submit" class="btn btn-sm btn-outline-primary">Load details</button>
+  </fieldset>
+</form>
+{% endif %}
+
 <form
   action="{% if fixture %}/fixtures/seasons/{{ season.id }}/fixtures/{{ fixture.id }}/edit{% elif copy_mode %}/fixtures/copy{% else %}/fixtures/seasons/{{ season.id }}/fixtures{% endif %}"
   method="post"
@@ -38,6 +73,9 @@
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   {# Timetable rows are serialised to JSON by timetable-editor.js on submit #}
   <input type="hidden" name="timetable_json" id="timetable-json-input">
+  {% if copy_source_id and not fixture %}
+  <input type="hidden" name="copy_from_fixture_id" value="{{ copy_source_id }}">
+  {% endif %}
 
   {% if copy_mode %}
   <div class="mb-3">
@@ -80,7 +118,7 @@
       class="form-control"
       id="fixture-date"
       name="date"
-      value="{{ src.date.isoformat() if src else '' }}"
+      value="{{ src.date.isoformat() if src and (fixture or copy_mode) else '' }}"
       required
     >
   </div>
@@ -195,6 +233,13 @@
       rows="5"
     >{{ src.travel_instructions if src else '' }}</textarea>
   </div>
+
+  {% if copy_source_id and not fixture %}
+  <div class="form-check mb-3">
+    <input class="form-check-input" type="checkbox" name="copy_maps" id="copy-maps" value="true" {% if 'maps' in copy_parts %}checked{% endif %}>
+    <label class="form-check-label" for="copy-maps">Also copy the course map images from the source fixture</label>
+  </div>
+  {% endif %}
 
   <div class="d-flex gap-2">
     <button type="submit" class="btn btn-primary">

@@ -49,6 +49,11 @@ def _mount_static_files(app: FastAPI, settings: Settings) -> None:
         StaticFiles(directory=str(settings.fixture_maps_dir)),
         name="fixture-maps",
     )
+    app.mount(
+        "/fixture-docs",
+        StaticFiles(directory=str(settings.fixture_docs_dir)),
+        name="fixture-docs",
+    )
     app.mount("/static", StaticFiles(directory=str(settings.static_dir)), name="static")
 
 

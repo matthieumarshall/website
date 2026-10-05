@@ -167,6 +167,8 @@ dependencies = [
     "seaborn>=0.13.2",
     "matplotlib>=3.10.9",
     "pydantic>=2.13",
+    "pillow>=11.0",
+    "pikepdf>=9.0",
 ]
 
 [project.optional-dependencies]

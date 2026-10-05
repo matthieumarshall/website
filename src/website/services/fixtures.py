@@ -1,5 +1,7 @@
 """Seasons, fixtures and fixture images."""
 
+import datetime as dt
+
 from pydantic import BaseModel, ConfigDict
 from pydantic import ValidationError as PydanticValidationError
 
@@ -11,6 +13,7 @@ from website.models import (
     MAX_FIXTURES_PER_SEASON,
     Fixture,
     FixtureCreate,
+    FixtureDocument,
     FixtureImage,
     Season,
     SeasonCreate,
@@ -31,6 +34,7 @@ class FixturesView(BaseModel):
     fixtures: list[Fixture]
     active_fixture: Fixture | None
     images: list[FixtureImage]
+    documents: list[FixtureDocument]
 
 
 class FixtureDetail(BaseModel):
@@ -41,7 +45,17 @@ class FixtureDetail(BaseModel):
     fixture: Fixture
     season: Season | None
     images: list[FixtureImage]
+    documents: list[FixtureDocument]
     has_results: bool
+
+
+class CopySourceGroup(BaseModel):
+    """A season's fixtures, offered as sources to copy details from."""
+
+    model_config = ConfigDict(frozen=True)
+
+    season: Season
+    fixtures: list[Fixture]
 
 
 class FixtureImages(BaseModel):
@@ -52,6 +66,27 @@ class FixtureImages(BaseModel):
     fixture: Fixture | None
     season: Season | None
     images: list[FixtureImage]
+
+
+COPY_PARTS = ("location", "timetable", "travel", "maps")
+
+
+def _prefill(source: Fixture, parts: frozenset[str]) -> Fixture:
+    """Return *source* with the details the user chose not to copy blanked."""
+    blank: dict[str, object] = {"date": dt.date.today()}
+    if "location" not in parts:
+        blank.update(
+            location_name="",
+            address="",
+            latitude=None,
+            longitude=None,
+            what3words=None,
+        )
+    if "timetable" not in parts:
+        blank["timetable"] = []
+    if "travel" not in parts:
+        blank["travel_instructions"] = ""
+    return source.model_copy(update=blank)
 
 
 def _validated_fixture(form: FixtureForm) -> FixtureCreate:
@@ -116,6 +151,9 @@ class FixtureService:
             fixtures=fixtures,
             active_fixture=first,
             images=repository.list_fixture_images(db, first.id) if first else [],
+            documents=(
+                repository.list_fixture_documents(db, first.id) if first else []
+            ),
         )
 
     def detail(self, fixture_id: int) -> FixtureDetail:
@@ -132,6 +170,7 @@ class FixtureService:
             fixture=fixture,
             season=repository.get_season_by_id(db, fixture.season_id),
             images=repository.list_fixture_images(db, fixture_id),
+            documents=repository.list_fixture_documents(db, fixture_id),
             has_results=repository.fixture_has_results(db, fixture_id),
         )
 
@@ -209,6 +248,35 @@ class FixtureService:
         coords = self._geocoder.geocode(address)
         return (coords[0], coords[1]) if coords else (None, None)
 
+    def copy_sources(self) -> list[CopySourceGroup]:
+        """Return every season's fixtures, latest season first."""
+        groups = (
+            CopySourceGroup(
+                season=season,
+                fixtures=repository.list_fixtures_for_season(self._db, season.id),
+            )
+            for season in repository.list_seasons(self._db)
+        )
+        return [group for group in groups if group.fixtures]
+
+    def prefill_from(self, source_id: int, parts: list[str] | None = None) -> Fixture:
+        """Return a source fixture with only the chosen *parts* kept.
+
+        *parts* are any of ``COPY_PARTS``; ``None`` keeps everything. The date is
+        always reset because a copy is a different race day.
+
+        Raises:
+            NotFoundError: If the source fixture does not exist.
+        """
+        chosen = frozenset(COPY_PARTS if parts is None else parts)
+        return _prefill(self.get_fixture(source_id), chosen)
+
+    def _copy_images(self, source_id: int, target_id: int) -> None:
+        for image in repository.list_fixture_images(self._db, source_id):
+            repository.create_fixture_image(
+                self._db, target_id, self._images.copy(image.filename)
+            )
+
     def create_fixture(self, season_id: int, form: FixtureForm) -> Fixture:
         """Create a fixture, geocoding its address.
 
@@ -221,7 +289,7 @@ class FixtureService:
         what3words = _what3words(fixture)
         latitude, longitude = self._coordinates(fixture.address)
         try:
-            return repository.create_fixture(
+            created = repository.create_fixture(
                 self._db,
                 season_id=season_id,
                 title=fixture.title,
@@ -236,6 +304,9 @@ class FixtureService:
             )
         except ValueError as exc:
             raise ConflictError(str(exc)) from exc
+        if form.copy_maps and form.copy_from_fixture_id is not None:
+            self._copy_images(form.copy_from_fixture_id, created.id)
+        return created
 
     def update_fixture(self, fixture_id: int, form: FixtureForm) -> Fixture:
         """Update a fixture, re-geocoding its address.

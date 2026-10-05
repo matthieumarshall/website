@@ -57,6 +57,13 @@ from website.repository.entries import (
     update_batch_status,
     upsert_season_entry_config,
 )
+from website.repository.fixture_documents import (
+    delete_fixture_document,
+    get_fixture_document,
+    get_fixture_document_by_type,
+    list_fixture_documents,
+    upsert_fixture_document,
+)
 from website.repository.fixtures import (
     count_fixtures_for_season,
     create_fixture,
@@ -154,6 +161,7 @@ __all__ = [
     "delete_division_assignment",
     "delete_external_link",
     "delete_fixture",
+    "delete_fixture_document",
     "delete_fixture_image",
     "delete_post",
     "delete_season",
@@ -172,6 +180,8 @@ __all__ = [
     "get_entry_batch_by_stripe_session",
     "get_external_link",
     "get_fixture_by_id",
+    "get_fixture_document",
+    "get_fixture_document_by_type",
     "get_fixture_image_by_id",
     "get_post_by_id",
     "get_race_by_id",
@@ -190,6 +200,7 @@ __all__ = [
     "list_entry_batches_for_season",
     "list_external_links",
     "list_fixture_dates",
+    "list_fixture_documents",
     "list_fixture_images",
     "list_fixtures_for_season",
     "list_paid_athlete_entries_for_season",
@@ -222,6 +233,7 @@ __all__ = [
     "update_post",
     "update_winner_override",
     "upsert_club_allocation",
+    "upsert_fixture_document",
     "upsert_season_entry_config",
     "upsert_static_page",
 ]

@@ -27,11 +27,17 @@ from website.services.content import PageService, PostService
 from website.services.divisions import DivisionService
 from website.services.entries import EntryService
 from website.services.entry_admin import EntryAdminService
+from website.services.fixture_documents import FixtureDocumentService
 from website.services.fixtures import FixtureService
 from website.services.links import LinkService
 from website.services.results import ResultsService
 from website.services.standings import StandingsService
-from website.services.uploads import DOCUMENT_POLICY, IMAGE_POLICY, FileStore
+from website.services.uploads import (
+    DOCUMENT_POLICY,
+    FIXTURE_DOC_POLICY,
+    IMAGE_POLICY,
+    FileStore,
+)
 from website.services.winners import WinnerService
 from website.web.identity import get_current_user
 from website.web.receipts import ReceiptRenderer
@@ -103,6 +109,11 @@ def get_document_store(settings: SettingsDep) -> FileStore:
     return FileStore(settings.admin_docs_dir, DOCUMENT_POLICY)
 
 
+def get_fixture_doc_store(settings: SettingsDep) -> FileStore:
+    """Return the store for fixture licences and assessments."""
+    return FileStore(settings.fixture_docs_dir, FIXTURE_DOC_POLICY)
+
+
 def get_receipt_renderer(
     renderer: RendererDep, settings: SettingsDep
 ) -> ReceiptRenderer:
@@ -113,6 +124,7 @@ def get_receipt_renderer(
 ImageStoreDep = Annotated[FileStore, Depends(get_image_store)]
 UploadStoreDep = Annotated[FileStore, Depends(get_upload_store)]
 DocumentStoreDep = Annotated[FileStore, Depends(get_document_store)]
+FixtureDocStoreDep = Annotated[FileStore, Depends(get_fixture_doc_store)]
 ReceiptRendererDep = Annotated[ReceiptRenderer, Depends(get_receipt_renderer)]
 
 
@@ -164,6 +176,13 @@ def get_fixture_service(
     return FixtureService(db, geocoder, images)
 
 
+def get_fixture_document_service(
+    db: DbDep, store: FixtureDocStoreDep
+) -> FixtureDocumentService:
+    """Provide a :class:`FixtureDocumentService`."""
+    return FixtureDocumentService(db, store)
+
+
 def get_link_service(db: DbDep) -> LinkService:
     """Provide a :class:`LinkService`."""
     return LinkService(db)
@@ -201,6 +220,9 @@ Divisions = Annotated[DivisionService, Depends(get_division_service)]
 Entries = Annotated[EntryService, Depends(get_entry_service)]
 EntryAdmin = Annotated[EntryAdminService, Depends(get_entry_admin_service)]
 Fixtures = Annotated[FixtureService, Depends(get_fixture_service)]
+FixtureDocuments = Annotated[
+    FixtureDocumentService, Depends(get_fixture_document_service)
+]
 Links = Annotated[LinkService, Depends(get_link_service)]
 Pages = Annotated[PageService, Depends(get_page_service)]
 Posts = Annotated[PostService, Depends(get_post_service)]

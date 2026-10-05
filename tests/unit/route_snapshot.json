@@ -98,6 +98,8 @@
   ["POST", "/fixtures/seasons/{season_id}/delete"],
   ["POST", "/fixtures/seasons/{season_id}/fixtures"],
   ["POST", "/fixtures/seasons/{season_id}/fixtures/{fixture_id}/delete"],
+  ["POST", "/fixtures/seasons/{season_id}/fixtures/{fixture_id}/documents"],
+  ["POST", "/fixtures/seasons/{season_id}/fixtures/{fixture_id}/documents/{document_id}/delete"],
   ["POST", "/fixtures/seasons/{season_id}/fixtures/{fixture_id}/edit"],
   ["POST", "/fixtures/seasons/{season_id}/fixtures/{fixture_id}/images"],
   ["POST", "/fixtures/seasons/{season_id}/fixtures/{fixture_id}/images/{image_id}/delete"],

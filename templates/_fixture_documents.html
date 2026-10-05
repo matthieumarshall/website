@@ -1,0 +1,65 @@
+{# _fixture_documents.html — event licence and assessments.
+   Context vars: fixture (from _fixture_detail.html include) or fixture_id/season_id,
+   documents (list[FixtureDocument]), csrf_token, current_user. #}
+{% set _fid = fixture.id if fixture else fixture_id %}
+{% set _sid = fixture.season_id if fixture else season_id %}
+{% set _is_staff = current_user and current_user.role in (UserRole.admin.value, UserRole.content_creator.value) %}
+{% set _by_type = {} %}
+{% for doc in documents %}{% set _ = _by_type.update({doc.doc_type.value: doc}) %}{% endfor %}
+
+{% if _by_type or _is_staff %}
+<h3 class="h6 mt-3">Event Documents</h3>
+<ul class="list-unstyled mb-2">
+  {% for type in FixtureDocumentType %}
+  {% set doc = _by_type.get(type.value) %}
+  {% if doc or _is_staff %}
+  <li class="mb-2" id="fixture-document-{{ type.value }}">
+    <strong>{{ type.label }}:</strong>
+    {% if doc %}
+    <a href="/fixture-docs/{{ doc.filename }}" target="_blank" rel="noopener noreferrer">View {{ 'PDF' if doc.file_type == 'application/pdf' else 'image' }} ({{ (doc.size_bytes / 1024) | round | int }} KB)</a>
+    {% if _is_staff %}
+    <form
+      class="d-inline"
+      action="/fixtures/seasons/{{ _sid }}/fixtures/{{ _fid }}/documents/{{ doc.id }}/delete"
+      method="post"
+      hx-post="/fixtures/seasons/{{ _sid }}/fixtures/{{ _fid }}/documents/{{ doc.id }}/delete"
+      hx-target="#fixture-documents"
+      hx-swap="innerHTML"
+    >
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn btn-sm btn-link text-danger" aria-label="Delete {{ type.label }}">Delete</button>
+    </form>
+    {% endif %}
+    {% else %}
+    <span class="text-muted">Not uploaded</span>
+    {% endif %}
+    {% if _is_staff %}
+    <form
+      class="d-flex gap-2 align-items-center mt-1"
+      action="/fixtures/seasons/{{ _sid }}/fixtures/{{ _fid }}/documents"
+      method="post"
+      enctype="multipart/form-data"
+      hx-post="/fixtures/seasons/{{ _sid }}/fixtures/{{ _fid }}/documents"
+      hx-target="#fixture-documents"
+      hx-swap="innerHTML"
+      hx-encoding="multipart/form-data"
+    >
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="doc_type" value="{{ type.value }}">
+      <label for="doc-upload-{{ type.value }}-{{ _fid }}" class="visually-hidden">{{ 'Replace' if doc else 'Upload' }} {{ type.label }}</label>
+      <input
+        type="file"
+        id="doc-upload-{{ type.value }}-{{ _fid }}"
+        name="file"
+        class="form-control form-control-sm w-auto"
+        accept="application/pdf,image/jpeg,image/png"
+        required
+      >
+      <button type="submit" class="btn btn-sm btn-outline-secondary">{{ 'Replace' if doc else 'Upload' }}</button>
+    </form>
+    {% endif %}
+  </li>
+  {% endif %}
+  {% endfor %}
+</ul>
+{% endif %}

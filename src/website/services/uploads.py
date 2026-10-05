@@ -1,5 +1,6 @@
 """Validated storage of user-uploaded files under a data directory."""
 
+import shutil
 import uuid
 from pathlib import Path
 
@@ -12,6 +13,8 @@ IMAGE_CONTENT_TYPES = frozenset({"image/jpeg", "image/png", "image/gif", "image/
 MAX_IMAGE_BYTES = 5 * _MB
 DOCUMENT_EXTENSIONS = (".pdf", ".zip", ".docx", ".xlsx", ".csv", ".txt")
 MAX_DOCUMENT_BYTES = 20 * _MB
+FIXTURE_DOC_EXTENSIONS = (".pdf", ".jpg", ".jpeg", ".png")
+MAX_FIXTURE_DOC_BYTES = 10 * _MB
 
 
 class UploadedFile(BaseModel):
@@ -73,6 +76,12 @@ DOCUMENT_POLICY = UploadPolicy(
     too_large_message="File exceeds 20 MB limit",
     bad_type_message="Unsupported file type",
 )
+FIXTURE_DOC_POLICY = UploadPolicy(
+    max_bytes=MAX_FIXTURE_DOC_BYTES,
+    extensions=FIXTURE_DOC_EXTENSIONS,
+    too_large_message="File exceeds 10 MB limit",
+    bad_type_message="Only PDF, JPEG or PNG files are accepted",
+)
 
 
 class FileStore:
@@ -107,6 +116,22 @@ class FileStore:
         target_dir.mkdir(parents=True, exist_ok=True)
         (target_dir / filename).write_bytes(upload.data)
         return filename
+
+    def save_bytes(self, data: bytes, suffix: str, subdirectory: str = "") -> str:
+        """Write already-validated *data*, returning its stored filename."""
+        filename = f"{uuid.uuid4().hex}{suffix}"
+        target_dir = self.directory / subdirectory
+        target_dir.mkdir(parents=True, exist_ok=True)
+        (target_dir / filename).write_bytes(data)
+        return filename
+
+    def copy(self, filename: str, subdirectory: str = "") -> str:
+        """Duplicate a stored file under a new random name and return that name."""
+        suffix = Path(filename).suffix
+        new_name = f"{uuid.uuid4().hex}{suffix}"
+        directory = self.directory / subdirectory
+        shutil.copyfile(directory / filename, directory / new_name)
+        return new_name
 
     def delete(self, filename: str, subdirectory: str = "") -> None:
         """Remove a stored file if it exists."""
