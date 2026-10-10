@@ -59,3 +59,7 @@ seed-results season fixture race csv:
 # Seed the rules-and-constitution page from the league handbook
 seed-rules md_path="docs/OXL_League_Manual.md":
     uv run python -m cli.seed_rules --md-path "{{md_path}}"
+
+# Shrink and gzip stored documents (PDFs, Office files, zips) already on disk
+archive-documents *args:
+    uv run python scripts/archive_stored_documents.py {{args}}

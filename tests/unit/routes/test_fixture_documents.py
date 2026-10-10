@@ -14,6 +14,7 @@ from PIL import Image
 from website import repository
 from website.main import app
 from website.models import FixtureDocumentType
+from website.services.archive import stored_file
 from website.services.uploads import (
     FIXTURE_DOC_POLICY,
     IMAGE_POLICY,
@@ -87,7 +88,7 @@ class TestUploadDocument:
         assert "Event licence" in response.text
         docs = repository.list_fixture_documents(test_db, fixture_ids[1])
         assert [d.doc_type for d in docs] == [FixtureDocumentType.event_licence]
-        assert (doc_dir / docs[0].filename).exists()
+        assert stored_file(doc_dir / docs[0].filename) is not None
         assert docs[0].uploaded_by_id is not None
 
     def test_reupload_replaces_and_removes_old_file(

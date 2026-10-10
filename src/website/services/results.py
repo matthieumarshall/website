@@ -10,6 +10,7 @@ from website.errors import NotFoundError
 from website.export import filter_results
 from website.models import Fixture, Race, Result, Season
 from website.services._common import found
+from website.services.archive import stored_file
 
 
 class ResultsBrowser(BaseModel):
@@ -169,6 +170,9 @@ class ResultsService:
     def source_pdf_path(self, fixture_id: int, root: Path) -> Path:
         """Return the original results PDF for a fixture, confined to *root*.
 
+        The path is the logical one: the file may be stored gzipped beside it
+        (see :mod:`website.services.archive`).
+
         Raises:
             NotFoundError: If there is no PDF, or its path escapes *root*.
         """
@@ -178,6 +182,9 @@ class ResultsService:
             raise NotFoundError(not_available)
         # Defend against path traversal: resolve inside the known root and verify.
         safe_path = (root / fixture.source_pdf).resolve()
-        if not safe_path.is_relative_to(root.resolve()) or not safe_path.is_file():
+        if (
+            not safe_path.is_relative_to(root.resolve())
+            or stored_file(safe_path) is None
+        ):
             raise NotFoundError(not_available)
         return safe_path

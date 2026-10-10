@@ -3,11 +3,12 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import FileResponse, HTMLResponse, Response
+from fastapi.responses import HTMLResponse, Response
 
 from website.export import build_csv, build_pdf
 from website.services.results import ResultFilters
 from website.web.deps import RendererDep, Results, SettingsDep
+from website.web.stored_files import stored_file_response
 
 router = APIRouter(prefix="/results")
 _PAGE = "results"
@@ -111,8 +112,10 @@ def results_export_pdf(race_id: int, service: Results, filters: Filters) -> Resp
 
 @router.get("/source-pdf")
 def results_source_pdf(
-    fixture_id: int, service: Results, settings: SettingsDep
-) -> FileResponse:
-    """Serve the original results PDF for a fixture."""
+    fixture_id: int, request: Request, service: Results, settings: SettingsDep
+) -> Response:
+    """Serve the original results PDF for a fixture (gzip-encoded if archived)."""
     path = service.source_pdf_path(fixture_id, settings.results_pdf_root)
-    return FileResponse(path, media_type="application/pdf", filename=path.name)
+    return stored_file_response(
+        path, request.scope, media_type="application/pdf", filename=path.name
+    )

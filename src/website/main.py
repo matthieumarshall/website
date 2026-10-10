@@ -15,6 +15,7 @@ from website.web.middleware import SecurityHeadersMiddleware
 from website.web.rate_limit import limiter
 from website.web.rendering import Renderer
 from website.web.routes import ROUTERS
+from website.web.stored_files import StoredFiles
 
 # Serve .js/.css with correct MIME types regardless of the OS registry: on
 # Windows, mimetypes can return text/plain for .js and browsers refuse it.
@@ -41,8 +42,9 @@ def _mount_static_files(app: FastAPI, settings: Settings) -> None:
     # before the lifespan handler runs.
     for directory in settings.data_directories():
         directory.mkdir(parents=True, exist_ok=True)
+    # Documents under /uploads and /fixture-docs may be stored gzipped.
     app.mount(
-        "/uploads", StaticFiles(directory=str(settings.uploads_dir)), name="uploads"
+        "/uploads", StoredFiles(directory=str(settings.uploads_dir)), name="uploads"
     )
     app.mount(
         "/fixture-maps",
@@ -51,7 +53,7 @@ def _mount_static_files(app: FastAPI, settings: Settings) -> None:
     )
     app.mount(
         "/fixture-docs",
-        StaticFiles(directory=str(settings.fixture_docs_dir)),
+        StoredFiles(directory=str(settings.fixture_docs_dir)),
         name="fixture-docs",
     )
     app.mount("/static", StaticFiles(directory=str(settings.static_dir)), name="static")

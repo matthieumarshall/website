@@ -1,6 +1,7 @@
-"""Shrink uploaded licences and assessments before they are stored."""
+"""Shrink uploaded documents before they are stored."""
 
 import io
+import zipfile
 
 import pikepdf
 from PIL import Image, ImageOps, UnidentifiedImageError
@@ -12,6 +13,9 @@ JPEG_QUALITY = 80
 _PDF_MAGIC = b"%PDF-"
 _PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 _JPEG_MAGIC = b"\xff\xd8\xff"
+_ZIP_CONTAINERS = frozenset({".zip", ".docx", ".xlsx"})
+_ZIP_LEVEL = 9
+_ZIP_ENCRYPTED_FLAG = 0x1
 
 
 class CompressedDocument:
@@ -95,3 +99,43 @@ def compress_document(data: bytes) -> CompressedDocument:
     if data.startswith(_PNG_MAGIC):
         return CompressedDocument(data, ".png", "image/png")
     return CompressedDocument(data, ".jpg", "image/jpeg")
+
+
+def _recompress_zip(data: bytes) -> bytes:
+    """Re-deflate a zip container's entries at the highest level.
+
+    Entry order, names, timestamps and stored (uncompressed) entries are kept,
+    so Office documents stay valid. Encrypted archives are returned unchanged.
+    """
+    out = io.BytesIO()
+    with (
+        zipfile.ZipFile(io.BytesIO(data)) as source,
+        zipfile.ZipFile(out, "w") as target,
+    ):
+        for info in source.infolist():
+            if info.flag_bits & _ZIP_ENCRYPTED_FLAG:
+                return data
+            # compresslevel only affects deflated entries; stored ones stay so.
+            target.writestr(info, source.read(info), compresslevel=_ZIP_LEVEL)
+        target.comment = source.comment
+    return out.getvalue()
+
+
+def shrink_document(data: bytes, suffix: str) -> bytes:
+    """Losslessly shrink a stored document, keeping the original if not smaller.
+
+    PDFs are rewritten with compressed streams and zip-based files (``.zip``,
+    ``.docx``, ``.xlsx``) are re-deflated. Other types, and files that cannot
+    be parsed, are returned unchanged: this never rejects an upload.
+    """
+    suffix = suffix.lower()
+    try:
+        if suffix == ".pdf" and data.startswith(_PDF_MAGIC):
+            packed = _compress_pdf(data)
+        elif suffix in _ZIP_CONTAINERS:
+            packed = _recompress_zip(data)
+        else:
+            return data
+    except (InvalidRequestError, zipfile.BadZipFile, OSError, ValueError):
+        return data
+    return packed if len(packed) < len(data) else data

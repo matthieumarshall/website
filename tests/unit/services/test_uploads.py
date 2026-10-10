@@ -1,5 +1,6 @@
 """FileStore: upload validation and storage."""
 
+import gzip
 from pathlib import Path
 
 import pytest
@@ -7,6 +8,7 @@ import pytest
 from website.errors import InvalidRequestError, PayloadTooLargeError
 from website.services.uploads import (
     DOCUMENT_POLICY,
+    FIXTURE_DOC_POLICY,
     IMAGE_POLICY,
     MAX_IMAGE_BYTES,
     FileStore,
@@ -53,3 +55,40 @@ class TestDocumentStore:
 
     def test_delete_missing_file_is_harmless(self, tmp_path: Path) -> None:
         FileStore(tmp_path, DOCUMENT_POLICY).delete("nope.pdf", "none")
+
+
+class TestArchivingStore:
+    _TEXT = b"1,A Runner,Oxford AC,30:00\n" * 500
+
+    def test_document_policies_archive_and_image_policy_does_not(self) -> None:
+        assert DOCUMENT_POLICY.archive
+        assert FIXTURE_DOC_POLICY.archive
+        assert not IMAGE_POLICY.archive
+
+    def test_compressible_upload_is_stored_gzipped(self, tmp_path: Path) -> None:
+        store = FileStore(tmp_path, DOCUMENT_POLICY)
+        name = store.save(_upload("results.csv", "text/csv", self._TEXT), "agendas")
+        assert name.endswith(".csv")
+        assert not (tmp_path / "agendas" / name).exists()
+        archive = tmp_path / "agendas" / f"{name}.gz"
+        assert gzip.decompress(archive.read_bytes()) == self._TEXT
+
+    def test_images_are_never_gzipped(self, tmp_path: Path) -> None:
+        name = FileStore(tmp_path, IMAGE_POLICY).save_bytes(self._TEXT, ".png")
+        assert (tmp_path / name).read_bytes() == self._TEXT
+
+    def test_copy_and_delete_follow_the_archive(self, tmp_path: Path) -> None:
+        store = FileStore(tmp_path, DOCUMENT_POLICY)
+        name = store.save_bytes(self._TEXT, ".txt")
+        duplicate = store.copy(name)
+        assert duplicate != name
+        assert (tmp_path / f"{duplicate}.gz").read_bytes() == (
+            tmp_path / f"{name}.gz"
+        ).read_bytes()
+        store.delete(name)
+        store.delete(duplicate)
+        assert list(tmp_path.iterdir()) == []
+
+    def test_copy_of_missing_file_raises(self, tmp_path: Path) -> None:
+        with pytest.raises(FileNotFoundError):
+            FileStore(tmp_path, DOCUMENT_POLICY).copy("nope.pdf")
