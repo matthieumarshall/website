@@ -92,7 +92,7 @@ Planned islands:
 - Map of location (embedded map from address) — **DONE** (self-hosted Leaflet map loaded in `extra_head`, regional boundary guards skipping invalid or out-of-region coordinates, unique fixture DOM IDs preventing HTMX swap-settling layout bugs)
 - What3Words location support. User provides three words in separate small text boxes and we convert that ourselves to a what3words style clickable url — **DONE**
 - Course map image uploads (support multiple images per fixture) — **DONE** (`static/fixture-images.js` preview and reordering, multi-upload support)
-- Weather forecast integration — *planned* (fetch weather forecast for fixture coordinates/date via a free, open API such as Open-Meteo in advance, and persist/freeze as static historical weather data once race day has passed)
+- Weather forecast integration — *not started* (fetch weather forecast for fixture coordinates/date via a free, open API such as Open-Meteo in advance, and persist/freeze as static historical weather data once race day has passed)
 - Add ability to upload and display Event license, Risk assessment and Medical Assessment. Staff (content creators and admin) upload; anyone can view. — **DONE** (`fixture_documents` table, one document per type per fixture; PDFs rewritten losslessly with `pikepdf`, images resized to 2000px and re-encoded as JPEG, original kept if not smaller; magic-byte validation; 10 MB cap; stored under `data/fixture-docs`)
 - Copy details from a different fixture, including within that season and previous year — **DONE** (grouped picker on the new-fixture form lists fixtures from every season, checkboxes choose location / timetable / travel instructions / course maps; course map files are duplicated; the date is never copied)
 
@@ -111,7 +111,7 @@ Planned islands:
 - Calculate standings dynamically per season — **DONE**
 - Publish historical standings (static data for past seasons) — **DONE** (supports spaced round-column headers e.g. "R 1", "R 2", sequence-backed IDs)
 - Entries & results reporting and analysis charts — **DONE** (`scripts/generate_entries_report.py` producing per-round and per-season participation trends and cohort breakdowns)
-- Add export to pdf and csv for standings too - *not started*
+- Add export to pdf and csv for standings too — **DONE** (CSV and PDF download buttons above each standings table, `/standings/export/csv` and `/standings/export/pdf`, columns match the on-screen table)
 
 ### 4.3 Live / External Data
 - Integrate results dynamically from Tempo Events API — *not started*
@@ -238,7 +238,7 @@ Email hosting and mailboxes are handled directly as a managed email service prov
 
 ### 11.1 Asset Optimisation
 - Minify CSS/JS, compress images, use modern formats (WebP/AVIF) — *not started*
-- gzip/brotli response compression — *not started*
+- gzip/brotli response compression — *to be reviewed*
 - All static assets self-hosted (no CDN leaking user IPs) — **DONE**
 
 ### 11.2 Caching

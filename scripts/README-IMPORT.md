@@ -138,6 +138,30 @@ Same as `migrate_results.py`:
 
 ---
 
+### `archive_stored_documents.py`
+
+Shrinks and gzips every stored document already on disk: administration
+documents and results PDFs under `data/uploads/`, and fixture documents under
+`data/fixture-docs/`. PDFs are rewritten losslessly (pikepdf) and
+`.zip`/`.docx`/`.xlsx` files re-deflated; the result is kept as `<name>.gz`
+when that is smaller and the original removed. Database rows keep the
+original file name; the app serves the `.gz` with `Content-Encoding: gzip`.
+
+New uploads through the website are archived automatically. The import
+scripts above (`migrate_results.py`, `migrate_admin_documents.py`, …) still
+copy plain files, so re-run this script after an import. It is idempotent.
+
+```bash
+uv run python scripts/archive_stored_documents.py --dry-run   # Report savings only
+uv run python scripts/archive_stored_documents.py             # Apply
+just archive-documents --root data/uploads/results            # One directory
+```
+
+Back up `data/` before the first run: originals are removed once each
+archive has been verified.
+
+---
+
 ## Support Modules
 
 ### `_import_logger.py`

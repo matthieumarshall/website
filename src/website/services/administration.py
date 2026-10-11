@@ -9,6 +9,7 @@ from website.errors import InvalidRequestError
 from website.models import AdministrationSection
 from website.models.forms import AdministrationSectionForm
 from website.services._common import found
+from website.services.compression import shrink_document
 from website.services.uploads import FileStore, UploadedFile
 
 _logger = logging.getLogger(__name__)
@@ -89,7 +90,9 @@ class AdministrationService:
         name = display_name.strip()
         if not name:
             raise InvalidRequestError("Display name is required.")
-        filename = self._documents.save(upload, subdirectory=section.slug)
+        filename = self._documents.save_bytes(
+            shrink_document(upload.data, suffix), suffix, subdirectory=section.slug
+        )
         repository.create_administration_document(
             self._db,
             section_id=section_id,

@@ -7,6 +7,12 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict
 
 from website.errors import InvalidRequestError, PayloadTooLargeError
+from website.services.archive import (
+    archived_path,
+    remove_stored,
+    stored_file,
+    write_archived,
+)
 
 _MB = 1024 * 1024
 IMAGE_CONTENT_TYPES = frozenset({"image/jpeg", "image/png", "image/gif", "image/webp"})
@@ -40,6 +46,8 @@ class UploadPolicy(BaseModel):
     content_types: frozenset[str] | None = None
     extensions: tuple[str, ...] | None = None
     default_suffix: str = ""
+    # Gzip files at rest (as ``<name>.gz``) when that makes them smaller.
+    archive: bool = False
     too_large_message: str
     bad_type_message: str
 
@@ -73,12 +81,14 @@ IMAGE_POLICY = UploadPolicy(
 DOCUMENT_POLICY = UploadPolicy(
     max_bytes=MAX_DOCUMENT_BYTES,
     extensions=DOCUMENT_EXTENSIONS,
+    archive=True,
     too_large_message="File exceeds 20 MB limit",
     bad_type_message="Unsupported file type",
 )
 FIXTURE_DOC_POLICY = UploadPolicy(
     max_bytes=MAX_FIXTURE_DOC_BYTES,
     extensions=FIXTURE_DOC_EXTENSIONS,
+    archive=True,
     too_large_message="File exceeds 10 MB limit",
     bad_type_message="Only PDF, JPEG or PNG files are accepted",
 )
@@ -111,28 +121,40 @@ class FileStore:
             InvalidRequestError: If the type is not allowed.
             PayloadTooLargeError: If the file is too large.
         """
-        filename = f"{uuid.uuid4().hex}{self.check(upload)}"
-        target_dir = self.directory / subdirectory
-        target_dir.mkdir(parents=True, exist_ok=True)
-        (target_dir / filename).write_bytes(upload.data)
-        return filename
+        return self.save_bytes(upload.data, self.check(upload), subdirectory)
 
     def save_bytes(self, data: bytes, suffix: str, subdirectory: str = "") -> str:
-        """Write already-validated *data*, returning its stored filename."""
+        """Write already-validated *data*, returning its stored filename.
+
+        The returned name is the logical one even when the file is archived.
+        """
         filename = f"{uuid.uuid4().hex}{suffix}"
         target_dir = self.directory / subdirectory
         target_dir.mkdir(parents=True, exist_ok=True)
-        (target_dir / filename).write_bytes(data)
+        if self.policy.archive:
+            write_archived(target_dir / filename, data)
+        else:
+            (target_dir / filename).write_bytes(data)
         return filename
 
     def copy(self, filename: str, subdirectory: str = "") -> str:
-        """Duplicate a stored file under a new random name and return that name."""
+        """Duplicate a stored file under a new random name and return that name.
+
+        Raises:
+            FileNotFoundError: If the file is not stored.
+        """
         suffix = Path(filename).suffix
         new_name = f"{uuid.uuid4().hex}{suffix}"
         directory = self.directory / subdirectory
-        shutil.copyfile(directory / filename, directory / new_name)
+        source = stored_file(directory / filename)
+        if source is None:
+            raise FileNotFoundError(directory / filename)
+        target = directory / new_name
+        if source.name != filename:
+            target = archived_path(target)
+        shutil.copyfile(source, target)
         return new_name
 
     def delete(self, filename: str, subdirectory: str = "") -> None:
-        """Remove a stored file if it exists."""
-        (self.directory / subdirectory / filename).unlink(missing_ok=True)
+        """Remove a stored file (and its archive) if it exists."""
+        remove_stored(self.directory / subdirectory / filename)

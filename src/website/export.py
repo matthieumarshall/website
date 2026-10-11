@@ -1,13 +1,14 @@
-"""Helpers for building CSV and PDF exports of race results."""
+"""Helpers for building CSV and PDF exports of race results and standings."""
 
 import csv
 import io
 import re
+from collections.abc import Sequence
 from pathlib import Path
 
 from fpdf import FPDF, FontFace
 
-from website.models import Result
+from website.models import Fixture, IndividualStanding, Result, TeamStanding
 
 # Brand colours matching website CSS tokens
 _PRIMARY = (31, 58, 95)  # --brand-primary  #1f3a5f
@@ -144,6 +145,122 @@ def build_pdf(
 
     filename = f"{_safe_filename(race_name)}_{_safe_filename(fixture_title)}.pdf"
     raw = pdf.output()
+    return bytes(raw) if raw is not None else b"", filename
+
+
+# Landscape A4 usable width, and fixed widths of the non-round standings columns.
+_PAGE_WIDTH = 277
+_STANDINGS_FIXED_WIDTHS = (12, 60, 55, 18, 12)  # Pos, Name/Team, Club, Total, Rds
+_MAX_ROUND_WIDTH = 16
+
+
+def _standings_table(
+    rows: Sequence[IndividualStanding | TeamStanding],
+    fixtures: Sequence[Fixture],
+    standings_type: str,
+) -> tuple[list[str], list[list[str]]]:
+    """Return the header and cell text of a standings table, as shown on the site."""
+    name_header = "Team" if standings_type == "team" else "Name"
+    rounds = [f"R{i}" for i in range(1, len(fixtures) + 1)]
+    header = ["Pos", name_header, "Club", *rounds, "Total", "Rds"]
+    body = []
+    for row in rows:
+        name = row.team_name if isinstance(row, TeamStanding) else row.athlete_name
+        scores = [str(row.scores_by_fixture.get(str(f.id), "")) for f in fixtures]
+        body.append(
+            [
+                str(row.position),
+                name,
+                row.club or "",
+                *scores,
+                str(row.total_score),
+                str(row.rounds_competed),
+            ]
+        )
+    return header, body
+
+
+def _standings_filename(
+    season_name: str, category: str, standings_type: str, extension: str
+) -> str:
+    parts = (season_name, category, standings_type)
+    return "_".join(_safe_filename(part) for part in parts) + extension
+
+
+def build_standings_csv(
+    rows: Sequence[IndividualStanding | TeamStanding],
+    fixtures: Sequence[Fixture],
+    season_name: str,
+    category: str,
+    standings_type: str,
+) -> tuple[str, str]:
+    """Return (csv_string, suggested_filename) for one standings category."""
+    header, body = _standings_table(rows, fixtures, standings_type)
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(header)
+    writer.writerows(body)
+    return buf.getvalue(), _standings_filename(
+        season_name, category, standings_type, ".csv"
+    )
+
+
+def build_standings_pdf(
+    rows: Sequence[IndividualStanding | TeamStanding],
+    fixtures: Sequence[Fixture],
+    season_name: str,
+    category: str,
+    standings_type: str,
+) -> tuple[bytes, str]:
+    """Return (pdf_bytes, suggested_filename) for one standings category."""
+    header, body = _standings_table(rows, fixtures, standings_type)
+    pos_w, name_w, club_w, total_w, rds_w = _STANDINGS_FIXED_WIDTHS
+    spare = _PAGE_WIDTH - sum(_STANDINGS_FIXED_WIDTHS)
+    round_w = min(_MAX_ROUND_WIDTH, spare / len(fixtures)) if fixtures else 0
+    widths = [pos_w, name_w, club_w, *([round_w] * len(fixtures)), total_w, rds_w]
+
+    pdf = FPDF(orientation="L", unit="mm", format="A4")
+    pdf.set_auto_page_break(auto=True, margin=10)
+    pdf.add_page()
+
+    kind = "Team" if standings_type == "team" else "Individual"
+    pdf.set_font("Helvetica", "B", 14)
+    pdf.set_text_color(*_PRIMARY)
+    pdf.cell(
+        0,
+        8,
+        f"{season_name} Standings - {category} ({kind})",
+        new_x="LMARGIN",
+        new_y="NEXT",
+    )
+    pdf.set_draw_color(*_ACCENT)
+    pdf.set_line_width(0.5)
+    x_left, y = pdf.get_x(), pdf.get_y()
+    pdf.line(x_left, y, x_left + _PAGE_WIDTH, y)
+    pdf.set_line_width(0.2)
+    pdf.set_draw_color(0, 0, 0)
+    pdf.ln(3)
+
+    row_height = 6
+    pdf.set_font("Helvetica", "B", 8)
+    pdf.set_fill_color(*_PRIMARY)
+    pdf.set_text_color(255, 255, 255)
+    for text, w in zip(header, widths, strict=True):
+        pdf.cell(w, row_height, text, border=1, fill=True, align="C")
+    pdf.ln()
+
+    pdf.set_font("Helvetica", size=8)
+    pdf.set_text_color(*_TEXT)
+    for i, values in enumerate(body):
+        pdf.set_fill_color(*(_BG if i % 2 == 1 else (255, 255, 255)))
+        for col, (val, w) in enumerate(zip(values, widths, strict=True)):
+            max_chars = max(1, int(w / 2))
+            align = "L" if col in (1, 2) else "C"
+            pdf.cell(w, row_height, val[:max_chars], border=1, fill=True, align=align)
+        pdf.ln()
+
+    raw = pdf.output()
+    filename = _standings_filename(season_name, category, standings_type, ".pdf")
     return bytes(raw) if raw is not None else b"", filename
 
 
