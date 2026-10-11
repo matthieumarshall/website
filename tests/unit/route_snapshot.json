@@ -60,6 +60,8 @@
   ["GET", "/rules-and-constitution/export/pdf"],
   ["GET", "/standings"],
   ["GET", "/standings/category-panel"],
+  ["GET", "/standings/export/csv"],
+  ["GET", "/standings/export/pdf"],
   ["GET", "/standings/table"],
   ["GET", "/winners"],
   ["GET", "/winners/overrides/{override_id}/inline-form"],

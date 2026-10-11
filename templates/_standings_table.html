@@ -1,6 +1,21 @@
 {% if not rows %}
 <p class="text-muted py-2">No standings data available for {{ category }}.</p>
 {% else %}
+{% set export_query = "season_id=" ~ season.id ~ "&category=" ~ (category | urlencode) ~ "&standings_type=" ~ (standings_type | urlencode) %}
+<div class="d-flex justify-content-end gap-2 mt-2">
+  <a
+    href="/standings/export/csv?{{ export_query }}"
+    class="btn btn-sm btn-outline-secondary"
+    download
+    aria-label="Export {{ category }} standings as CSV"
+  >↓ CSV</a>
+  <a
+    href="/standings/export/pdf?{{ export_query }}"
+    class="btn btn-sm btn-outline-secondary"
+    download
+    aria-label="Export {{ category }} standings as PDF"
+  >↓ PDF</a>
+</div>
 <div class="table-responsive mt-2" tabindex="0">
   <table class="table table-sm table-hover align-middle mb-0">
     <thead class="table-light">
