@@ -14,7 +14,9 @@ from website.repository._rows import fetch_all, fetch_count, fetch_one, require
 
 _FIXTURE_SELECT = (
     "SELECT id, season_id, title, date, location_name, address, timetable,"
-    " travel_instructions, created_at, latitude, longitude, what3words, source_pdf"
+    " travel_instructions, created_at, latitude, longitude, what3words, source_pdf,"
+    " tempo_results_url, auto_sync_enabled, auto_sync_until,"
+    " auto_sync_interval_minutes, last_synced_at, sync_status, sync_error"
     " FROM fixtures"
 )
 _IMAGE_SELECT = "SELECT id, fixture_id, filename, uploaded_at FROM fixture_images"
@@ -66,6 +68,7 @@ def create_fixture(  # noqa: PLR0913 — one parameter per fixture column
     latitude: float | None = None,
     longitude: float | None = None,
     what3words: str | None = None,
+    tempo_results_url: str | None = None,
 ) -> Fixture:
     """Insert a fixture and return it.
 
@@ -81,8 +84,8 @@ def create_fixture(  # noqa: PLR0913 — one parameter per fixture column
     db.execute(
         "INSERT INTO fixtures"
         " (season_id, title, date, location_name, address, timetable,"
-        " travel_instructions, latitude, longitude, what3words)"
-        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        " travel_instructions, latitude, longitude, what3words, tempo_results_url)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
             season_id,
             title,
@@ -94,6 +97,7 @@ def create_fixture(  # noqa: PLR0913 — one parameter per fixture column
             latitude,
             longitude,
             what3words,
+            tempo_results_url,
         ],
     )
     fixture = fetch_one(
@@ -117,12 +121,13 @@ def update_fixture(  # noqa: PLR0913 — one parameter per fixture column
     latitude: float | None = None,
     longitude: float | None = None,
     what3words: str | None = None,
+    tempo_results_url: str | None = None,
 ) -> Fixture | None:
     """Update a fixture and return it, or None if it does not exist."""
     db.execute(
         "UPDATE fixtures SET title = ?, date = ?, location_name = ?, address = ?,"
         " timetable = ?, travel_instructions = ?, latitude = ?, longitude = ?,"
-        " what3words = ? WHERE id = ?",
+        " what3words = ?, tempo_results_url = ? WHERE id = ?",
         [
             title,
             date,
@@ -133,10 +138,67 @@ def update_fixture(  # noqa: PLR0913 — one parameter per fixture column
             latitude,
             longitude,
             what3words,
+            tempo_results_url,
             fixture_id,
         ],
     )
     return get_fixture_by_id(db, fixture_id)
+
+
+def update_fixture_sync_settings(
+    db: Connection,
+    fixture_id: int,
+    tempo_results_url: str | None,
+    auto_sync_enabled: bool,
+    auto_sync_until: dt.datetime | None,
+    auto_sync_interval_minutes: int = 15,
+) -> Fixture | None:
+    """Update external sync configuration for a fixture."""
+    db.execute(
+        "UPDATE fixtures SET tempo_results_url = ?, auto_sync_enabled = ?,"
+        " auto_sync_until = ?, auto_sync_interval_minutes = ? WHERE id = ?",
+        [
+            tempo_results_url,
+            auto_sync_enabled,
+            auto_sync_until,
+            auto_sync_interval_minutes,
+            fixture_id,
+        ],
+    )
+    return get_fixture_by_id(db, fixture_id)
+
+
+def update_fixture_sync_status(
+    db: Connection,
+    fixture_id: int,
+    sync_status: str,
+    sync_error: str | None = None,
+    last_synced_at: dt.datetime | None = None,
+) -> Fixture | None:
+    """Update sync status and optional error/timestamp for a fixture."""
+    if last_synced_at is not None:
+        db.execute(
+            "UPDATE fixtures SET sync_status = ?, sync_error = ?, last_synced_at = ?"
+            " WHERE id = ?",
+            [sync_status, sync_error, last_synced_at, fixture_id],
+        )
+    else:
+        db.execute(
+            "UPDATE fixtures SET sync_status = ?, sync_error = ? WHERE id = ?",
+            [sync_status, sync_error, fixture_id],
+        )
+    return get_fixture_by_id(db, fixture_id)
+
+
+def list_fixtures_needing_sync(db: Connection) -> list[Fixture]:
+    """Return fixtures with active auto-sync."""
+    return fetch_all(
+        db,
+        Fixture,
+        f"{_FIXTURE_SELECT} WHERE auto_sync_enabled = true"
+        " AND tempo_results_url IS NOT NULL",
+        [],
+    )
 
 
 def delete_fixture(db: Connection, fixture_id: int) -> bool:

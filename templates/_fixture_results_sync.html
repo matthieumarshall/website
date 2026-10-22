@@ -1,0 +1,256 @@
+{# _fixture_results_sync.html — Staff results sync panel with on-demand sync, auto-sync settings, and CSV fallback. #}
+{% set _is_staff = current_user and current_user.role in (UserRole.admin.value, UserRole.content_creator.value) %}
+
+{% if fixture and _is_staff %}
+<div id="fixture-sync-panel-{{ fixture.id }}" class="card mt-3 border-secondary-subtle">
+  <div class="card-header bg-light d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div class="d-flex align-items-center gap-2">
+      <h3 class="h6 mb-0 fw-bold">Race Results Integration</h3>
+      {% if fixture.sync_status == 'success' %}
+        <span class="badge bg-success">Synced</span>
+      {% elif fixture.sync_status == 'error' %}
+        <span class="badge bg-danger">Sync Error</span>
+      {% elif fixture.sync_status == 'pending' or fixture.sync_status == 'syncing' %}
+        <span class="badge bg-warning text-dark">Syncing</span>
+      {% else %}
+        <span class="badge bg-secondary">Not Synced</span>
+      {% endif %}
+
+      {% if fixture.auto_sync_enabled %}
+        <span class="badge bg-info text-dark">Auto-Sync On</span>
+      {% endif %}
+    </div>
+
+    {# Sync Now button #}
+    <form
+      method="post"
+      action="/fixtures/{{ fixture.id }}/sync"
+      hx-post="/fixtures/{{ fixture.id }}/sync"
+      hx-target="#fixture-sync-panel-{{ fixture.id }}"
+      hx-swap="outerHTML"
+      hx-indicator="#sync-spinner-{{ fixture.id }}"
+      class="d-inline"
+    >
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button
+        type="submit"
+        class="btn btn-sm btn-primary d-flex align-items-center gap-1"
+        {% if not fixture.tempo_results_url %}disabled aria-disabled="true" title="Configure a results URL first"{% endif %}
+      >
+        <span id="sync-spinner-{{ fixture.id }}" class="spinner-border spinner-border-sm htmx-indicator" role="status" aria-hidden="true"></span>
+        <span>Fetch Results Now</span>
+      </button>
+    </form>
+  </div>
+
+  <div class="card-body">
+    {% if sync_summary %}
+      {% if sync_summary.success %}
+        <div class="alert alert-success alert-dismissible fade show py-2" role="alert">
+          <strong>Sync Successful:</strong> Imported {{ sync_summary.finishers_synced }} finishers across {{ sync_summary.races_synced }} races
+          {% if sync_summary.races %}({{ sync_summary.races | join(', ') }}){% endif %}. Standings updated.
+        </div>
+      {% else %}
+        <div class="alert alert-danger py-2" role="alert">
+          <strong>Sync Failed:</strong> {{ sync_summary.error }}
+          <div class="small mt-1">If Cloudflare or network blocks automated requests, please use the <strong>Upload Results CSV</strong> fallback below.</div>
+        </div>
+      {% endif %}
+    {% elif settings_updated %}
+      <div class="alert alert-success py-2 mb-3" role="alert">
+        Sync configuration saved successfully.
+      </div>
+    {% elif fixture.sync_status == 'error' and fixture.sync_error %}
+      <div class="alert alert-warning py-2 mb-3" role="alert">
+        <strong>Previous sync error:</strong> {{ fixture.sync_error }}
+        <div class="small mt-1">You can trigger a re-sync or upload results via CSV below.</div>
+      </div>
+    {% endif %}
+
+    <dl class="row mb-3 small">
+      <dt class="col-sm-4 text-muted">Results Page URL</dt>
+      <dd class="col-sm-8 mb-1">
+        {% if fixture.tempo_results_url %}
+          <a href="{{ fixture.tempo_results_url }}" target="_blank" rel="noopener noreferrer" class="text-break">{{ fixture.tempo_results_url }}</a>
+        {% else %}
+          <span class="text-muted fst-italic">None configured</span>
+        {% endif %}
+      </dd>
+
+      <dt class="col-sm-4 text-muted">Last Synced</dt>
+      <dd class="col-sm-8 mb-1">
+        {{ fixture.last_synced_at.strftime('%d %b %Y %H:%M UTC') if fixture.last_synced_at else 'Never' }}
+      </dd>
+
+      <dt class="col-sm-4 text-muted">Auto-Sync Window</dt>
+      <dd class="col-sm-8 mb-0">
+        {% if fixture.auto_sync_enabled and fixture.auto_sync_until %}
+          Active until {{ fixture.auto_sync_until.strftime('%d %b %Y %H:%M UTC') }} (every {{ fixture.auto_sync_interval_minutes }}m)
+        {% elif fixture.auto_sync_enabled %}
+          Active (every {{ fixture.auto_sync_interval_minutes }}m)
+        {% else %}
+          <span class="text-muted">Disabled</span>
+        {% endif %}
+      </dd>
+    </dl>
+
+    {# Collapsible settings and manual upload sections #}
+    <div class="accordion" id="sync-accordion-{{ fixture.id }}">
+      {# Configuration Panel #}
+      <div class="accordion-item">
+        <h4 class="accordion-header" id="heading-settings-{{ fixture.id }}">
+          <button
+            class="accordion-button collapsed py-2"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#collapse-settings-{{ fixture.id }}"
+            aria-expanded="false"
+            aria-controls="collapse-settings-{{ fixture.id }}"
+          >
+            Auto-Sync &amp; URL Settings
+          </button>
+        </h4>
+        <div
+          id="collapse-settings-{{ fixture.id }}"
+          class="accordion-collapse collapse"
+          aria-labelledby="heading-settings-{{ fixture.id }}"
+          data-bs-parent="#sync-accordion-{{ fixture.id }}"
+        >
+          <div class="accordion-body">
+            <form
+              method="post"
+              action="/fixtures/{{ fixture.id }}/sync-settings"
+              hx-post="/fixtures/{{ fixture.id }}/sync-settings"
+              hx-target="#fixture-sync-panel-{{ fixture.id }}"
+              hx-swap="outerHTML"
+            >
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+              <div class="mb-3">
+                <label for="sync-url-{{ fixture.id }}" class="form-label fw-semibold">Tempo Events / RaceTec Results URL</label>
+                <input
+                  type="url"
+                  id="sync-url-{{ fixture.id }}"
+                  name="tempo_results_url"
+                  class="form-control form-control-sm"
+                  value="{{ fixture.tempo_results_url or '' }}"
+                  placeholder="https://www.racetecresults.com/results.aspx?CId=16418&RId=1006"
+                >
+                <div class="form-text">Set this in advance before race day.</div>
+              </div>
+
+              <div class="form-check form-switch mb-3">
+                <input
+                  type="checkbox"
+                  class="form-check-input"
+                  id="sync-auto-enabled-{{ fixture.id }}"
+                  name="auto_sync_enabled"
+                  value="true"
+                  {% if fixture.auto_sync_enabled %}checked{% endif %}
+                >
+                <label class="form-check-label fw-semibold" for="sync-auto-enabled-{{ fixture.id }}">Enable automated polling</label>
+              </div>
+
+              <div class="row g-2 mb-3">
+                <div class="col-sm-6">
+                  <label for="sync-duration-{{ fixture.id }}" class="form-label">Active Duration (hours, max 24)</label>
+                  <input
+                    type="number"
+                    id="sync-duration-{{ fixture.id }}"
+                    name="auto_sync_hours"
+                    class="form-control form-control-sm"
+                    min="1"
+                    max="24"
+                    value="24"
+                  >
+                </div>
+                <div class="col-sm-6">
+                  <label for="sync-interval-{{ fixture.id }}" class="form-label">Polling Interval</label>
+                  <select
+                    id="sync-interval-{{ fixture.id }}"
+                    name="auto_sync_interval_minutes"
+                    class="form-select form-select-sm"
+                  >
+                    <option value="5" {% if fixture.auto_sync_interval_minutes == 5 %}selected{% endif %}>Every 5 minutes</option>
+                    <option value="10" {% if fixture.auto_sync_interval_minutes == 10 %}selected{% endif %}>Every 10 minutes</option>
+                    <option value="15" {% if fixture.auto_sync_interval_minutes == 15 %}selected{% endif %}>Every 15 minutes</option>
+                    <option value="30" {% if fixture.auto_sync_interval_minutes == 30 %}selected{% endif %}>Every 30 minutes</option>
+                    <option value="60" {% if fixture.auto_sync_interval_minutes == 60 %}selected{% endif %}>Every 60 minutes</option>
+                  </select>
+                </div>
+              </div>
+
+              <button type="submit" class="btn btn-sm btn-outline-primary">Save Settings</button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      {# Manual CSV Upload Fallback Panel #}
+      <div class="accordion-item">
+        <h4 class="accordion-header" id="heading-csv-{{ fixture.id }}">
+          <button
+            class="accordion-button collapsed py-2"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#collapse-csv-{{ fixture.id }}"
+            aria-expanded="false"
+            aria-controls="collapse-csv-{{ fixture.id }}"
+          >
+            Manual CSV Upload (Fallback)
+          </button>
+        </h4>
+        <div
+          id="collapse-csv-{{ fixture.id }}"
+          class="accordion-collapse collapse"
+          aria-labelledby="heading-csv-{{ fixture.id }}"
+          data-bs-parent="#sync-accordion-{{ fixture.id }}"
+        >
+          <div class="accordion-body">
+            <p class="small text-muted mb-3">
+              If automated scraping is blocked by Cloudflare anti-bot verification or if you have exported results directly from Tempo Events, upload the CSV here.
+            </p>
+            <form
+              method="post"
+              action="/fixtures/{{ fixture.id }}/upload-results-csv"
+              enctype="multipart/form-data"
+              hx-post="/fixtures/{{ fixture.id }}/upload-results-csv"
+              hx-target="#fixture-sync-panel-{{ fixture.id }}"
+              hx-swap="outerHTML"
+              hx-encoding="multipart/form-data"
+            >
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+              <div class="mb-2">
+                <label for="csv-race-name-{{ fixture.id }}" class="form-label">Race Name</label>
+                <input
+                  type="text"
+                  id="csv-race-name-{{ fixture.id }}"
+                  name="race_name"
+                  class="form-control form-control-sm"
+                  placeholder="e.g. Senior Men's Race or Under 11 Girls &amp; Boys Race"
+                  required
+                >
+              </div>
+
+              <div class="mb-3">
+                <label for="csv-file-{{ fixture.id }}" class="form-label">CSV File</label>
+                <input
+                  type="file"
+                  id="csv-file-{{ fixture.id }}"
+                  name="csv_file"
+                  class="form-control form-control-sm"
+                  accept=".csv,text/csv"
+                  required
+                >
+              </div>
+
+              <button type="submit" class="btn btn-sm btn-outline-success">Upload and Import Race</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}

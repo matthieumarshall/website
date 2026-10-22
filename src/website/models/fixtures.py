@@ -76,6 +76,13 @@ class Fixture(BaseModel):
     # Path relative to data/uploads/ of the original results PDF, populated by
     # the migration script.  None when no source document is available.
     source_pdf: str | None = None
+    tempo_results_url: str | None = None
+    auto_sync_enabled: bool = False
+    auto_sync_until: datetime | None = None
+    auto_sync_interval_minutes: int = 15
+    last_synced_at: datetime | None = None
+    sync_status: str = "idle"
+    sync_error: str | None = None
 
     @field_validator("timetable", mode="before")
     @classmethod
@@ -140,6 +147,7 @@ class FixtureCreate(BaseModel):
     what3words_word1: str = ""
     what3words_word2: str = ""
     what3words_word3: str = ""
+    tempo_results_url: str | None = None
 
     @field_validator(
         "what3words_word1", "what3words_word2", "what3words_word3", mode="before"

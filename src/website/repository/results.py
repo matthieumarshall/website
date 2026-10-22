@@ -50,6 +50,51 @@ def create_race(
     return require(race, "race")
 
 
+def get_race_by_name(db: Connection, fixture_id: int, name: str) -> Race | None:
+    """Return the race for *fixture_id* matching *name* (case-insensitive), or None."""
+    return fetch_one(
+        db,
+        Race,
+        f"{_RACE_SELECT} WHERE fixture_id = ? AND LOWER(name) = LOWER(?)",
+        [fixture_id, name.strip()],
+    )
+
+
+def delete_results_for_race(db: Connection, race_id: int) -> None:
+    """Delete all results for *race_id*."""
+    db.execute("DELETE FROM results WHERE race_id = ?", [race_id])
+
+
+def create_results_batch(
+    db: Connection,
+    rows: list[
+        tuple[
+            int,
+            int,
+            int | None,
+            str,
+            str,
+            str,
+            int | None,
+            str,
+            int | None,
+            str | None,
+        ]
+    ],
+) -> int:
+    """Bulk-insert results rows into the database."""
+    if not rows:
+        return 0
+    db.executemany(
+        "INSERT INTO results"
+        " (race_id, position, race_number, athlete_name, time, category,"
+        " category_position, gender, gender_position, club)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        rows,
+    )
+    return len(rows)
+
+
 def list_results_for_race(db: Connection, race_id: int) -> list[Result]:
     """Return a race's results in finishing order."""
     return fetch_all(

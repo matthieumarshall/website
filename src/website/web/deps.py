@@ -31,6 +31,7 @@ from website.services.fixture_documents import FixtureDocumentService
 from website.services.fixtures import FixtureService
 from website.services.links import LinkService
 from website.services.results import ResultsService
+from website.services.results_sync import ResultsSyncService
 from website.services.standings import StandingsService
 from website.services.uploads import (
     DOCUMENT_POLICY,
@@ -203,6 +204,11 @@ def get_results_service(db: DbDep) -> ResultsService:
     return ResultsService(db)
 
 
+def get_results_sync_service(db: DbDep) -> ResultsSyncService:
+    """Provide a :class:`ResultsSyncService`."""
+    return ResultsSyncService(db)
+
+
 def get_standings_service(db: DbDep) -> StandingsService:
     """Provide a :class:`StandingsService`."""
     return StandingsService(db)
@@ -227,6 +233,7 @@ Links = Annotated[LinkService, Depends(get_link_service)]
 Pages = Annotated[PageService, Depends(get_page_service)]
 Posts = Annotated[PostService, Depends(get_post_service)]
 Results = Annotated[ResultsService, Depends(get_results_service)]
+ResultsSync = Annotated[ResultsSyncService, Depends(get_results_sync_service)]
 Standings = Annotated[StandingsService, Depends(get_standings_service)]
 Winners = Annotated[WinnerService, Depends(get_winner_service)]
 

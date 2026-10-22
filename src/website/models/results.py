@@ -42,3 +42,29 @@ class RaceWithResults(BaseModel):
 
     race: Race
     results: list[Result]
+
+
+class ParsedResult(BaseModel):
+    """An externally fetched or imported finisher result before DB persistence."""
+
+    model_config = ConfigDict(frozen=True)
+
+    position: int
+    race_number: int | None = None
+    athlete_name: str
+    time: str
+    category: str
+    category_position: int | None = None
+    gender: str = ""
+    gender_position: int | None = None
+    club: str | None = None
+
+
+class ParsedRaceWithResults(BaseModel):
+    """A race and its parsed finishers from an external sync or import."""
+
+    model_config = ConfigDict(frozen=True)
+
+    race_name: str
+    eid: int | None = None
+    results: list[ParsedResult]

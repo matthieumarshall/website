@@ -67,6 +67,9 @@
       {% include "_fixture_documents.html" %}
     </div>
 
+    {# Results synchronisation panel for staff #}
+    {% include "_fixture_results_sync.html" %}
+
     {% if current_user and current_user.role in (UserRole.admin.value, UserRole.content_creator.value) %}
     <div class="d-flex gap-2 mt-3 pt-3 border-top">
       <a

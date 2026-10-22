@@ -102,6 +102,7 @@ def _validated_fixture(form: FixtureForm) -> FixtureCreate:
                 "what3words_word1": form.what3words_word1,
                 "what3words_word2": form.what3words_word2,
                 "what3words_word3": form.what3words_word3,
+                "tempo_results_url": form.tempo_results_url.strip() or None,
             }
         )
     except PydanticValidationError as exc:
@@ -301,6 +302,7 @@ class FixtureService:
                 latitude=latitude,
                 longitude=longitude,
                 what3words=what3words,
+                tempo_results_url=fixture.tempo_results_url,
             )
         except ValueError as exc:
             raise ConflictError(str(exc)) from exc
@@ -331,6 +333,7 @@ class FixtureService:
             latitude=latitude,
             longitude=longitude,
             what3words=what3words,
+            tempo_results_url=fixture.tempo_results_url,
         )
         return found(updated, "Fixture not found")
 
