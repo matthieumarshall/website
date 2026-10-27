@@ -144,6 +144,9 @@ jobs:
              echo "--- Syncing production dependencies ---"
              uv sync --locked --no-dev
 
+             echo "--- Installing Chromium for results scraping ---"
+             uv run playwright install --with-deps chromium
+
              echo "--- Stopping service (releases DuckDB file lock) ---"
              sudo systemctl stop oxcross
 

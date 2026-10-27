@@ -1,11 +1,13 @@
 """Unit tests for ResultsSyncService and category normalisation."""
 
 from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock, patch
 
 import duckdb
 import pytest
 
 from website import repository
+from website.integrations.racetec import RaceTecScrapeError
 from website.models import ParsedRaceWithResults, ParsedResult
 from website.services.results_sync import (
     MAX_AUTO_SYNC_HOURS,
@@ -179,6 +181,48 @@ def test_ingest_parsed_races_and_standings(
     assert results_after[0].athlete_name == "Alex Bampton"
 
 
+def test_ingest_empty_race_results_preserves_existing_results(
+    test_db: duckdb.DuckDBPyConnection,
+) -> None:
+    season = repository.create_season(test_db, "2025-2026")
+    fixture = repository.create_fixture(
+        test_db,
+        season_id=season.id,
+        title="Round 5",
+        date="2026-03-01",
+        location_name="Henley Showground",
+        address="Henley",
+        timetable=[],
+        travel_instructions="",
+    )
+    service = ResultsSyncService(test_db)
+    existing_race = ParsedRaceWithResults(
+        race_name="Senior Men's Race",
+        results=[
+            ParsedResult(
+                position=1,
+                athlete_name="Ben Cole",
+                time="00:27:10",
+                category="SM",
+            )
+        ],
+    )
+    assert service.ingest_parsed_races(fixture, [existing_race]).success
+
+    empty_update = service.ingest_parsed_races(
+        fixture,
+        [ParsedRaceWithResults(race_name="Senior Men's Race", results=[])],
+    )
+
+    assert empty_update.success is False
+    assert "existing results were not changed" in (empty_update.error or "")
+    race = repository.get_race_by_name(test_db, fixture.id, "Senior Men's Race")
+    assert race is not None
+    results = repository.list_results_for_race(test_db, race.id)
+    assert len(results) == 1
+    assert results[0].athlete_name == "Ben Cole"
+
+
 def test_ingest_csv_fallback(test_db: duckdb.DuckDBPyConnection) -> None:
     season = repository.create_season(test_db, "2025-2026")
     fixture = repository.create_fixture(
@@ -248,3 +292,46 @@ async def test_check_and_run_due_syncs_expiration(
     reloaded = repository.get_fixture_by_id(test_db, fixture.id)
     assert reloaded is not None
     assert reloaded.auto_sync_enabled is False
+
+
+@pytest.mark.asyncio
+async def test_failed_auto_sync_respects_configured_interval(
+    test_db: duckdb.DuckDBPyConnection,
+) -> None:
+    season = repository.create_season(test_db, "2025-2026")
+    fixture = repository.create_fixture(
+        test_db,
+        season_id=season.id,
+        title="Round 5",
+        date="2026-03-01",
+        location_name="Henley Showground",
+        address="Henley",
+        timetable=[],
+        travel_instructions="",
+    )
+    repository.update_fixture_sync_settings(
+        test_db,
+        fixture_id=fixture.id,
+        tempo_results_url="https://www.racetecresults.com/results.aspx?CId=1&RId=2",
+        auto_sync_enabled=True,
+        auto_sync_until=datetime.now(timezone.utc) + timedelta(hours=1),
+        auto_sync_interval_minutes=15,
+    )
+    service = ResultsSyncService(test_db)
+
+    with patch(
+        "website.services.results_sync.scrape_racetec_results",
+        new_callable=AsyncMock,
+        side_effect=RaceTecScrapeError("temporarily unavailable"),
+    ) as scrape:
+        first = await service.check_and_run_due_syncs()
+        second = await service.check_and_run_due_syncs()
+
+    assert len(first) == 1
+    assert first[0].success is False
+    assert second == []
+    assert scrape.await_count == 1
+    reloaded = repository.get_fixture_by_id(test_db, fixture.id)
+    assert reloaded is not None
+    assert reloaded.last_synced_at is None
+    assert reloaded.last_sync_attempt_at is not None

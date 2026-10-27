@@ -8,7 +8,7 @@ import logging
 import re
 from urllib.parse import parse_qs, urljoin, urlparse
 
-from playwright.async_api import Page, async_playwright
+from playwright.async_api import Page, Route, async_playwright
 
 from website.models.results import ParsedRaceWithResults, ParsedResult
 
@@ -41,6 +41,7 @@ _CHIP_RE = re.compile(
 )
 _PAGER_TOTAL_RE = re.compile(r"page\s+\d+\s+of\s+(\d+)", re.IGNORECASE)
 _PAGENO_PARAM_RE = re.compile(r"PageNo=(\d+)", re.IGNORECASE)
+_ALLOWED_RACETEC_HOSTS = frozenset({"racetecresults.com", "www.racetecresults.com"})
 
 
 _MIN_FINISHER_CELLS = 10
@@ -59,6 +60,30 @@ _CSV_COL_MAPPINGS: list[tuple[tuple[str, ...], tuple[str, ...], str]] = [
 
 class RaceTecScrapeError(Exception):
     """Raised when fetching or scraping RaceTec results fails."""
+
+
+def _is_allowed_racetec_url(url: str) -> bool:
+    """Return whether a URL targets the HTTPS RaceTec results service."""
+    try:
+        parsed = urlparse(url)
+        port = parsed.port
+    except ValueError:
+        return False
+    return (
+        parsed.scheme == "https"
+        and parsed.hostname in _ALLOWED_RACETEC_HOSTS
+        and parsed.username is None
+        and parsed.password is None
+        and port in (None, 443)
+    )
+
+
+async def _guard_racetec_request(route: Route) -> None:
+    """Prevent browser requests and redirects to hosts outside RaceTec Results."""
+    if _is_allowed_racetec_url(route.request.url):
+        await route.continue_()
+    else:
+        await route.abort()
 
 
 def _clean_text(raw: str) -> str:
@@ -353,6 +378,11 @@ async def scrape_racetec_results(
     Raises:
         RaceTecScrapeError: If scraping fails or is blocked.
     """
+    if not _is_allowed_racetec_url(url):
+        raise RaceTecScrapeError(
+            "Invalid RaceTec URL: use an HTTPS URL on racetecresults.com"
+        )
+
     parsed = urlparse(url)
     qs = parse_qs(parsed.query)
     c_id = qs.get("CId", [""])[0]
@@ -378,6 +408,7 @@ async def scrape_racetec_results(
                     "Chrome/124.0.0.0 Safari/537.36"
                 )
             )
+            await context.route("**/*", _guard_racetec_request)
             page = await context.new_page()
 
             # Navigate to the main results page
@@ -406,6 +437,11 @@ async def scrape_racetec_results(
                 races = [(eid or 1, title or "Race Results", url)]
 
             for eid, race_name, race_url in races:
+                if not _is_allowed_racetec_url(race_url):
+                    raise RaceTecScrapeError(
+                        "RaceTec page linked to a results URL outside "
+                        "racetecresults.com"
+                    )
                 _logger.info("Scraping race %s (%s)", race_name, race_url)
                 finishers = await _scrape_single_race(page, race_url)
                 race_results.append(

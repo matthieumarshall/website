@@ -16,7 +16,8 @@ _FIXTURE_SELECT = (
     "SELECT id, season_id, title, date, location_name, address, timetable,"
     " travel_instructions, created_at, latitude, longitude, what3words, source_pdf,"
     " tempo_results_url, auto_sync_enabled, auto_sync_until,"
-    " auto_sync_interval_minutes, last_synced_at, sync_status, sync_error"
+    " auto_sync_interval_minutes, last_synced_at, last_sync_attempt_at,"
+    " sync_status, sync_error"
     " FROM fixtures"
 )
 _IMAGE_SELECT = "SELECT id, fixture_id, filename, uploaded_at FROM fixture_images"
@@ -174,19 +175,15 @@ def update_fixture_sync_status(
     sync_status: str,
     sync_error: str | None = None,
     last_synced_at: dt.datetime | None = None,
+    last_sync_attempt_at: dt.datetime | None = None,
 ) -> Fixture | None:
-    """Update sync status and optional error/timestamp for a fixture."""
-    if last_synced_at is not None:
-        db.execute(
-            "UPDATE fixtures SET sync_status = ?, sync_error = ?, last_synced_at = ?"
-            " WHERE id = ?",
-            [sync_status, sync_error, last_synced_at, fixture_id],
-        )
-    else:
-        db.execute(
-            "UPDATE fixtures SET sync_status = ?, sync_error = ? WHERE id = ?",
-            [sync_status, sync_error, fixture_id],
-        )
+    """Update status and optional attempt/success timestamps for a fixture."""
+    db.execute(
+        "UPDATE fixtures SET sync_status = ?, sync_error = ?,"
+        " last_synced_at = COALESCE(?, last_synced_at),"
+        " last_sync_attempt_at = COALESCE(?, last_sync_attempt_at) WHERE id = ?",
+        [sync_status, sync_error, last_synced_at, last_sync_attempt_at, fixture_id],
+    )
     return get_fixture_by_id(db, fixture_id)
 
 

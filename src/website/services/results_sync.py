@@ -168,13 +168,38 @@ class ResultsSyncService:
         now = datetime.now(timezone.utc)
         until_utc = _as_utc(fixture.auto_sync_until)
         auto_sync_expired = until_utc is not None and now > until_utc
+        repository.update_fixture_sync_status(
+            self._db,
+            fixture_id=fixture.id,
+            sync_status="syncing",
+            sync_error=None,
+            last_sync_attempt_at=now,
+        )
+
+        races_with_results = [race for race in parsed_races if race.results]
+        if not races_with_results:
+            error = "No finisher results were found; existing results were not changed."
+            repository.update_fixture_sync_status(
+                self._db,
+                fixture_id=fixture.id,
+                sync_status="error",
+                sync_error=error,
+            )
+            return SyncSummary(
+                fixture_id=fixture.id,
+                races_synced=0,
+                finishers_synced=0,
+                races=[],
+                success=False,
+                error=error,
+            )
 
         self._db.execute("BEGIN")
         try:
             total_finishers = 0
             race_names: list[str] = []
 
-            for pr in parsed_races:
+            for pr in races_with_results:
                 race = repository.get_race_by_name(self._db, fixture.id, pr.race_name)
                 if not race:
                     race = repository.create_race(
@@ -306,6 +331,14 @@ class ResultsSyncService:
         if not target_url:
             raise ValueError("No results URL provided or configured for this fixture")
 
+        repository.update_fixture_sync_status(
+            self._db,
+            fixture_id=fixture.id,
+            sync_status="syncing",
+            sync_error=None,
+            last_sync_attempt_at=datetime.now(timezone.utc),
+        )
+
         try:
             parsed_races = await scrape_racetec_results(target_url)
         except RaceTecScrapeError as exc:
@@ -347,10 +380,10 @@ class ResultsSyncService:
                 continue
 
             # Check interval
-            if fixture.last_synced_at is not None:
+            if fixture.last_sync_attempt_at is not None:
                 interval_secs = fixture.auto_sync_interval_minutes * 60
-                last_synced = _as_utc(fixture.last_synced_at)
-                elapsed = (now - last_synced).total_seconds() if last_synced else 0
+                last_attempt = _as_utc(fixture.last_sync_attempt_at)
+                elapsed = (now - last_attempt).total_seconds() if last_attempt else 0
                 if elapsed < interval_secs:
                     continue
 

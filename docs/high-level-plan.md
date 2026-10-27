@@ -114,7 +114,7 @@ Planned islands:
 - Add export to pdf and csv for standings too — **DONE** (CSV and PDF download buttons above each standings table, `/standings/export/csv` and `/standings/export/pdf`, columns match the on-screen table)
 
 ### 4.3 Live / External Data
-- Integrate results dynamically from Tempo Events API — *not started*
+- Integrate results dynamically from Tempo Events API — **DONE** (RaceTec scraper, on-demand sync, auto-polling, and CSV fallback)
 
 ---
 

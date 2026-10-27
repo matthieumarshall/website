@@ -87,11 +87,14 @@ just seed-user <username> <password> admin
 
 ---
 
-## 6. Install Playwright Browsers (for UI tests)
+## 6. Install Playwright Browsers (for UI tests and results sync)
 
 ```powershell
 uv run playwright install
 ```
+
+The results-sync scraper uses Chromium. Production deployment installs Chromium
+and its Linux dependencies automatically.
 
 ---
 

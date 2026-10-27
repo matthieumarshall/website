@@ -1,11 +1,18 @@
 """Tests for RaceTec Results / Tempo Events HTML and CSV parsing."""
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
 from website.integrations.racetec import (
+    RaceTecScrapeError,
+    _guard_racetec_request,
     parse_csv_results,
     parse_pager_total_pages,
     parse_races_from_html,
     parse_results_page_html,
     results_to_csv,
+    scrape_racetec_results,
 )
 from website.models.results import ParsedResult
 
@@ -72,6 +79,36 @@ _SAMPLE_PAGER_HTML = """
 </div>
 """
 
+_SINGLE_RACE_NAV_HTML = """
+<a class="nav-link" href="results.aspx?CId=1&amp;RId=2&amp;EId=1">
+  Senior Men's Race
+</a>
+"""
+
+
+def _mock_playwright(pages: list[str]) -> tuple[MagicMock, MagicMock]:
+    page = MagicMock()
+    page.goto = AsyncMock()
+    page.wait_for_timeout = AsyncMock()
+    page.content = AsyncMock(side_effect=pages)
+    page.title = AsyncMock(return_value="Race Results")
+
+    context = MagicMock()
+    context.new_page = AsyncMock(return_value=page)
+    context.route = AsyncMock()
+
+    browser = MagicMock()
+    browser.new_context = AsyncMock(return_value=context)
+    browser.close = AsyncMock()
+
+    playwright = MagicMock()
+    playwright.chromium.launch = AsyncMock(return_value=browser)
+
+    manager = MagicMock()
+    manager.__aenter__ = AsyncMock(return_value=playwright)
+    manager.__aexit__ = AsyncMock(return_value=None)
+    return manager, context
+
 
 def test_parse_races_from_html() -> None:
     races = parse_races_from_html(
@@ -95,6 +132,7 @@ def test_parse_races_from_html() -> None:
 def test_parse_pager_total_pages() -> None:
     assert parse_pager_total_pages(_SAMPLE_PAGER_HTML) == 5
     assert parse_pager_total_pages("<div>No pager</div>") == 1
+    assert parse_pager_total_pages('<a href="?PageNo=3">3</a>') == 3
 
 
 def test_parse_results_page_html() -> None:
@@ -160,3 +198,108 @@ def test_results_to_csv_and_parse_csv_roundtrip() -> None:
     assert len(reconstructed) == 2
     assert reconstructed[0] == original[0]
     assert reconstructed[1] == original[1]
+
+
+def test_parser_handles_unrecognized_and_malformed_rows() -> None:
+    assert (
+        parse_races_from_html(
+            '<a href="results.aspx?CId=1&amp;RId=2&amp;EId=1">Home</a>'
+        )
+        == []
+    )
+    assert parse_results_page_html("<table><tr><td>no results</td></tr></table>") == []
+    assert parse_csv_results("") == []
+    assert parse_csv_results("Position,Runner\nnot-a-number,") == []
+
+
+@pytest.mark.asyncio
+async def test_scrape_racetec_results_reads_races_and_results() -> None:
+    manager, context = _mock_playwright([_SINGLE_RACE_NAV_HTML, _SAMPLE_TABLE_HTML])
+    url = "https://www.racetecresults.com/results.aspx?CId=1&RId=2"
+
+    with patch("website.integrations.racetec.async_playwright", return_value=manager):
+        races = await scrape_racetec_results(url)
+
+    assert len(races) == 1
+    assert races[0].race_name == "Senior Men's Race"
+    assert len(races[0].results) == 3
+    context.route.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_scrape_racetec_results_raises_for_cloudflare_challenge() -> None:
+    manager, _ = _mock_playwright([_SINGLE_RACE_NAV_HTML])
+    page = manager.__aenter__.return_value.chromium.launch.return_value
+    page.new_context.return_value.new_page.return_value.title = AsyncMock(
+        side_effect=["Just a moment...", "Just a moment..."]
+    )
+
+    with (
+        patch("website.integrations.racetec.async_playwright", return_value=manager),
+        pytest.raises(RaceTecScrapeError, match="Cloudflare challenge"),
+    ):
+        await scrape_racetec_results(
+            "https://www.racetecresults.com/results.aspx?CId=1&RId=2"
+        )
+
+
+@pytest.mark.asyncio
+async def test_scrape_racetec_results_wraps_browser_errors() -> None:
+    manager, _ = _mock_playwright([])
+    page = manager.__aenter__.return_value.chromium.launch.return_value
+    page.new_context.return_value.new_page.return_value.goto = AsyncMock(
+        side_effect=RuntimeError("connection failed")
+    )
+
+    with (
+        patch("website.integrations.racetec.async_playwright", return_value=manager),
+        pytest.raises(RaceTecScrapeError, match="Failed to scrape"),
+    ):
+        await scrape_racetec_results(
+            "https://www.racetecresults.com/results.aspx?CId=1&RId=2"
+        )
+
+
+@pytest.mark.asyncio
+async def test_guard_racetec_request_blocks_external_hosts() -> None:
+    allowed_route = MagicMock()
+    allowed_route.request.url = (
+        "https://www.racetecresults.com/results.aspx?CId=1&RId=2"
+    )
+    allowed_route.continue_ = AsyncMock()
+    allowed_route.abort = AsyncMock()
+
+    blocked_route = MagicMock()
+    blocked_route.request.url = "http://127.0.0.1/admin"
+    blocked_route.continue_ = AsyncMock()
+    blocked_route.abort = AsyncMock()
+
+    await _guard_racetec_request(allowed_route)
+    await _guard_racetec_request(blocked_route)
+
+    allowed_route.continue_.assert_awaited_once()
+    allowed_route.abort.assert_not_awaited()
+    blocked_route.abort.assert_awaited_once()
+    blocked_route.continue_.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://www.racetecresults.com/results.aspx?CId=1&RId=2",
+        "https://127.0.0.1/results.aspx?CId=1&RId=2",
+        "https://example.com/results.aspx?CId=1&RId=2",
+        "https://user@www.racetecresults.com/results.aspx?CId=1&RId=2",
+        "https://www.racetecresults.com:8443/results.aspx?CId=1&RId=2",
+    ],
+)
+@pytest.mark.asyncio
+async def test_scrape_rejects_urls_outside_racetec(url: str) -> None:
+    with pytest.raises(RaceTecScrapeError, match="HTTPS URL"):
+        await scrape_racetec_results(url)
+
+
+@pytest.mark.asyncio
+async def test_scrape_rejects_racetec_url_without_event_ids() -> None:
+    with pytest.raises(RaceTecScrapeError, match="missing CId or RId"):
+        await scrape_racetec_results("https://www.racetecresults.com/results.aspx")

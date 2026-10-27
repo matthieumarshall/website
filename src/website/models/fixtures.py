@@ -81,6 +81,7 @@ class Fixture(BaseModel):
     auto_sync_until: datetime | None = None
     auto_sync_interval_minutes: int = 15
     last_synced_at: datetime | None = None
+    last_sync_attempt_at: datetime | None = None
     sync_status: str = "idle"
     sync_error: str | None = None
 
