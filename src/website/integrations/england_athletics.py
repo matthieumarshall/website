@@ -13,7 +13,7 @@ import os
 import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Protocol
 
@@ -205,7 +205,7 @@ def _ea_headers() -> httpx.Headers:
             raise ServiceUnavailableError(
                 f"Invalid {name}. Value cannot be encoded in an ISO-8859-1 HTTP header."
             )
-    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+    ts = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S")
     return httpx.Headers(
         [
             (b"X-TRAPI-CALLKEY", call_key.encode("latin-1")),

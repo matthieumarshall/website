@@ -13,7 +13,7 @@ extra-paths = ["tests/ui"]
 # (src/website); tests, scripts and the seed CLI keep a lighter baseline.
 # ---------------------------------------------------------------------------
 [tool.ruff]
-target-version = "py310"
+target-version = "py311"
 line-length = 88
 extend-exclude = [".specify", "specs"]
 
@@ -82,7 +82,7 @@ ban-relative-imports = "all"
 # mypy: strict typing for the application package, with the pydantic plugin.
 # ---------------------------------------------------------------------------
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 files = ["src/website"]
 mypy_path = "src"
 strict = true
@@ -140,7 +140,7 @@ forbidden_modules = ["website.integrations", "httpx", "stripe"]
 [project]
 name = "website"
 version = "0.1.0"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     # pyresults: standings calculation library.
     # For local development: pip install -e ../pyresults
@@ -158,7 +158,7 @@ dependencies = [
     "slowapi>=0.1.9",
     "fastapi-permissions>=0.2.7",
     "httpx>=0.28.1",
-    "fpdf2>=2.8.7",
+    "fpdf2>=2.8.8",
     "cryptography>=50.0.0",
     "stripe>=15.2.0",
     "weasyprint>=70.0",
@@ -167,7 +167,7 @@ dependencies = [
     "seaborn>=0.13.2",
     "matplotlib>=3.10.9",
     "pydantic>=2.13",
-    "pillow>=11.0",
+    "pillow>=13.0.0",
     "pikepdf>=9.0",
     "playwright>=1.58.0",
 ]

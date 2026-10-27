@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from pydantic import BaseModel, ConfigDict
 from pyresults import get_valid_category_codes
@@ -30,8 +30,8 @@ def _as_utc(dt_val: datetime | None) -> datetime | None:
     if dt_val is None:
         return None
     if dt_val.tzinfo is None:
-        return dt_val.astimezone(timezone.utc)
-    return dt_val.astimezone(timezone.utc)
+        return dt_val.astimezone(UTC)
+    return dt_val.astimezone(UTC)
 
 
 _CATEGORY_NAME_MAP: dict[str, str] = {
@@ -142,9 +142,7 @@ class ResultsSyncService:
         interval = max(5, min(auto_sync_interval_minutes, 1440))
 
         auto_sync_until = (
-            datetime.now(timezone.utc) + timedelta(hours=hours)
-            if auto_sync_enabled
-            else None
+            datetime.now(UTC) + timedelta(hours=hours) if auto_sync_enabled else None
         )
 
         updated = repository.update_fixture_sync_settings(
@@ -165,7 +163,7 @@ class ResultsSyncService:
         parsed_races: list[ParsedRaceWithResults],
     ) -> SyncSummary:
         """Persist parsed races and results in a transaction and update standings."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         until_utc = _as_utc(fixture.auto_sync_until)
         auto_sync_expired = until_utc is not None and now > until_utc
         repository.update_fixture_sync_status(
@@ -336,7 +334,7 @@ class ResultsSyncService:
             fixture_id=fixture.id,
             sync_status="syncing",
             sync_error=None,
-            last_sync_attempt_at=datetime.now(timezone.utc),
+            last_sync_attempt_at=datetime.now(UTC),
         )
 
         try:
@@ -363,7 +361,7 @@ class ResultsSyncService:
         """Poll and execute due synchronisations for all active fixtures."""
         fixtures = repository.list_fixtures_needing_sync(self._db)
         summaries: list[SyncSummary] = []
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         for fixture in fixtures:
             # Check expiration

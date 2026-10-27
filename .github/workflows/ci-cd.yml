@@ -18,7 +18,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.11"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
@@ -65,7 +65,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.11"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
@@ -109,9 +109,11 @@ jobs:
           # Note: PYSEC-2026-89 in markdown 3.10.2 has no newer release available yet.
           # This package is only used by the seed_rules CLI in the dev dependency group.
           # Note: PYSEC-2025-183 in pyjwt 2.12.1 is a disputed advisory with no fixed release.
-          # Note: PYSEC-2026-3481, PYSEC-2026-3482 and PYSEC-2026-3483 affect mcp 1.23.3,
-          # which is pinned by the current Semgrep release. The MCP server mode is not used
-          # by this CI job; revisit these suppressions when Semgrep removes the pin.
+          # Semgrep 1.182.1 pins mcp==1.29.0 and opentelemetry-api~=1.37.0.
+          # GHSA-84m7-p3x7-pcfv affects the MCP Streamable HTTP server, which this CLI job
+          # does not run. GHSA-xcq7-p3pf-p88h affects inbound trace-context parsing; this
+          # CLI job does not accept inbound trace-context headers. Remove these exceptions
+          # when Semgrep updates its pins.
           uv run pip-audit \
             -r "$audit_requirements" \
             --ignore CVE-2026-4539 \
@@ -119,9 +121,8 @@ jobs:
             --ignore GHSA-jp4c-xjxw-mgf9 \
             --ignore PYSEC-2026-89 \
             --ignore PYSEC-2025-183 \
-            --ignore PYSEC-2026-3481 \
-            --ignore PYSEC-2026-3482 \
-            --ignore PYSEC-2026-3483 || exit 1
+            --ignore GHSA-84m7-p3x7-pcfv \
+            --ignore GHSA-xcq7-p3pf-p88h || exit 1
 
       - name: gitleaks - Scan for secrets
         uses: gitleaks/gitleaks-action@v2
@@ -200,7 +201,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.11"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
@@ -269,7 +270,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.11"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6

@@ -11,7 +11,7 @@ Install the following tools before cloning the repo:
 | Tool | Install |
 |---|---|
 | **Git** | https://git-scm.com/downloads |
-| **Python 3.10+** | https://www.python.org/downloads/ |
+| **Python 3.11+** | https://www.python.org/downloads/ |
 | **uv** (Python package manager) | `winget install astral-sh.uv` or https://docs.astral.sh/uv/getting-started/installation/ |
 | **Node.js** (for Playwright / Quill) | https://nodejs.org/en/download (LTS) |
 | **Just** (task runner) | `winget install casey.just` or https://github.com/casey/just#packages |

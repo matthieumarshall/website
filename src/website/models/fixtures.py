@@ -2,7 +2,7 @@
 
 import json
 from datetime import date, datetime
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -107,7 +107,7 @@ class FixtureImage(BaseModel):
     uploaded_at: datetime
 
 
-class FixtureDocumentType(str, Enum):
+class FixtureDocumentType(StrEnum):
     """The compliance documents a fixture can carry."""
 
     event_licence = "event_licence"

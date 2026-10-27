@@ -1,6 +1,6 @@
 """Unit tests for ResultsSyncService and category normalisation."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
 import duckdb
@@ -48,7 +48,7 @@ def test_update_sync_settings_caps_at_24_hours(
         test_db,
         season_id=season.id,
         title="Round 5",
-        date=datetime(2026, 3, 1, tzinfo=timezone.utc).date(),
+        date=datetime(2026, 3, 1, tzinfo=UTC).date(),
         location_name="Henley Showground",
         address="Henley",
         timetable=[],
@@ -58,7 +58,7 @@ def test_update_sync_settings_caps_at_24_hours(
     service = ResultsSyncService(test_db)
 
     # Test setting 48 hours is capped to MAX_AUTO_SYNC_HOURS (24)
-    before = datetime.now(timezone.utc)
+    before = datetime.now(UTC)
     updated = service.update_sync_settings(
         fixture_id=fixture.id,
         tempo_results_url="https://www.racetecresults.com/results.aspx?CId=16418&RId=1006",
@@ -66,7 +66,7 @@ def test_update_sync_settings_caps_at_24_hours(
         auto_sync_hours=48,
         auto_sync_interval_minutes=15,
     )
-    after = datetime.now(timezone.utc)
+    after = datetime.now(UTC)
 
     assert updated.auto_sync_enabled is True
     assert (
@@ -80,9 +80,9 @@ def test_update_sync_settings_caps_at_24_hours(
     expected_max = after + timedelta(hours=MAX_AUTO_SYNC_HOURS)
     expected_min = before + timedelta(hours=MAX_AUTO_SYNC_HOURS)
     auto_until_utc = (
-        updated.auto_sync_until.astimezone(timezone.utc)
+        updated.auto_sync_until.astimezone(UTC)
         if updated.auto_sync_until.tzinfo is None
-        else updated.auto_sync_until.astimezone(timezone.utc)
+        else updated.auto_sync_until.astimezone(UTC)
     )
     assert (
         expected_min - timedelta(seconds=2)
@@ -99,7 +99,7 @@ def test_ingest_parsed_races_and_standings(
         test_db,
         season_id=season.id,
         title="Round 5",
-        date=datetime(2026, 3, 1, tzinfo=timezone.utc).date(),
+        date=datetime(2026, 3, 1, tzinfo=UTC).date(),
         location_name="Henley Showground",
         address="Henley",
         timetable=[],
@@ -229,7 +229,7 @@ def test_ingest_csv_fallback(test_db: duckdb.DuckDBPyConnection) -> None:
         test_db,
         season_id=season.id,
         title="Round 1",
-        date=datetime(2025, 11, 2, tzinfo=timezone.utc).date(),
+        date=datetime(2025, 11, 2, tzinfo=UTC).date(),
         location_name="Horspath",
         address="Oxford",
         timetable=[],
@@ -263,12 +263,12 @@ async def test_check_and_run_due_syncs_expiration(
     test_db: duckdb.DuckDBPyConnection,
 ) -> None:
     season = repository.create_season(test_db, "2025-2026")
-    past_until = datetime.now(timezone.utc) - timedelta(hours=1)
+    past_until = datetime.now(UTC) - timedelta(hours=1)
     fixture = repository.create_fixture(
         test_db,
         season_id=season.id,
         title="Past Fixture",
-        date=datetime(2025, 11, 2, tzinfo=timezone.utc).date(),
+        date=datetime(2025, 11, 2, tzinfo=UTC).date(),
         location_name="Horspath",
         address="Oxford",
         timetable=[],
@@ -314,7 +314,7 @@ async def test_failed_auto_sync_respects_configured_interval(
         fixture_id=fixture.id,
         tempo_results_url="https://www.racetecresults.com/results.aspx?CId=1&RId=2",
         auto_sync_enabled=True,
-        auto_sync_until=datetime.now(timezone.utc) + timedelta(hours=1),
+        auto_sync_until=datetime.now(UTC) + timedelta(hours=1),
         auto_sync_interval_minutes=15,
     )
     service = ResultsSyncService(test_db)
