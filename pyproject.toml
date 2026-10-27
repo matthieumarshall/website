@@ -88,6 +88,8 @@ mypy_path = "src"
 strict = true
 warn_unreachable = true
 plugins = ["pydantic.mypy"]
+# Apply the NumPy import skip to stubs when running the 3.11 target on newer Python.
+follow_imports_for_stubs = true
 
 [tool.pydantic-mypy]
 init_forbid_extra = true
@@ -97,6 +99,10 @@ warn_required_dynamic_aliases = true
 [[tool.mypy.overrides]]
 module = ["pyresults", "pyresults.*", "fastapi_permissions", "slowapi", "slowapi.*", "fpdf", "fpdf.*", "weasyprint", "nh3"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["numpy", "numpy.*"]
+follow_imports = "skip"
 
 # ---------------------------------------------------------------------------
 # import-linter: enforce the layered architecture (see src/website/README.md).

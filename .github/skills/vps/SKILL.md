@@ -61,8 +61,11 @@ below).
 ssh vps
 cd ~/website
 git pull origin main
-uv sync --no-dev
-sudo systemctl restart oxcross
+sudo systemctl stop oxcross
+uv sync --python 3.14 --no-dev
+uv run --python 3.14 playwright install --with-deps chromium
+uv run --python 3.14 python scripts/_apply_migrations.py
+sudo systemctl start oxcross
 sudo systemctl status oxcross
 ```
 

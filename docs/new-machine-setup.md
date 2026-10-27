@@ -11,7 +11,7 @@ Install the following tools before cloning the repo:
 | Tool | Install |
 |---|---|
 | **Git** | https://git-scm.com/downloads |
-| **Python 3.11+** | https://www.python.org/downloads/ |
+| **Python 3.11+** | Project minimum; `.python-version` selects Python 3.14 for development |
 | **uv** (Python package manager) | `winget install astral-sh.uv` or https://docs.astral.sh/uv/getting-started/installation/ |
 | **Node.js** (for Playwright / Quill) | https://nodejs.org/en/download (LTS) |
 | **Just** (task runner) | `winget install casey.just` or https://github.com/casey/just#packages |
@@ -179,8 +179,11 @@ You should land in `/home/manager` on the server without being asked for a passw
 ssh vps
 cd ~/website
 git pull origin main
-uv sync --no-dev
-sudo systemctl restart oxcross
+sudo systemctl stop oxcross
+uv sync --python 3.14 --no-dev
+uv run --python 3.14 playwright install --with-deps chromium
+uv run --python 3.14 python scripts/_apply_migrations.py
+sudo systemctl start oxcross
 sudo systemctl status oxcross
 
 # View live logs
@@ -188,7 +191,7 @@ sudo journalctl -u oxcross -f
 
 # Apply database migrations
 cd ~/website
-uv run python scripts/_apply_migrations.py
+uv run --python 3.14 python scripts/_apply_migrations.py
 
 # Check disk / memory
 df -h
