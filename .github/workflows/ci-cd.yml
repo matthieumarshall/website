@@ -114,10 +114,10 @@ jobs:
           # This package is only used by the seed_rules CLI in the dev dependency group.
           # Note: PYSEC-2025-183 in pyjwt 2.12.1 is a disputed advisory with no fixed release.
           # Semgrep 1.182.1 pins mcp==1.29.0 and opentelemetry-api~=1.37.0.
-          # GHSA-84m7-p3x7-pcfv affects the MCP Streamable HTTP server, which this CLI job
-          # does not run. GHSA-xcq7-p3pf-p88h affects inbound trace-context parsing; this
-          # CLI job does not accept inbound trace-context headers. Remove these exceptions
-          # when Semgrep updates its pins.
+          # The MCP advisories affect its HTTP clients, server auth, and tool-result
+          # validation; this job runs the Semgrep scan CLI and uses none of those paths.
+          # The OpenTelemetry advisory affects inbound trace-context parsing, which this
+          # CLI does not expose. Remove these exceptions when Semgrep updates its pins.
           uv run pip-audit \
             -r "$audit_requirements" \
             --ignore CVE-2026-4539 \
@@ -126,6 +126,9 @@ jobs:
             --ignore PYSEC-2026-89 \
             --ignore PYSEC-2025-183 \
             --ignore GHSA-84m7-p3x7-pcfv \
+            --ignore GHSA-5h93-6whr-6q8j \
+            --ignore GHSA-w4fh-qvv9-3v23 \
+            --ignore GHSA-rwrf-2pqf-9j8j \
             --ignore GHSA-xcq7-p3pf-p88h || exit 1
 
       - name: gitleaks - Scan for secrets
@@ -278,7 +281,7 @@ jobs:
   ui-tests:
     name: UI Tests (Playwright)
     needs: unit-tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       UV_PYTHON: "3.14"
     steps:
