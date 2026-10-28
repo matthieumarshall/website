@@ -4,7 +4,7 @@ import json
 from datetime import date, datetime
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 MAX_FIXTURES_PER_SEASON = 5
 
@@ -145,10 +145,27 @@ class FixtureCreate(BaseModel):
     address: str
     timetable: list[TimetableEntry]
     travel_instructions: str
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
     what3words_word1: str = ""
     what3words_word2: str = ""
     what3words_word3: str = ""
     tempo_results_url: str | None = None
+
+    @field_validator("latitude", "longitude", mode="before")
+    @classmethod
+    def blank_coordinates_are_none(cls, value: object) -> object:
+        """Treat empty coordinate inputs as omitted values."""
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    @model_validator(mode="after")
+    def validate_coordinate_pair(self) -> "FixtureCreate":
+        """Require latitude and longitude to be supplied together."""
+        if (self.latitude is None) != (self.longitude is None):
+            raise ValueError("Latitude and longitude must be provided together")
+        return self
 
     @field_validator(
         "what3words_word1", "what3words_word2", "what3words_word3", mode="before"

@@ -97,6 +97,8 @@ def _validated_fixture(form: FixtureForm) -> FixtureCreate:
                 "date": form.date,
                 "location_name": form.location_name.strip(),
                 "address": form.address.strip(),
+                "latitude": form.latitude,
+                "longitude": form.longitude,
                 "timetable": parse_timetable_json(form.timetable_json),
                 "travel_instructions": form.travel_instructions.strip(),
                 "what3words_word1": form.what3words_word1,
@@ -245,8 +247,10 @@ class FixtureService:
             )
         return season
 
-    def _coordinates(self, address: str) -> tuple[float | None, float | None]:
-        coords = self._geocoder.geocode(address)
+    def _coordinates(self, fixture: FixtureCreate) -> tuple[float | None, float | None]:
+        if fixture.latitude is not None and fixture.longitude is not None:
+            return (fixture.latitude, fixture.longitude)
+        coords = self._geocoder.geocode(fixture.address)
         return (coords[0], coords[1]) if coords else (None, None)
 
     def copy_sources(self) -> list[CopySourceGroup]:
@@ -279,7 +283,7 @@ class FixtureService:
             )
 
     def create_fixture(self, season_id: int, form: FixtureForm) -> Fixture:
-        """Create a fixture, geocoding its address.
+        """Create a fixture, using supplied coordinates or geocoding its address.
 
         Raises:
             ValidationError: If the submitted details are invalid.
@@ -288,7 +292,7 @@ class FixtureService:
         """
         fixture = _validated_fixture(form)
         what3words = _what3words(fixture)
-        latitude, longitude = self._coordinates(fixture.address)
+        latitude, longitude = self._coordinates(fixture)
         try:
             created = repository.create_fixture(
                 self._db,
@@ -311,7 +315,7 @@ class FixtureService:
         return created
 
     def update_fixture(self, fixture_id: int, form: FixtureForm) -> Fixture:
-        """Update a fixture, re-geocoding its address.
+        """Update a fixture, using supplied coordinates or geocoding its address.
 
         Raises:
             ValidationError: If the submitted details are invalid.
@@ -320,7 +324,7 @@ class FixtureService:
         """
         fixture = _validated_fixture(form)
         what3words = _what3words(fixture)
-        latitude, longitude = self._coordinates(fixture.address)
+        latitude, longitude = self._coordinates(fixture)
         updated = repository.update_fixture(
             self._db,
             fixture_id=fixture_id,

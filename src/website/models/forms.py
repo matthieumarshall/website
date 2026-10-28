@@ -46,6 +46,8 @@ class FixtureForm(_Form):
     date: str
     location_name: str
     address: str
+    latitude: str = ""
+    longitude: str = ""
     timetable_json: str = "[]"
     travel_instructions: str = ""
     what3words_word1: str = ""

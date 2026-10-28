@@ -89,7 +89,7 @@ Planned islands:
 - Fixture detail panel (HTMX tab interaction) — **DONE**
 - Timetable editor (JSON array, custom JS) — **DONE**
 - Fixture history from past seasons — **DONE**
-- Map of location (embedded map from address) — **DONE** (self-hosted Leaflet map loaded in `extra_head`, regional boundary guards skipping invalid or out-of-region coordinates, unique fixture DOM IDs preventing HTMX swap-settling layout bugs)
+- Map of location (embedded map from address, with optional fixture coordinates taking precedence) — **DONE** (self-hosted Leaflet map loaded in `extra_head`, editable latitude/longitude overrides with address-geocoding fallback, regional boundary guards skipping invalid or out-of-region coordinates, unique fixture DOM IDs preventing HTMX swap-settling layout bugs)
 - What3Words location support. User provides three words in separate small text boxes and we convert that ourselves to a what3words style clickable url — **DONE**
 - Course map image uploads (support multiple images per fixture) — **DONE** (`static/fixture-images.js` preview and reordering, multi-upload support)
 - Weather forecast integration — *not started* (fetch weather forecast for fixture coordinates/date via a free, open API such as Open-Meteo in advance, and persist/freeze as static historical weather data once race day has passed)

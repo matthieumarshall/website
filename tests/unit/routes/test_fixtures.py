@@ -3,12 +3,13 @@
 import re
 
 import duckdb
+import pytest
 from fastapi.testclient import TestClient
 
 from website import repository
 from website.main import app
 from website.services.uploads import IMAGE_POLICY, FileStore
-from website.web.deps import get_image_store
+from website.web.deps import get_geocoder, get_image_store
 
 
 class TestFixturesPublicPage:
@@ -629,6 +630,229 @@ class TestFixturesUpdateFixture:
             follow_redirects=False,
         )
         assert resp.status_code in (302, 403)
+
+
+class _RecordingGeocoder:
+    def __init__(self, result: tuple[float, float] | None = None) -> None:
+        self.result = result
+        self.addresses: list[str] = []
+
+    def geocode(self, address: str) -> tuple[float, float] | None:
+        self.addresses.append(address)
+        return self.result
+
+
+class TestFixtureCoordinates:
+    def _get_csrf(self, client: TestClient) -> str:
+        response = client.get("/fixtures")
+        match = re.search(r'name="csrf_token"\s+value="([^"]+)"', response.text)
+        assert match
+        return match.group(1)
+
+    def test_create_fixture_uses_coordinate_override(
+        self,
+        admin_client: TestClient,
+        test_db: duckdb.DuckDBPyConnection,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        season = repository.create_season(test_db, "Coordinate-Override-Season")
+        geocoder = _RecordingGeocoder((51.8, -1.1))
+        monkeypatch.setitem(app.dependency_overrides, get_geocoder, lambda: geocoder)
+
+        response = admin_client.post(
+            f"/fixtures/seasons/{season.id}/fixtures",
+            data={
+                "title": "Round 1",
+                "date": "2025-09-01",
+                "location_name": "Venue",
+                "address": "Venue address",
+                "latitude": "51.75",
+                "longitude": "-1.25",
+                "csrf_token": self._get_csrf(admin_client),
+            },
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 302
+        fixture = repository.list_fixtures_for_season(test_db, season.id)[0]
+        assert (fixture.latitude, fixture.longitude) == (51.75, -1.25)
+        assert geocoder.addresses == []
+        detail = admin_client.get(
+            f"/fixtures/fixture-detail?fixture_id={fixture.id}&season_id={season.id}"
+        )
+        assert 'data-lat="51.75"' in detail.text
+        assert 'data-lon="-1.25"' in detail.text
+
+    def test_blank_coordinates_fall_back_to_address_geocoding(
+        self,
+        admin_client: TestClient,
+        test_db: duckdb.DuckDBPyConnection,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        season = repository.create_season(test_db, "Coordinate-Fallback-Season")
+        geocoder = _RecordingGeocoder((51.6, -1.3))
+        monkeypatch.setitem(app.dependency_overrides, get_geocoder, lambda: geocoder)
+
+        response = admin_client.post(
+            f"/fixtures/seasons/{season.id}/fixtures",
+            data={
+                "title": "Round 1",
+                "date": "2025-09-01",
+                "location_name": "Venue",
+                "address": "Venue address",
+                "latitude": "",
+                "longitude": " ",
+                "csrf_token": self._get_csrf(admin_client),
+            },
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 302
+        fixture = repository.list_fixtures_for_season(test_db, season.id)[0]
+        assert (fixture.latitude, fixture.longitude) == (51.6, -1.3)
+        assert geocoder.addresses == ["Venue address"]
+
+    @pytest.mark.parametrize(
+        ("latitude", "longitude"),
+        [("51.75", ""), ("91", "-1.25"), ("51.75", "-181")],
+    )
+    def test_invalid_coordinate_pair_returns_422(
+        self,
+        latitude: str,
+        longitude: str,
+        admin_client: TestClient,
+        test_db: duckdb.DuckDBPyConnection,
+    ) -> None:
+        season = repository.create_season(test_db, "Invalid-Coordinates-Season")
+
+        response = admin_client.post(
+            f"/fixtures/seasons/{season.id}/fixtures",
+            data={
+                "title": "Round 1",
+                "date": "2025-09-01",
+                "location_name": "Venue",
+                "address": "Venue address",
+                "latitude": latitude,
+                "longitude": longitude,
+                "csrf_token": self._get_csrf(admin_client),
+            },
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 422
+
+    def test_edit_form_prefills_coordinates_and_copy_keeps_location_coordinates(
+        self, admin_client: TestClient, test_db: duckdb.DuckDBPyConnection
+    ) -> None:
+        season = repository.create_season(test_db, "Coordinate-Prefill-Season")
+        fixture = repository.create_fixture(
+            test_db,
+            season.id,
+            "Round 1",
+            "2025-09-01",
+            "Venue",
+            "Venue address",
+            [],
+            "",
+            latitude=51.75,
+            longitude=-1.25,
+        )
+
+        edit_response = admin_client.get(
+            f"/fixtures/seasons/{season.id}/fixtures/{fixture.id}/edit"
+        )
+        copy_response = admin_client.get(
+            f"/fixtures/seasons/{season.id}/fixtures/new"
+            f"?copy_from={fixture.id}&parts=location"
+        )
+
+        for response in (edit_response, copy_response):
+            assert response.status_code == 200
+            assert re.search(r'name="latitude"\s+value="51\.75"', response.text)
+            assert re.search(r'name="longitude"\s+value="-1\.25"', response.text)
+
+    def test_update_fixture_uses_coordinate_override(
+        self,
+        admin_client: TestClient,
+        test_db: duckdb.DuckDBPyConnection,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        season = repository.create_season(test_db, "Coordinate-Update-Season")
+        fixture = repository.create_fixture(
+            test_db, season.id, "Round 1", "2025-09-01", "Venue", "Old address", [], ""
+        )
+        geocoder = _RecordingGeocoder((51.8, -1.1))
+        monkeypatch.setitem(app.dependency_overrides, get_geocoder, lambda: geocoder)
+
+        response = admin_client.post(
+            f"/fixtures/seasons/{season.id}/fixtures/{fixture.id}/edit",
+            data={
+                "title": "Round 1",
+                "date": "2025-09-01",
+                "location_name": "Venue",
+                "address": "New address",
+                "latitude": "51.7",
+                "longitude": "-1.4",
+                "csrf_token": self._get_csrf(admin_client),
+            },
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 302
+        updated = repository.get_fixture_by_id(test_db, fixture.id)
+        assert updated is not None
+        assert (updated.latitude, updated.longitude) == (51.7, -1.4)
+        assert geocoder.addresses == []
+
+    def test_clearing_coordinates_on_update_uses_address_geocoding(
+        self,
+        admin_client: TestClient,
+        test_db: duckdb.DuckDBPyConnection,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        season = repository.create_season(test_db, "Coordinate-Clear-Season")
+        fixture = repository.create_fixture(
+            test_db,
+            season.id,
+            "Round 1",
+            "2025-09-01",
+            "Venue",
+            "Old address",
+            [],
+            "",
+            latitude=51.7,
+            longitude=-1.4,
+        )
+        geocoder = _RecordingGeocoder((51.8, -1.1))
+        monkeypatch.setitem(app.dependency_overrides, get_geocoder, lambda: geocoder)
+
+        response = admin_client.post(
+            f"/fixtures/seasons/{season.id}/fixtures/{fixture.id}/edit",
+            data={
+                "title": "Round 1",
+                "date": "2025-09-01",
+                "location_name": "Venue",
+                "address": "New address",
+                "latitude": "",
+                "longitude": "",
+                "csrf_token": self._get_csrf(admin_client),
+            },
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 302
+        updated = repository.get_fixture_by_id(test_db, fixture.id)
+        assert updated is not None
+        assert (updated.latitude, updated.longitude) == (51.8, -1.1)
+        assert geocoder.addresses == ["New address"]
+
+
+class TestFixturesCopySubmit:
+    def _get_csrf(self, client: TestClient) -> str:
+        response = client.get("/fixtures")
+        match = re.search(r'name="csrf_token"\s+value="([^"]+)"', response.text)
+        assert match
+        return match.group(1)
 
     def test_copy_submit_creates_fixture_in_target_season(
         self, admin_client: TestClient, test_db: duckdb.DuckDBPyConnection

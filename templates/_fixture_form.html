@@ -149,6 +149,41 @@
     >
   </div>
 
+  <fieldset class="mb-3">
+    <legend class="fs-6 fw-semibold">Map coordinates (optional)</legend>
+    <div class="row g-2">
+      <div class="col-sm-6">
+        <label for="fixture-latitude" class="form-label">Latitude</label>
+        <input
+          type="number"
+          class="form-control"
+          id="fixture-latitude"
+          name="latitude"
+          value="{{ src.latitude if src and src.latitude is not none else '' }}"
+          min="-90"
+          max="90"
+          step="any"
+          inputmode="decimal"
+        >
+      </div>
+      <div class="col-sm-6">
+        <label for="fixture-longitude" class="form-label">Longitude</label>
+        <input
+          type="number"
+          class="form-control"
+          id="fixture-longitude"
+          name="longitude"
+          value="{{ src.longitude if src and src.longitude is not none else '' }}"
+          min="-180"
+          max="180"
+          step="any"
+          inputmode="decimal"
+        >
+      </div>
+    </div>
+    <div class="form-text">Enter both coordinates to place the map pin precisely; they take precedence over the address. Leave both blank to use the address.</div>
+  </fieldset>
+
   <div class="mb-3">
     <label for="fixture-what3words" class="form-label">What3Words Location</label>
     <div class="d-flex gap-2 align-items-center">
