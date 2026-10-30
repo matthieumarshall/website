@@ -452,6 +452,59 @@ class TestFixtureImageAltText:
         assert resp.status_code == 200
         assert "Course map for Delete Round, Delete Alt Season" in resp.text
 
+    def test_content_creator_sees_course_map_delete_action(
+        self,
+        content_creator_client: TestClient,
+        test_db: duckdb.DuckDBPyConnection,
+    ) -> None:
+        season = repository.create_season(test_db, "Delete Control Season")
+        fixture = repository.create_fixture(
+            test_db,
+            season.id,
+            "Delete Control Round",
+            "2025-09-01",
+            "Venue",
+            "Addr",
+            [],
+            "",
+        )
+        image = repository.create_fixture_image(test_db, fixture.id, "map.jpg")
+
+        resp = content_creator_client.get(f"/fixtures?season_id={season.id}")
+
+        assert resp.status_code == 200
+        assert (
+            f'action="/fixtures/seasons/{season.id}/fixtures/{fixture.id}'
+            f'/images/{image.id}/delete"'
+        ) in resp.text
+        assert 'aria-label="Delete course map image 1"' in resp.text
+
+    def test_public_fixture_gallery_hides_course_map_delete_action(
+        self,
+        test_client: TestClient,
+        test_db: duckdb.DuckDBPyConnection,
+    ) -> None:
+        season = repository.create_season(test_db, "Public Gallery Season")
+        fixture = repository.create_fixture(
+            test_db,
+            season.id,
+            "Public Gallery Round",
+            "2025-09-01",
+            "Venue",
+            "Addr",
+            [],
+            "",
+        )
+        repository.create_fixture_image(test_db, fixture.id, "map.jpg")
+
+        resp = test_client.get(f"/fixtures?season_id={season.id}")
+
+        assert resp.status_code == 200
+        assert "Course map for Public Gallery Round, Public Gallery Season" in (
+            resp.text
+        )
+        assert "Delete course map image" not in resp.text
+
 
 class TestFixturesNewSeasonForm:
     def test_new_season_form_loads_as_admin(self, admin_client: TestClient) -> None:

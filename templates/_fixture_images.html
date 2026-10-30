@@ -9,47 +9,50 @@
 {% if images %}
 <div class="d-flex flex-wrap gap-3 mb-3">
   {% for img in images %}
-  <img
-    id="fixture-image-{{ img.id }}"
-    src="/fixture-maps/{{ img.filename }}"
-    alt="{% if fixture and season %}Course map for {{ fixture.title }}, {{ season.name }}{% else %}Course map image {{ loop.index }}{% endif %}"
-    class="img-thumbnail fixture-image"
-    role="button"
-    tabindex="0"
-    aria-label="{% if fixture and season %}Click to enlarge: Course map for {{ fixture.title }}, {{ season.name }}{% else %}Click to enlarge course map image {{ loop.index }}{% endif %}"
-    data-image-id="{{ img.id }}"
-    data-delete-url="{% if current_user and current_user.role in (UserRole.admin.value, UserRole.content_creator.value) %}/fixtures/seasons/{{ _sid }}/fixtures/{{ _fid }}/images/{{ img.id }}/delete{% endif %}"
-  >
+  <div class="d-flex flex-column align-items-start gap-2">
+    <img
+      id="fixture-image-{{ img.id }}"
+      src="/fixture-maps/{{ img.filename }}"
+      alt="{% if fixture and season %}Course map for {{ fixture.title }}, {{ season.name }}{% else %}Course map image {{ loop.index }}{% endif %}"
+      class="img-thumbnail fixture-image"
+      role="button"
+      tabindex="0"
+      aria-label="{% if fixture and season %}Click to enlarge: Course map for {{ fixture.title }}, {{ season.name }}{% else %}Click to enlarge course map image {{ loop.index }}{% endif %}"
+      data-image-id="{{ img.id }}"
+    >
+    {% if current_user and current_user.role in (UserRole.admin.value, UserRole.content_creator.value) %}
+    <form
+      action="/fixtures/seasons/{{ _sid }}/fixtures/{{ _fid }}/images/{{ img.id }}/delete"
+      method="post"
+      hx-post="/fixtures/seasons/{{ _sid }}/fixtures/{{ _fid }}/images/{{ img.id }}/delete"
+      hx-target="#fixture-images"
+      hx-swap="innerHTML"
+      hx-confirm="Delete this course map?"
+      class="m-0"
+    >
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button
+        type="submit"
+        class="btn btn-sm btn-outline-danger"
+        aria-label="Delete course map image {{ loop.index }}"
+      >Delete</button>
+    </form>
+    {% endif %}
+  </div>
   {% endfor %}
 </div>
-
-{# Hidden delete forms (one per image) — not in the DOM flow to avoid intercepting image clicks #}
-{% if current_user and current_user.role in (UserRole.admin.value, UserRole.content_creator.value) %}
-  {% for img in images %}
-  <form
-    id="delete-form-{{ img.id }}"
-    action="/fixtures/seasons/{{ _sid }}/fixtures/{{ _fid }}/images/{{ img.id }}/delete"
-    method="post"
-    hx-post="/fixtures/seasons/{{ _sid }}/fixtures/{{ _fid }}/images/{{ img.id }}/delete"
-    hx-target="#fixture-images"
-    hx-swap="innerHTML"
-    style="display: none;"
-  >
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-  </form>
-  {% endfor %}
-{% endif %}
 
 <!-- Modal for enlarged image view -->
 <dialog class="fixture-image-modal" id="fixture-image-modal">
   <button
+    type="button"
     class="btn btn-light btn-sm fixture-image-modal-close"
     aria-label="Close enlarged image"
     onclick="document.getElementById('fixture-image-modal').close();"
   >
     <span aria-hidden="true">&times;</span>
   </button>
-  <img id="fixture-image-modal-content" src="" alt="Enlarged course map">
+  <img id="fixture-image-modal-content" alt="Enlarged course map">
 </dialog>
 {% else %}
 <p class="text-muted small mb-2">No course map images uploaded yet.</p>

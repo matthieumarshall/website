@@ -199,6 +199,42 @@ def test_results_page_defaults_to_first_season(test_client, test_db):
     assert resp.status_code == 200
 
 
+def test_round_one_results_status_defaults_to_not_available(test_client, test_db):
+    season = _make_season(test_db)
+    _make_fixture(test_db, season.id, title="Opening Fixture")
+
+    resp = test_client.get(f"/results?season_id={season.id}")
+
+    assert resp.status_code == 200
+    assert "Round 1 results:" in resp.text
+    assert "Not yet available" in resp.text
+
+
+def test_round_one_results_status_shows_syncing_without_results(test_client, test_db):
+    season = _make_season(test_db)
+    fixture = _make_fixture(test_db, season.id, title="Opening Fixture")
+    repository.update_fixture_sync_status(test_db, fixture.id, sync_status="syncing")
+
+    resp = test_client.get(f"/results?season_id={season.id}")
+
+    assert resp.status_code == 200
+    assert "Syncing" in resp.text
+
+
+def test_round_one_results_status_stays_published_during_refresh(test_client, test_db):
+    season = _make_season(test_db)
+    fixture = _make_fixture(test_db, season.id, title="Opening Fixture")
+    race = _make_race(test_db, fixture.id)
+    _make_result(test_db, race.id)
+    repository.update_fixture_sync_status(test_db, fixture.id, sync_status="syncing")
+
+    resp = test_client.get(f"/results?season_id={season.id}")
+
+    assert resp.status_code == 200
+    assert "Round 1 results:" in resp.text
+    assert "Published" in resp.text
+
+
 # ---------------------------------------------------------------------------
 # Routes: HTMX partials
 # ---------------------------------------------------------------------------
@@ -210,6 +246,7 @@ def test_results_fixture_panel_returns_html(test_client, test_db):
     resp = test_client.get(f"/results/fixture-panel?season_id={season.id}")
     assert resp.status_code == 200
     assert "Round 1" in resp.text
+    assert "Not yet available" in resp.text
 
 
 def test_results_race_panel_returns_html(test_client, test_db):

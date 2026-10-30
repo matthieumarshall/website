@@ -1,6 +1,7 @@
 """Race results browsing, export and source PDF lookup."""
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -21,6 +22,7 @@ class ResultsBrowser(BaseModel):
     seasons: list[Season]
     selected_season: Season | None
     fixtures: list[Fixture]
+    round1_results_status: Literal["not_available", "syncing", "published"] | None
     active_fixture: Fixture | None
     races: list[Race]
     active_race: Race | None
@@ -87,6 +89,16 @@ class ResultsService:
             if selected_season
             else []
         )
+        round1_fixture = fixtures[0] if fixtures else None
+        round1_results_status: Literal["not_available", "syncing", "published"] | None
+        if round1_fixture is None:
+            round1_results_status = "not_available" if selected_season else None
+        elif repository.fixture_has_results(db, round1_fixture.id):
+            round1_results_status = "published"
+        elif round1_fixture.sync_status == "syncing":
+            round1_results_status = "syncing"
+        else:
+            round1_results_status = "not_available"
         if fixture_id is None and fixtures:
             fixture_id = fixtures[0].id
         active_fixture = (
@@ -108,6 +120,7 @@ class ResultsService:
             seasons=seasons,
             selected_season=selected_season,
             fixtures=fixtures,
+            round1_results_status=round1_results_status,
             active_fixture=active_fixture,
             races=races,
             active_race=active_race,
