@@ -14,6 +14,7 @@ Three environments are defined for this project. Each uses a different combinati
 | `EA_TEST_MODE` | unset / `false` | unset (CI hits staging) | unset / `false` |
 | **Stripe** | Test keys (`sk_test_…`) | Test keys (`sk_test_…`) | Live keys (`sk_live_…`) |
 | `PRODUCTION` | `false` | `false` | `true` |
+| **Python** | 3.14 (minimum 3.11) | 3.11 and 3.14 | 3.14 |
 | **Database** | `data/app.duckdb` | `:memory:` (unit) / `test_ui.duckdb` (UI) | `/home/manager/website/data/app.duckdb` |
 | **Secret key** | Any string | Any string | Strong random, required |
 

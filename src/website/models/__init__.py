@@ -44,7 +44,13 @@ from website.models.public_content import (
     PublicWinner,
     WinnerOverride,
 )
-from website.models.results import Race, RaceWithResults, Result
+from website.models.results import (
+    ParsedRaceWithResults,
+    ParsedResult,
+    Race,
+    RaceWithResults,
+    Result,
+)
 from website.models.standings import (
     CalculatedIndividualStanding,
     CalculatedTeamStanding,
@@ -88,6 +94,8 @@ __all__ = [
     "IndividualStanding",
     "PaginatedPosts",
     "PaidAthleteEntry",
+    "ParsedRaceWithResults",
+    "ParsedResult",
     "Post",
     "PostCreate",
     "PublicWinner",

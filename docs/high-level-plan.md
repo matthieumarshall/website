@@ -89,9 +89,9 @@ Planned islands:
 - Fixture detail panel (HTMX tab interaction) — **DONE**
 - Timetable editor (JSON array, custom JS) — **DONE**
 - Fixture history from past seasons — **DONE**
-- Map of location (embedded map from address) — **DONE** (self-hosted Leaflet map loaded in `extra_head`, regional boundary guards skipping invalid or out-of-region coordinates, unique fixture DOM IDs preventing HTMX swap-settling layout bugs)
+- Map of location (embedded map from address, with optional fixture coordinates taking precedence) — **DONE** (self-hosted Leaflet map loaded in `extra_head`, editable latitude/longitude overrides with address-geocoding fallback, regional boundary guards skipping invalid or out-of-region coordinates, unique fixture DOM IDs preventing HTMX swap-settling layout bugs)
 - What3Words location support. User provides three words in separate small text boxes and we convert that ourselves to a what3words style clickable url — **DONE**
-- Course map image uploads (support multiple images per fixture) — **DONE** (`static/fixture-images.js` preview and reordering, multi-upload support)
+- Course map image uploads (support multiple images per fixture) — **DONE** (`static/fixture-images.js` preview and reordering, multi-upload support; admins and content creators can delete maps from the gallery)
 - Weather forecast integration — *not started* (fetch weather forecast for fixture coordinates/date via a free, open API such as Open-Meteo in advance, and persist/freeze as static historical weather data once race day has passed)
 - Add ability to upload and display Event license, Risk assessment and Medical Assessment. Staff (content creators and admin) upload; anyone can view. — **DONE** (`fixture_documents` table, one document per type per fixture; PDFs rewritten losslessly with `pikepdf`, images resized to 2000px and re-encoded as JPEG, original kept if not smaller; magic-byte validation; 10 MB cap; stored under `data/fixture-docs`)
 - Copy details from a different fixture, including within that season and previous year — **DONE** (grouped picker on the new-fixture form lists fixtures from every season, checkboxes choose location / timetable / travel instructions / course maps; course map files are duplicated; the date is never copied)
@@ -102,6 +102,7 @@ Planned islands:
 
 ### 4.1 Results History
 - Results page (currently a "coming soon" placeholder) — **DONE**
+- Show Round 1 results availability on the results page (not yet available, syncing, or published) — **DONE** (uses the selected season's first fixture and keeps published status while existing results are being refreshed)
 - Display all historical results in web page — **DONE**
 - Export results to CSV — **DONE**
 - Export results to PDF — **DONE**
@@ -114,7 +115,7 @@ Planned islands:
 - Add export to pdf and csv for standings too — **DONE** (CSV and PDF download buttons above each standings table, `/standings/export/csv` and `/standings/export/pdf`, columns match the on-screen table)
 
 ### 4.3 Live / External Data
-- Integrate results dynamically from Tempo Events API — *not started*
+- Integrate results dynamically from Tempo Events API — **DONE** (RaceTec scraper, on-demand sync, auto-polling, and CSV fallback)
 
 ---
 

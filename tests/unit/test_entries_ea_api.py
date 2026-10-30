@@ -2,7 +2,7 @@
 """Tests for the England Athletics TRAPI integration."""
 
 import os
-from datetime import date, timezone
+from datetime import UTC, date
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -135,9 +135,9 @@ class TestEAStaging:
                 )
                 cert_builder = cert_builder.public_key(private_key.public_key())
                 cert_builder = cert_builder.serial_number(x509.random_serial_number())
-                cert_builder = cert_builder.not_valid_before(datetime.now(timezone.utc))
+                cert_builder = cert_builder.not_valid_before(datetime.now(UTC))
                 cert_builder = cert_builder.not_valid_after(
-                    datetime.now(timezone.utc) + timedelta(days=365)
+                    datetime.now(UTC) + timedelta(days=365)
                 )
                 certificate = cert_builder.sign(
                     private_key, hashes.SHA256(), backend=default_backend()
@@ -226,9 +226,9 @@ class TestEAStaging:
                 )
                 cert_builder = cert_builder.public_key(private_key.public_key())
                 cert_builder = cert_builder.serial_number(x509.random_serial_number())
-                cert_builder = cert_builder.not_valid_before(datetime.now(timezone.utc))
+                cert_builder = cert_builder.not_valid_before(datetime.now(UTC))
                 cert_builder = cert_builder.not_valid_after(
-                    datetime.now(timezone.utc) + timedelta(days=365)
+                    datetime.now(UTC) + timedelta(days=365)
                 )
                 certificate = cert_builder.sign(
                     private_key, hashes.SHA256(), backend=default_backend()
@@ -336,9 +336,9 @@ class TestEAStaging:
                 )
                 cert_builder = cert_builder.public_key(private_key.public_key())
                 cert_builder = cert_builder.serial_number(x509.random_serial_number())
-                cert_builder = cert_builder.not_valid_before(datetime.now(timezone.utc))
+                cert_builder = cert_builder.not_valid_before(datetime.now(UTC))
                 cert_builder = cert_builder.not_valid_after(
-                    datetime.now(timezone.utc) + timedelta(days=365)
+                    datetime.now(UTC) + timedelta(days=365)
                 )
                 certificate = cert_builder.sign(
                     private_key, hashes.SHA256(), backend=default_backend()
@@ -444,9 +444,9 @@ class TestEAStaging:
                 )
                 cert_builder = cert_builder.public_key(private_key.public_key())
                 cert_builder = cert_builder.serial_number(x509.random_serial_number())
-                cert_builder = cert_builder.not_valid_before(datetime.now(timezone.utc))
+                cert_builder = cert_builder.not_valid_before(datetime.now(UTC))
                 cert_builder = cert_builder.not_valid_after(
-                    datetime.now(timezone.utc) + timedelta(days=365)
+                    datetime.now(UTC) + timedelta(days=365)
                 )
                 certificate = cert_builder.sign(
                     private_key, hashes.SHA256(), backend=default_backend()

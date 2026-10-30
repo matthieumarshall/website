@@ -81,6 +81,50 @@ class TestFixtureImageModal:
         thumbnail = admin_browser.locator(".fixture-image").first
         assert thumbnail.is_visible(), "Uploaded image thumbnail is not visible"
 
+    def test_admin_can_delete_course_map_from_gallery(
+        self, admin_browser: Page
+    ) -> None:
+        """Admin can delete a course map using its visible gallery action."""
+        admin_browser.goto(f"{_BASE}/fixtures")
+        admin_browser.wait_for_load_state("networkidle")
+
+        delete_buttons = admin_browser.locator(
+            "button[aria-label^='Delete course map image']"
+        )
+        if delete_buttons.count() == 0:
+            file_input = admin_browser.locator("input[type='file'][name='file']").first
+            file_input.set_input_files(
+                files=[
+                    {
+                        "name": "delete_course_map.png",
+                        "mimeType": "image/png",
+                        "buffer": _MINIMAL_PNG,
+                    }
+                ]
+            )
+            admin_browser.locator(
+                "button[type='submit']:has-text('Upload')"
+            ).first.click()
+            admin_browser.wait_for_selector(
+                "button[aria-label^='Delete course map image']", timeout=10_000
+            )
+            delete_buttons = admin_browser.locator(
+                "button[aria-label^='Delete course map image']"
+            )
+
+        count_before = delete_buttons.count()
+        admin_browser.once("dialog", lambda dialog: dialog.accept())
+        delete_buttons.first.click()
+        admin_browser.wait_for_function(
+            "(previousCount) => "
+            "document.querySelectorAll("
+            "\"button[aria-label^='Delete course map image']\""
+            ").length === previousCount - 1",
+            arg=count_before,
+        )
+
+        assert delete_buttons.count() == count_before - 1
+
     def test_thumbnail_click_opens_modal(self, admin_browser: Page) -> None:
         """Clicking a course map thumbnail opens the modal dialog."""
         page_errors: list[str] = []

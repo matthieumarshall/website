@@ -1,6 +1,6 @@
 """Unit tests for entry receipts — building, and HTML and PDF rendering."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -77,7 +77,7 @@ def _seed_paid_batch(db: duckdb.DuckDBPyConnection) -> int:
            stripe_payment_method, paid_at)
         VALUES (?, ?, ?, 'paid', 3, 1500, 'card', ?)
         """,
-        [season_id, club_id, user_id, datetime.now(timezone.utc)],
+        [season_id, club_id, user_id, datetime.now(UTC)],
     )
     row = db.execute(
         "SELECT id FROM entry_batches WHERE club_id=? ORDER BY id DESC LIMIT 1",

@@ -141,14 +141,20 @@ jobs:
              git fetch origin main
              git merge --ff-only ${{ steps.check.outputs.latest }}
 
-             echo "--- Syncing production dependencies ---"
-             uv sync --locked --no-dev
+             echo "--- Ensuring Python 3.14 is installed ---"
+             uv python install 3.14
 
-             echo "--- Stopping service (releases DuckDB file lock) ---"
+             echo "--- Stopping service before replacing its environment ---"
              sudo systemctl stop oxcross
 
+             echo "--- Syncing production dependencies ---"
+             uv sync --python 3.14 --locked --no-dev
+
+             echo "--- Installing Chromium for results scraping ---"
+             uv run --python 3.14 playwright install --with-deps chromium
+
              echo "--- Running migrations ---"
-             uv run python scripts/_apply_migrations.py
+             uv run --python 3.14 python scripts/_apply_migrations.py
 
              echo "--- Starting service ---"
              sudo systemctl start oxcross

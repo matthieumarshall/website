@@ -1,6 +1,6 @@
 """Unit tests for entry rules — age category, eligibility, fixtures remaining."""
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from unittest.mock import MagicMock, patch
 
 import duckdb
@@ -148,7 +148,7 @@ class TestIsEntryOpenForFixture:
     def test_open_before_midday_utc_on_fixture_day(self):
         # Pin now to 11:59 UTC on fixture day
         fixture_date = date(2025, 6, 15)
-        mock_now = datetime(2025, 6, 15, 11, 59, tzinfo=timezone.utc)
+        mock_now = datetime(2025, 6, 15, 11, 59, tzinfo=UTC)
         with patch("website.services.entry_rules.datetime") as mock_dt:
             mock_dt.now.return_value = mock_now
             mock_dt.combine.side_effect = datetime.combine
@@ -157,7 +157,7 @@ class TestIsEntryOpenForFixture:
     def test_closed_at_midday_utc_on_fixture_day(self):
         # Pin now to exactly 12:00 UTC on fixture day (deadline reached)
         fixture_date = date(2025, 6, 15)
-        mock_now = datetime(2025, 6, 15, 12, 0, tzinfo=timezone.utc)
+        mock_now = datetime(2025, 6, 15, 12, 0, tzinfo=UTC)
         with patch("website.services.entry_rules.datetime") as mock_dt:
             mock_dt.now.return_value = mock_now
             mock_dt.combine.side_effect = datetime.combine

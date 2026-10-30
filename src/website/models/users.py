@@ -1,11 +1,11 @@
 """User accounts and the authenticated session identity."""
 
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict
 
 
-class UserRole(str, Enum):
+class UserRole(StrEnum):
     """Roles that grant access to different parts of the site."""
 
     admin = "admin"

@@ -1,6 +1,6 @@
 """Team entries made by club managers: selection, batches, checkout, receipts."""
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 from pydantic import BaseModel, ConfigDict
 
@@ -133,7 +133,7 @@ def _receipt_from(
         payment_method_display=_PAYMENT_METHOD_LABELS.get(
             batch.stripe_payment_method or "", "—"
         ),
-        generated_at=datetime.now(timezone.utc).strftime("%d %b %Y %H:%M UTC"),
+        generated_at=datetime.now(UTC).strftime("%d %b %Y %H:%M UTC"),
     )
 
 

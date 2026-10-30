@@ -1,3 +1,16 @@
+{% if selected_season %}
+<p class="mb-3" role="status" aria-live="polite">
+  <strong>Round 1 results:</strong>
+  {% if round1_results_status == "published" %}
+  Published
+  {% elif round1_results_status == "syncing" %}
+  Syncing
+  {% else %}
+  Not yet available
+  {% endif %}
+</p>
+{% endif %}
+
 {% if not selected_season %}
 <p class="text-muted">No season selected.</p>
 {% elif not fixtures %}

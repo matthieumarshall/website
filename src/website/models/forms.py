@@ -46,11 +46,14 @@ class FixtureForm(_Form):
     date: str
     location_name: str
     address: str
+    latitude: str = ""
+    longitude: str = ""
     timetable_json: str = "[]"
     travel_instructions: str = ""
     what3words_word1: str = ""
     what3words_word2: str = ""
     what3words_word3: str = ""
+    tempo_results_url: str = ""
     # Set when the fixture was prefilled from another one.
     copy_from_fixture_id: int | None = None
     copy_maps: bool = False

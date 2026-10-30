@@ -1,7 +1,7 @@
 """Pure business rules for team entries: age categories and deadlines."""
 
 from collections.abc import Iterable
-from datetime import date, datetime, time, timezone
+from datetime import UTC, date, datetime, time
 
 JUNIOR_CATEGORIES = frozenset({"U9", "U11", "U13", "U15", "U17"})
 
@@ -42,8 +42,8 @@ def is_junior(category: str) -> bool:
 
 def is_entry_open_for_fixture(fixture_date: date) -> bool:
     """Return True if the fixture's entry deadline (midday UTC) has not passed."""
-    deadline = datetime.combine(fixture_date, _ENTRY_DEADLINE, tzinfo=timezone.utc)
-    return datetime.now(timezone.utc) < deadline
+    deadline = datetime.combine(fixture_date, _ENTRY_DEADLINE, tzinfo=UTC)
+    return datetime.now(UTC) < deadline
 
 
 def count_open_fixtures(fixture_dates: Iterable[date]) -> int:

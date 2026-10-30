@@ -11,6 +11,8 @@ jobs:
   code-quality:
     name: Code Quality Checks
     runs-on: ubuntu-latest
+    env:
+      UV_PYTHON: "3.11"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -18,7 +20,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.11"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
@@ -56,6 +58,8 @@ jobs:
   security:
     name: Security & Compliance Scans
     runs-on: ubuntu-latest
+    env:
+      UV_PYTHON: "3.11"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -65,7 +69,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.11"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
@@ -109,9 +113,11 @@ jobs:
           # Note: PYSEC-2026-89 in markdown 3.10.2 has no newer release available yet.
           # This package is only used by the seed_rules CLI in the dev dependency group.
           # Note: PYSEC-2025-183 in pyjwt 2.12.1 is a disputed advisory with no fixed release.
-          # Note: PYSEC-2026-3481, PYSEC-2026-3482 and PYSEC-2026-3483 affect mcp 1.23.3,
-          # which is pinned by the current Semgrep release. The MCP server mode is not used
-          # by this CI job; revisit these suppressions when Semgrep removes the pin.
+          # Semgrep 1.182.1 pins mcp==1.29.0 and opentelemetry-api~=1.37.0.
+          # The MCP advisories affect its HTTP clients, server auth, and tool-result
+          # validation; this job runs the Semgrep scan CLI and uses none of those paths.
+          # The OpenTelemetry advisory affects inbound trace-context parsing, which this
+          # CLI does not expose. Remove these exceptions when Semgrep updates its pins.
           uv run pip-audit \
             -r "$audit_requirements" \
             --ignore CVE-2026-4539 \
@@ -119,9 +125,11 @@ jobs:
             --ignore GHSA-jp4c-xjxw-mgf9 \
             --ignore PYSEC-2026-89 \
             --ignore PYSEC-2025-183 \
-            --ignore PYSEC-2026-3481 \
-            --ignore PYSEC-2026-3482 \
-            --ignore PYSEC-2026-3483 || exit 1
+            --ignore GHSA-84m7-p3x7-pcfv \
+            --ignore GHSA-5h93-6whr-6q8j \
+            --ignore GHSA-w4fh-qvv9-3v23 \
+            --ignore GHSA-rwrf-2pqf-9j8j \
+            --ignore GHSA-xcq7-p3pf-p88h || exit 1
 
       - name: gitleaks - Scan for secrets
         uses: gitleaks/gitleaks-action@v2
@@ -187,10 +195,16 @@ jobs:
 
   # Job 3: Unit Tests (Depends on code-quality)
   unit-tests:
-    name: Unit Tests & Coverage
+    name: Unit Tests & Coverage (Python ${{ matrix.python-version }})
     needs: code-quality
     runs-on: ubuntu-latest
     environment: testing
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.14"]
+    env:
+      UV_PYTHON: ${{ matrix.python-version }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -200,7 +214,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
@@ -223,19 +237,25 @@ jobs:
           echo "EA_STAGING=true" >> $GITHUB_ENV
 
       - name: Run pytest with coverage
+        if: matrix.python-version == '3.11'
         # Fails if total coverage drops below fail_under in .coveragerc.
         run: |
           uv run pytest tests/unit/ --tb=short \
             --cov=src/website --cov-config=.coveragerc \
             --cov-report=html --cov-report=json --cov-report=xml --cov-report=term-missing
 
+      - name: Run pytest on Python 3.14
+        if: matrix.python-version == '3.14'
+        run: uv run pytest tests/unit/ --tb=short
+
       - name: Coverage of changed lines (diff-cover)
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && matrix.python-version == '3.11'
         run: |
           uv run diff-cover coverage.xml \
             --compare-branch="origin/${{ github.base_ref }}" --fail-under=90
 
       - name: Display coverage summary
+        if: matrix.python-version == '3.11'
         run: |
           python -c "
           import json
@@ -247,7 +267,7 @@ jobs:
 
       - name: Upload coverage reports
         uses: actions/upload-artifact@v4
-        if: always()
+        if: always() && matrix.python-version == '3.11'
         with:
           name: coverage-reports
           path: |
@@ -261,7 +281,9 @@ jobs:
   ui-tests:
     name: UI Tests (Playwright)
     needs: unit-tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    env:
+      UV_PYTHON: "3.14"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -269,7 +291,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.14"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
