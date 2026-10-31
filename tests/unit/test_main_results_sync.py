@@ -1,7 +1,9 @@
 """Tests for the background results-sync polling lifecycle."""
 
 import asyncio
+import logging
 from collections.abc import Coroutine
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, call, patch
@@ -46,6 +48,27 @@ async def test_poll_due_syncs_closes_cursor_when_sync_fails() -> None:
     cursor.close.assert_called_once()
 
 
+def test_racetec_logging_writes_stdout_and_rotates(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    log_path = tmp_path / "logs" / "racetec-scrape.log"
+    logger = logging.getLogger("website.integrations.racetec")
+
+    with main._racetec_logging(log_path):
+        logger.warning("sample scraper warning")
+        file_handler = next(
+            handler
+            for handler in logger.handlers
+            if isinstance(handler, RotatingFileHandler)
+        )
+        assert file_handler.maxBytes == 1_000_000
+        assert file_handler.backupCount == 3
+
+    assert "sample scraper warning" in capsys.readouterr().out
+    assert "sample scraper warning" in log_path.read_text(encoding="utf-8")
+    assert not logger.handlers
+
+
 @pytest.mark.asyncio
 async def test_auto_sync_loop_polls_until_cancelled(
     monkeypatch: pytest.MonkeyPatch,
@@ -65,6 +88,7 @@ async def test_auto_sync_loop_polls_until_cancelled(
 @pytest.mark.asyncio
 async def test_lifespan_starts_and_stops_auto_sync_task(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     settings = Settings(
         database_path=":memory:",
@@ -86,6 +110,8 @@ async def test_lifespan_starts_and_stops_auto_sync_task(
 
     monkeypatch.setattr(main, "_auto_sync_loop", wait_for_cancellation)
     monkeypatch.setattr(main.asyncio, "create_task", track_task)
+    log_path = tmp_path / "logs" / "racetec-scrape.log"
+    monkeypatch.setattr(main, "_RACETEC_LOG_PATH", log_path)
 
     with (
         patch("website.main.connect", return_value=connection),
@@ -98,3 +124,4 @@ async def test_lifespan_starts_and_stops_auto_sync_task(
     connection.close.assert_called_once()
     assert len(tasks) == 1
     assert tasks[0].cancelled()
+    assert log_path.exists()

@@ -1,12 +1,17 @@
 """Tests for RaceTec Results / Tempo Events HTML and CSV parsing."""
 
+from datetime import UTC, datetime
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from website.integrations import racetec
 from website.integrations.racetec import (
     RaceTecScrapeError,
     _guard_racetec_request,
+    _parse_retry_after,
+    _RequestPacer,
     parse_csv_results,
     parse_pager_total_pages,
     parse_races_from_html,
@@ -88,7 +93,7 @@ _SINGLE_RACE_NAV_HTML = """
 
 def _mock_playwright(pages: list[str]) -> tuple[MagicMock, MagicMock]:
     page = MagicMock()
-    page.goto = AsyncMock()
+    page.goto = AsyncMock(return_value=None)
     page.wait_for_timeout = AsyncMock()
     page.content = AsyncMock(side_effect=pages)
     page.title = AsyncMock(return_value="Race Results")
@@ -108,6 +113,31 @@ def _mock_playwright(pages: list[str]) -> tuple[MagicMock, MagicMock]:
     manager.__aenter__ = AsyncMock(return_value=playwright)
     manager.__aexit__ = AsyncMock(return_value=None)
     return manager, context
+
+
+@pytest.fixture(autouse=True)
+def disable_request_pacing(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(racetec._REQUEST_PACER, "wait", AsyncMock())
+
+
+@pytest.mark.asyncio
+async def test_request_pacer_waits_for_minimum_interval() -> None:
+    monotonic = MagicMock(side_effect=[10.0, 10.0, 10.5, 12.0])
+    sleep = AsyncMock()
+    pacer = _RequestPacer(interval_seconds=2.0, monotonic=monotonic, sleep=sleep)
+
+    await pacer.wait()
+    await pacer.wait()
+
+    sleep.assert_awaited_once_with(1.5)
+
+
+def test_parse_retry_after_seconds_and_http_date() -> None:
+    now = datetime(2026, 1, 1, tzinfo=UTC)
+
+    assert _parse_retry_after("12", now) == 12.0
+    assert _parse_retry_after("Thu, 01 Jan 2026 00:00:10 GMT", now) == 10.0
+    assert _parse_retry_after("not a date", now) is None
 
 
 def test_parse_races_from_html() -> None:
@@ -236,7 +266,7 @@ async def test_scrape_racetec_results_raises_for_cloudflare_challenge() -> None:
 
     with (
         patch("website.integrations.racetec.async_playwright", return_value=manager),
-        pytest.raises(RaceTecScrapeError, match="Cloudflare challenge"),
+        pytest.raises(RaceTecScrapeError, match="challenge page"),
     ):
         await scrape_racetec_results(
             "https://www.racetecresults.com/results.aspx?CId=1&RId=2"
@@ -244,10 +274,126 @@ async def test_scrape_racetec_results_raises_for_cloudflare_challenge() -> None:
 
 
 @pytest.mark.asyncio
+async def test_scrape_stops_on_challenge_in_race_page() -> None:
+    manager, _ = _mock_playwright([_SINGLE_RACE_NAV_HTML, "<title>Challenge</title>"])
+    page = manager.__aenter__.return_value.chromium.launch.return_value.new_context.return_value.new_page.return_value
+    page.title = AsyncMock(side_effect=["Race Results", "Attention Required"])
+
+    with (
+        patch("website.integrations.racetec.async_playwright", return_value=manager),
+        pytest.raises(RaceTecScrapeError, match="challenge page"),
+    ):
+        await scrape_racetec_results(
+            "https://www.racetecresults.com/results.aspx?CId=1&RId=2"
+        )
+
+    assert page.goto.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_scrape_honors_retry_after_and_retries_429_once() -> None:
+    manager, _ = _mock_playwright([_SINGLE_RACE_NAV_HTML, _SAMPLE_TABLE_HTML])
+    page = manager.__aenter__.return_value.chromium.launch.return_value.new_context.return_value.new_page.return_value
+    page.goto = AsyncMock(
+        side_effect=[
+            SimpleNamespace(status=429, headers={"retry-after": "3"}),
+            SimpleNamespace(status=200, headers={}),
+            SimpleNamespace(status=200, headers={}),
+        ]
+    )
+    sleep = AsyncMock()
+
+    with (
+        patch("website.integrations.racetec.async_playwright", return_value=manager),
+        patch("website.integrations.racetec._sleep_before_retry", sleep),
+    ):
+        races = await scrape_racetec_results(
+            "https://www.racetecresults.com/results.aspx?CId=1&RId=2"
+        )
+
+    assert len(races) == 1
+    assert page.goto.await_count == 3
+    sleep.assert_awaited_once_with(3.0)
+
+
+@pytest.mark.asyncio
+async def test_scrape_stops_after_second_429() -> None:
+    manager, _ = _mock_playwright([])
+    page = manager.__aenter__.return_value.chromium.launch.return_value.new_context.return_value.new_page.return_value
+    page.goto = AsyncMock(
+        side_effect=[
+            SimpleNamespace(status=429, headers={"retry-after": "0"}),
+            SimpleNamespace(status=429, headers={"retry-after": "0"}),
+        ]
+    )
+    sleep = AsyncMock()
+
+    with (
+        patch("website.integrations.racetec.async_playwright", return_value=manager),
+        patch("website.integrations.racetec._sleep_before_retry", sleep),
+        pytest.raises(RaceTecScrapeError, match="HTTP 429"),
+    ):
+        await scrape_racetec_results(
+            "https://www.racetecresults.com/results.aspx?CId=1&RId=2"
+        )
+
+    assert page.goto.await_count == 2
+    sleep.assert_awaited_once_with(0.0)
+
+
+@pytest.mark.asyncio
+async def test_scrape_stops_on_http_access_denied() -> None:
+    manager, _ = _mock_playwright([])
+    browser = manager.__aenter__.return_value.chromium.launch.return_value
+    page = browser.new_context.return_value.new_page.return_value
+    page.goto.return_value = SimpleNamespace(status=403, headers={})
+
+    with (
+        patch("website.integrations.racetec.async_playwright", return_value=manager),
+        pytest.raises(RaceTecScrapeError, match="denied"),
+    ):
+        await scrape_racetec_results(
+            "https://www.racetecresults.com/results.aspx?CId=1&RId=2"
+        )
+
+    page.goto.assert_awaited_once()
+    browser.close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_scrape_retries_server_error_with_backoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manager, _ = _mock_playwright([_SINGLE_RACE_NAV_HTML, _SAMPLE_TABLE_HTML])
+    page = manager.__aenter__.return_value.chromium.launch.return_value.new_context.return_value.new_page.return_value
+    page.goto = AsyncMock(
+        side_effect=[
+            SimpleNamespace(status=503, headers={}),
+            SimpleNamespace(status=200, headers={}),
+            SimpleNamespace(status=200, headers={}),
+        ]
+    )
+    sleep = AsyncMock()
+    monkeypatch.setattr(racetec, "_EXPONENTIAL_BACKOFF", lambda _: 1.25)
+
+    with (
+        patch("website.integrations.racetec.async_playwright", return_value=manager),
+        patch("website.integrations.racetec._sleep_before_retry", sleep),
+    ):
+        races = await scrape_racetec_results(
+            "https://www.racetecresults.com/results.aspx?CId=1&RId=2"
+        )
+
+    assert len(races) == 1
+    assert page.goto.await_count == 3
+    sleep.assert_awaited_once_with(1.25)
+
+
+@pytest.mark.asyncio
 async def test_scrape_racetec_results_wraps_browser_errors() -> None:
     manager, _ = _mock_playwright([])
-    page = manager.__aenter__.return_value.chromium.launch.return_value
-    page.new_context.return_value.new_page.return_value.goto = AsyncMock(
+    browser = manager.__aenter__.return_value.chromium.launch.return_value
+    browser.new_context.return_value.new_page.return_value.goto = AsyncMock(
         side_effect=RuntimeError("connection failed")
     )
 
@@ -258,6 +404,8 @@ async def test_scrape_racetec_results_wraps_browser_errors() -> None:
         await scrape_racetec_results(
             "https://www.racetecresults.com/results.aspx?CId=1&RId=2"
         )
+
+    browser.close.assert_awaited_once()
 
 
 @pytest.mark.asyncio
