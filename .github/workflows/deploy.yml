@@ -120,21 +120,24 @@ jobs:
              fi'
 
       # ------------------------------------------------------------------
-      # Deploy: stop service → pull → sync deps → migrate → start → check.
+      # Deploy: pull → verify Chromium → stop service → sync deps → migrate
+      # → start → check.
       # The service is stopped before migrations because DuckDB holds an
       # exclusive file lock on the database while uvicorn is connected.
-      # If the public health check fails, restore the previous application
-      # commit and dependencies. Database migrations remain applied, so they
-      # must be backward-compatible with the previous application version.
+      # Any failure after stopping the service restores the previous
+      # application commit and dependencies. Migrations remain applied, so
+      # they must be backward-compatible with the previous application.
       # ------------------------------------------------------------------
       - name: Deploy
+        id: deploy
         if: steps.check.outputs.skip == 'false'
         run: |
+          set +e
           ssh \
             -i ~/.ssh/deploy_key \
             -o BatchMode=yes \
             "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
-            'set -e
+            'set -Eeuo pipefail
              export PATH="$HOME/.local/bin:$PATH"
              cd ~/website
              previous_commit="${{ steps.check.outputs.deployed }}"
@@ -147,7 +150,67 @@ jobs:
              echo "--- Ensuring Python 3.14 is installed ---"
              uv python install 3.14
 
+             echo "--- Checking Chromium system dependencies before downtime ---"
+             if ! ./.venv/bin/python -m playwright install chromium; then
+               echo "CHROMIUM_PREFLIGHT_FAILED"
+               echo "Could not install Chromium; production service was not stopped."
+               exit 1
+             fi
+             if ! ./.venv/bin/python -c "
+               from playwright.sync_api import sync_playwright
+               p = sync_playwright().start()
+               browser = p.chromium.launch()
+               browser.close()
+               p.stop()
+             "; then
+               echo "CHROMIUM_PREFLIGHT_FAILED"
+               echo "Chromium could not launch. Install its Linux system dependencies; production service was not stopped."
+               exit 1
+             fi
+
+             rollback_active=false
+             on_error() {
+               original_status=$1
+               trap - ERR
+               if [ "$rollback_active" != true ]; then
+                 echo "DEPLOY_FAILED_BEFORE_STOP status=$original_status"
+                 exit "$original_status"
+               fi
+
+               set +e
+               echo "--- Deployment failed; restoring $previous_commit ---"
+               rollback_status=0
+               sudo systemctl stop oxcross || rollback_status=1
+               git reset --hard "$previous_commit" || rollback_status=1
+               uv sync --python 3.14 --locked --no-dev || rollback_status=1
+               uv run --python 3.14 playwright install chromium || rollback_status=1
+               sudo systemctl start oxcross || rollback_status=1
+
+               echo "--- Checking rolled-back service health ---"
+               deadline=$((SECONDS + 60))
+               rollback_healthy=false
+               while (( SECONDS < deadline )); do
+                 if curl --silent --fail --max-time 5 \
+                   http://localhost:8000/ --output /dev/null; then
+                   rollback_healthy=true
+                   break
+                 fi
+                 sleep 5
+               done
+
+               if [ "$rollback_healthy" = true ] && [ "$rollback_status" -eq 0 ]; then
+                 echo "ROLLBACK_RESULT=success"
+                 echo "Rolled-back application is healthy; database migrations were retained."
+               else
+                 echo "ROLLBACK_RESULT=failure"
+                 echo "Rollback did not fully recover production; manual intervention is required."
+               fi
+               exit "$original_status"
+             }
+             trap 'on_error $?' ERR
+
              echo "--- Stopping service before replacing its environment ---"
+             rollback_active=true
              sudo systemctl stop oxcross
 
              echo "--- Syncing production dependencies ---"
@@ -155,6 +218,13 @@ jobs:
 
              echo "--- Installing Chromium for results scraping ---"
              uv run --python 3.14 playwright install chromium
+             uv run --python 3.14 python -c "
+               from playwright.sync_api import sync_playwright
+               p = sync_playwright().start()
+               browser = p.chromium.launch()
+               browser.close()
+               p.stop()
+             "
 
              echo "--- Running migrations ---"
              uv run --python 3.14 python scripts/_apply_migrations.py
@@ -179,21 +249,36 @@ jobs:
              if [ "$healthy" = true ]; then
                echo "Public health check passed (HTTP $response_code)."
              else
-               echo "Public health check failed (last HTTP status: ${response_code:-none}); restoring $previous_commit."
-               sudo systemctl stop oxcross
-               git reset --hard "$previous_commit"
-               uv sync --python 3.14 --locked --no-dev
-               uv run --python 3.14 playwright install chromium
-               sudo systemctl start oxcross
-               echo "Application rollback completed; database migrations were retained."
-               exit 1
+               echo "Public health check failed (last HTTP status: ${response_code:-none})."
+               on_error 1
              fi
-            '
+            ' 2>&1 | tee "$RUNNER_TEMP/deploy.log"
+          deploy_status=${PIPESTATUS[0]}
+          if [ "$deploy_status" -eq 0 ]; then
+            echo "result=deployed" >> "$GITHUB_OUTPUT"
+          elif grep -Fq "ROLLBACK_RESULT=success" "$RUNNER_TEMP/deploy.log"; then
+            echo "result=rollback_succeeded" >> "$GITHUB_OUTPUT"
+            exit "$deploy_status"
+          elif grep -Fq "ROLLBACK_RESULT=failure" "$RUNNER_TEMP/deploy.log"; then
+            echo "result=rollback_failed" >> "$GITHUB_OUTPUT"
+            exit "$deploy_status"
+          elif grep -Fq "CHROMIUM_PREFLIGHT_FAILED" "$RUNNER_TEMP/deploy.log"; then
+            echo "result=chromium_preflight_failed" >> "$GITHUB_OUTPUT"
+            exit "$deploy_status"
+          elif grep -Fq "DEPLOY_FAILED_BEFORE_STOP" "$RUNNER_TEMP/deploy.log"; then
+            echo "result=failed_before_stop" >> "$GITHUB_OUTPUT"
+            exit "$deploy_status"
+          else
+            echo "result=failed_before_recovery_handler" >> "$GITHUB_OUTPUT"
+            exit "$deploy_status"
+          fi
 
       - name: Write deployment summary
-        if: steps.check.outputs.skip == 'false'
+        if: always() && steps.check.outputs.skip == 'false'
         run: |
-          cat >> "$GITHUB_STEP_SUMMARY" << EOF
+          case "${{ steps.deploy.outputs.result }}" in
+            deployed)
+              cat >> "$GITHUB_STEP_SUMMARY" << EOF
           # Deployment Complete
 
           | | |
@@ -202,3 +287,37 @@ jobs:
           | **Deployed commit** | \`${{ steps.check.outputs.latest }}\` |
           | **Triggered by** | ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.reason || 'Scheduled midnight run' }} |
           EOF
+              ;;
+            rollback_succeeded)
+              echo "## Deployment failed; rollback succeeded" >> "$GITHUB_STEP_SUMMARY"
+              printf '%s\n' \
+                "The application was restored to \`${{ steps.check.outputs.deployed }}\` and passed the local health check." \
+                "Database migrations were retained." >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            rollback_failed)
+              echo "## Deployment and rollback failed" >> "$GITHUB_STEP_SUMMARY"
+              printf '%s\n' \
+                "Manual intervention is required. The previous application commit was \`${{ steps.check.outputs.deployed }}\`." \
+                >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            chromium_preflight_failed)
+              echo "## Deployment stopped before downtime: Chromium preflight failed" >> "$GITHUB_STEP_SUMMARY"
+              printf '%s\n' \
+                "The service was not stopped. Check the deploy logs and provision" \
+                "Chromium's Linux system dependencies before retrying." >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            failed_before_stop)
+              echo "## Deployment failed before stopping the service" >> "$GITHUB_STEP_SUMMARY"
+              echo "Production was not intentionally stopped; inspect the deploy logs." >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            '')
+              echo "## Deployment did not run" >> "$GITHUB_STEP_SUMMARY"
+              echo "A prerequisite step failed or skipped deployment; inspect the workflow steps." >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            *)
+              echo "## Deployment outcome unknown" >> "$GITHUB_STEP_SUMMARY"
+              printf '%s\n' \
+                "Inspect the deploy logs and verify production service health; the remote connection may have ended before recovery status was reported." \
+                >> "$GITHUB_STEP_SUMMARY"
+              ;;
+          esac
