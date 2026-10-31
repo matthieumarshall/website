@@ -123,8 +123,9 @@ jobs:
       # Deploy: stop service → pull → sync deps → migrate → start → check.
       # The service is stopped before migrations because DuckDB holds an
       # exclusive file lock on the database while uvicorn is connected.
-      # set -e ensures any failure aborts immediately; the service will
-      # remain stopped and the job will fail loudly.
+      # If the public health check fails, restore the previous application
+      # commit and dependencies. Database migrations remain applied, so they
+      # must be backward-compatible with the previous application version.
       # ------------------------------------------------------------------
       - name: Deploy
         if: steps.check.outputs.skip == 'false'
@@ -136,10 +137,12 @@ jobs:
             'set -e
              export PATH="$HOME/.local/bin:$PATH"
              cd ~/website
+             previous_commit="${{ steps.check.outputs.deployed }}"
+             target_commit="${{ steps.check.outputs.latest }}"
 
              echo "--- Updating to the CI-verified commit ---"
              git fetch origin main
-             git merge --ff-only ${{ steps.check.outputs.latest }}
+             git merge --ff-only "$target_commit"
 
              echo "--- Ensuring Python 3.14 is installed ---"
              uv python install 3.14
@@ -159,11 +162,32 @@ jobs:
              echo "--- Starting service ---"
              sudo systemctl start oxcross
 
-             echo "--- Health check ---"
-             sleep 5
-             curl --silent --fail http://localhost:8000/ --output /dev/null \
-               && echo "Health check passed." \
-               || (echo "Health check FAILED — service may not have started correctly." && exit 1)
+             echo "--- Public health check (up to 120 seconds) ---"
+             deadline=$((SECONDS + 120))
+             healthy=false
+             while (( SECONDS < deadline )); do
+               response_code=$(curl --silent --output /dev/null \
+                 --write-out "%{http_code}" --max-time 5 \
+                 https://oxfordshirexcleague.uk/ || true)
+               if [[ "$response_code" =~ ^[23][0-9][0-9]$ ]]; then
+                 healthy=true
+                 break
+               fi
+               sleep 5
+             done
+
+             if [ "$healthy" = true ]; then
+               echo "Public health check passed (HTTP $response_code)."
+             else
+               echo "Public health check failed (last HTTP status: ${response_code:-none}); restoring $previous_commit."
+               sudo systemctl stop oxcross
+               git reset --hard "$previous_commit"
+               uv sync --python 3.14 --locked --no-dev
+               uv run --python 3.14 playwright install chromium
+               sudo systemctl start oxcross
+               echo "Application rollback completed; database migrations were retained."
+               exit 1
+             fi
             '
 
       - name: Write deployment summary
