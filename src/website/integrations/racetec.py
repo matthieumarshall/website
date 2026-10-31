@@ -2,17 +2,37 @@
 
 from __future__ import annotations
 
+import asyncio
 import csv
 import io
 import logging
+import math
 import re
+import time
+from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from urllib.parse import parse_qs, urljoin, urlparse
 
+from playwright.async_api import Error as PlaywrightError
 from playwright.async_api import Page, Route, async_playwright
+from tenacity import (
+    AsyncRetrying,
+    RetryCallState,
+    retry_if_exception_type,
+    wait_random_exponential,
+)
 
 from website.models.results import ParsedRaceWithResults, ParsedResult
 
 _logger = logging.getLogger(__name__)
+_MIN_REQUEST_INTERVAL_SECONDS = 2.0
+_MAX_NAVIGATION_ATTEMPTS = 3
+_MAX_BACKOFF_SECONDS = 60.0
+_HTTP_TOO_MANY_REQUESTS = 429
+_HTTP_SERVER_ERROR_RANGE = range(500, 600)
+_HTTP_CLIENT_ERROR_START = 400
+_HTTP_DENIED_STATUSES = (401, 403)
 
 _EVENT_LINK_RE = re.compile(
     r'<a\s+[^>]*href=["\']([^"\']*EId=(\d+)[^"\']*)["\'][^>]*>(.*?)</a>',
@@ -60,6 +80,37 @@ _CSV_COL_MAPPINGS: list[tuple[tuple[str, ...], tuple[str, ...], str]] = [
 
 class RaceTecScrapeError(Exception):
     """Raised when fetching or scraping RaceTec results fails."""
+
+
+class _RetryableNavigationError(Exception):
+    def __init__(self, status: int | None, retry_after: float | None) -> None:
+        self.status = status
+        self.retry_after = retry_after
+
+
+class _RequestPacer:
+    def __init__(
+        self,
+        interval_seconds: float,
+        monotonic: Callable[[], float] = time.monotonic,
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+    ) -> None:
+        self._interval_seconds = interval_seconds
+        self._monotonic = monotonic
+        self._sleep = sleep
+        self._lock = asyncio.Lock()
+        self._next_request_at = 0.0
+
+    async def wait(self) -> None:
+        async with self._lock:
+            delay = self._next_request_at - self._monotonic()
+            if delay > 0:
+                await self._sleep(delay)
+            self._next_request_at = self._monotonic() + self._interval_seconds
+
+
+_REQUEST_PACER = _RequestPacer(_MIN_REQUEST_INTERVAL_SECONDS)
+_EXPONENTIAL_BACKOFF = wait_random_exponential(multiplier=1.0, max=_MAX_BACKOFF_SECONDS)
 
 
 def _is_allowed_racetec_url(url: str) -> bool:
@@ -352,22 +403,172 @@ def parse_csv_results(csv_text: str) -> list[ParsedResult]:
 
 async def _scrape_single_race(page: Page, race_url: str) -> list[ParsedResult]:
     """Scrape all paginated finisher rows for one race tab."""
-    await page.goto(race_url, wait_until="domcontentloaded", timeout=20000)
-    await page.wait_for_timeout(2000)
-
-    first_page_html = await page.content()
+    _, first_page_html = await _navigate_and_read(
+        page, race_url, timeout_ms=20000, wait_ms=2000
+    )
     race_finishers = parse_results_page_html(first_page_html)
     total_pages = parse_pager_total_pages(first_page_html)
 
     for page_no in range(2, total_pages + 1):
         paged_url = f"{race_url}&PageNo={page_no}"
-        await page.goto(paged_url, wait_until="domcontentloaded", timeout=20000)
-        await page.wait_for_timeout(1500)
-        paged_html = await page.content()
+        _, paged_html = await _navigate_and_read(
+            page, paged_url, timeout_ms=20000, wait_ms=1500
+        )
         race_finishers.extend(parse_results_page_html(paged_html))
 
     deduped: dict[int, ParsedResult] = {fin.position: fin for fin in race_finishers}
     return [deduped[pos] for pos in sorted(deduped)]
+
+
+def _parse_retry_after(value: str | None, now: datetime | None = None) -> float | None:
+    """Parse an HTTP Retry-After value as seconds from now."""
+    if not value:
+        return None
+
+    try:
+        seconds = float(value)
+    except ValueError:
+        try:
+            retry_at = parsedate_to_datetime(value)
+        except (TypeError, ValueError, OverflowError):
+            return None
+        if retry_at.tzinfo is None:
+            retry_at = retry_at.replace(tzinfo=UTC)
+        seconds = (retry_at - (now or datetime.now(UTC))).total_seconds()
+
+    if not math.isfinite(seconds):
+        return None
+    return max(0.0, seconds)
+
+
+def _response_retry_after(response: object) -> float | None:
+    headers = getattr(response, "headers", {})
+    value = headers.get("retry-after") or headers.get("Retry-After")
+    return _parse_retry_after(value)
+
+
+def _is_challenge_page(title: str, html: str) -> bool:
+    content = f"{title}\n{html[:200_000]}".casefold()
+    return any(
+        marker in content
+        for marker in (
+            "just a moment...",
+            "attention required",
+            "cf-chl-",
+            "cf-challenge",
+            "checking your browser",
+        )
+    )
+
+
+async def _navigate_once(
+    page: Page, url: str, timeout_ms: int, wait_ms: int
+) -> tuple[str, str]:
+    await _REQUEST_PACER.wait()
+    try:
+        response = await page.goto(
+            url, wait_until="domcontentloaded", timeout=timeout_ms
+        )
+    except PlaywrightError as exc:
+        raise _RetryableNavigationError(status=None, retry_after=None) from exc
+
+    if response is not None:
+        status = response.status
+        if status == _HTTP_TOO_MANY_REQUESTS or status in _HTTP_SERVER_ERROR_RANGE:
+            raise _RetryableNavigationError(
+                status=status,
+                retry_after=_response_retry_after(response),
+            )
+        if status in _HTTP_DENIED_STATUSES:
+            _logger.warning("RaceTec denied a results request (HTTP %s)", status)
+            raise RaceTecScrapeError(
+                f"RaceTec denied the results request (HTTP {status}); sync stopped."
+            )
+        if status >= _HTTP_CLIENT_ERROR_START:
+            _logger.error("RaceTec results request failed (HTTP %s)", status)
+            raise RaceTecScrapeError(f"RaceTec results request failed (HTTP {status}).")
+
+    await page.wait_for_timeout(wait_ms)
+    title = await page.title()
+    html = await page.content()
+    if _is_challenge_page(title, html):
+        _logger.warning("RaceTec challenge page detected; sync stopped")
+        raise RaceTecScrapeError(
+            "RaceTec challenge page detected; sync stopped without retry."
+        )
+    return title, html
+
+
+def _stop_navigation_retries(
+    retry_after_retry_used: list[bool],
+) -> Callable[[RetryCallState], bool]:
+    def stop(state: RetryCallState) -> bool:
+        if state.attempt_number >= _MAX_NAVIGATION_ATTEMPTS:
+            return True
+        if retry_after_retry_used[0]:
+            return True
+        exception = state.outcome.exception() if state.outcome else None
+        if (
+            isinstance(exception, _RetryableNavigationError)
+            and exception.status == _HTTP_TOO_MANY_REQUESTS
+        ):
+            retry_after_retry_used[0] = True
+        return False
+
+    return stop
+
+
+def _wait_before_navigation_retry(state: RetryCallState) -> float:
+    exception = state.outcome.exception() if state.outcome else None
+    if (
+        isinstance(exception, _RetryableNavigationError)
+        and exception.retry_after is not None
+    ):
+        return exception.retry_after
+    return _EXPONENTIAL_BACKOFF(state)
+
+
+def _log_navigation_retry(state: RetryCallState) -> None:
+    exception = state.outcome.exception() if state.outcome else None
+    if not isinstance(exception, _RetryableNavigationError):
+        return
+    delay = state.next_action.sleep if state.next_action is not None else 0.0
+    if exception.status is not None:
+        _logger.warning(
+            "RaceTec returned HTTP %s; retrying after %.1f seconds",
+            exception.status,
+            delay,
+        )
+    else:
+        _logger.warning("RaceTec navigation failed; retrying after %.1f seconds", delay)
+
+
+async def _navigate_and_read(
+    page: Page, url: str, timeout_ms: int, wait_ms: int
+) -> tuple[str, str]:
+    retry_after_retry_used = [False]
+    retrying = AsyncRetrying(
+        retry=retry_if_exception_type(_RetryableNavigationError),
+        stop=_stop_navigation_retries(retry_after_retry_used),
+        wait=_wait_before_navigation_retry,
+        before_sleep=_log_navigation_retry,
+        sleep=_sleep_before_retry,
+        reraise=True,
+    )
+    try:
+        return await retrying(_navigate_once, page, url, timeout_ms, wait_ms)
+    except _RetryableNavigationError as exc:
+        status_text = (
+            f"HTTP {exc.status}" if exc.status is not None else "navigation error"
+        )
+        _logger.error("RaceTec request failed after retries (%s)", status_text)
+        raise RaceTecScrapeError(
+            f"RaceTec request failed after retries ({status_text})."
+        ) from exc
+
+
+async def _sleep_before_retry(delay: float) -> None:
+    await asyncio.sleep(delay)
 
 
 async def scrape_racetec_results(
@@ -379,6 +580,7 @@ async def scrape_racetec_results(
         RaceTecScrapeError: If scraping fails or is blocked.
     """
     if not _is_allowed_racetec_url(url):
+        _logger.warning("Rejected a RaceTec scrape URL outside the allowed host")
         raise RaceTecScrapeError(
             "Invalid RaceTec URL: use an HTTPS URL on racetecresults.com"
         )
@@ -389,9 +591,8 @@ async def scrape_racetec_results(
     r_id = qs.get("RId", [""])[0]
 
     if not c_id or not r_id:
-        raise RaceTecScrapeError(
-            f"Invalid RaceTec URL: missing CId or RId query parameter ({url})"
-        )
+        _logger.warning("Rejected a RaceTec URL missing required event parameters")
+        raise RaceTecScrapeError("Invalid RaceTec URL: missing CId or RId parameter.")
 
     race_results: list[ParsedRaceWithResults] = []
 
@@ -401,61 +602,61 @@ async def scrape_racetec_results(
                 headless=headless,
                 args=["--disable-blink-features=AutomationControlled"],
             )
-            context = await browser.new_context(
-                user_agent=(
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/124.0.0.0 Safari/537.36"
-                )
-            )
-            await context.route("**/*", _guard_racetec_request)
-            page = await context.new_page()
-
-            # Navigate to the main results page
-            await page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            await page.wait_for_timeout(3000)
-
-            title = await page.title()
-            if "Just a moment..." in title or "Attention Required" in title:
-                # Cloudflare challenge detected
-                await page.wait_for_timeout(5000)
-                title = await page.title()
-                if "Just a moment..." in title:
-                    raise RaceTecScrapeError(
-                        "Scraper blocked by Cloudflare challenge. "
-                        "Please use on-demand browser sync or manual CSV upload."
-                    )
-
-            html = await page.content()
-            base_site = f"{parsed.scheme}://{parsed.netloc}"
-            races = parse_races_from_html(html, base_url=base_site)
-
-            if not races:
-                # Fallback: maybe the URL directly points to a single EId
-                eid_param = qs.get("EId", [None])[0]
-                eid = int(eid_param) if eid_param and eid_param.isdigit() else None
-                races = [(eid or 1, title or "Race Results", url)]
-
-            for eid, race_name, race_url in races:
-                if not _is_allowed_racetec_url(race_url):
-                    raise RaceTecScrapeError(
-                        "RaceTec page linked to a results URL outside "
-                        "racetecresults.com"
-                    )
-                _logger.info("Scraping race %s (%s)", race_name, race_url)
-                finishers = await _scrape_single_race(page, race_url)
-                race_results.append(
-                    ParsedRaceWithResults(
-                        race_name=race_name,
-                        eid=eid,
-                        results=finishers,
+            try:
+                context = await browser.new_context(
+                    user_agent=(
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/124.0.0.0 Safari/537.36"
                     )
                 )
+                await context.route("**/*", _guard_racetec_request)
+                page = await context.new_page()
 
-            await browser.close()
+                title, html = await _navigate_and_read(
+                    page, url, timeout_ms=30000, wait_ms=3000
+                )
+                base_site = f"{parsed.scheme}://{parsed.netloc}"
+                races = parse_races_from_html(html, base_url=base_site)
+
+                if not races:
+                    # Fallback: maybe the URL directly points to a single EId
+                    eid_param = qs.get("EId", [None])[0]
+                    eid = int(eid_param) if eid_param and eid_param.isdigit() else None
+                    races = [(eid or 1, title or "Race Results", url)]
+
+                for eid, race_name, race_url in races:
+                    if not _is_allowed_racetec_url(race_url):
+                        raise RaceTecScrapeError(
+                            "RaceTec page linked to a results URL outside "
+                            "racetecresults.com"
+                        )
+                    _logger.info("Scraping RaceTec event %s (%s)", eid, race_name)
+                    finishers = await _scrape_single_race(page, race_url)
+                    race_results.append(
+                        ParsedRaceWithResults(
+                            race_name=race_name,
+                            eid=eid,
+                            results=finishers,
+                        )
+                    )
+            finally:
+                await browser.close()
     except Exception as exc:
         if isinstance(exc, RaceTecScrapeError):
             raise
-        raise RaceTecScrapeError(f"Failed to scrape RaceTec results: {exc}") from exc
+        _logger.error("RaceTec scrape failed (%s)", type(exc).__name__)
+        raise RaceTecScrapeError(
+            f"Failed to scrape RaceTec results ({type(exc).__name__})."
+        ) from exc
 
+    finisher_count = sum(len(race.results) for race in race_results)
+    if finisher_count == 0:
+        _logger.warning("RaceTec scrape returned no finisher results")
+    else:
+        _logger.info(
+            "RaceTec scrape completed with %s race(s) and %s finisher(s)",
+            len(race_results),
+            finisher_count,
+        )
     return race_results
