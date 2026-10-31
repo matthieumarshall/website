@@ -151,7 +151,7 @@ jobs:
              uv sync --python 3.14 --locked --no-dev
 
              echo "--- Installing Chromium for results scraping ---"
-             uv run --python 3.14 playwright install --with-deps chromium
+             uv run --python 3.14 playwright install chromium
 
              echo "--- Running migrations ---"
              uv run --python 3.14 python scripts/_apply_migrations.py
