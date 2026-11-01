@@ -207,7 +207,8 @@ jobs:
                fi
                exit "$original_status"
              }
-             trap 'on_error $?' ERR
+             # The SSH payload is single-quoted locally; defer $? for the remote trap.
+             trap "on_error \$?" ERR
 
              echo "--- Stopping service before replacing its environment ---"
              rollback_active=true
