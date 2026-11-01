@@ -1,0 +1,50 @@
+<section id="racetec-race-controls-{{ race.id }}" class="card mb-3">
+  <div class="card-body">
+    <h3 class="h6 card-title">RaceTec URL — {{ race.name }}</h3>
+
+    {% if sync_summary %}
+      {% if sync_summary.success %}
+      <div class="alert alert-success py-2" role="status">
+        Imported {{ sync_summary.finishers_synced }} finishers for {{ race.name }}.
+      </div>
+      {% else %}
+      <div class="alert alert-danger py-2" role="alert">
+        <strong>Fetch failed:</strong> {{ sync_summary.error }}
+      </div>
+      {% endif %}
+    {% elif settings_updated %}
+    <div class="alert alert-success py-2" role="status">RaceTec URL saved.</div>
+    {% endif %}
+
+    <form
+      method="post"
+      action="/fixtures/{{ fixture.id }}/race/{{ race.id }}/sync"
+      hx-post="/fixtures/{{ fixture.id }}/race/{{ race.id }}/sync"
+      hx-target="#racetec-race-controls-{{ race.id }}"
+      hx-swap="outerHTML"
+    >
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="mb-2">
+        <label for="racetec-url-{{ race.id }}" class="form-label">RaceTec results URL</label>
+        <input
+          type="url"
+          id="racetec-url-{{ race.id }}"
+          name="racetec_url"
+          class="form-control form-control-sm"
+          value="{{ race.racetec_url or '' }}"
+          placeholder="https://www.racetecresults.com/results.aspx?CId=16418&amp;RId=1006&amp;EId=1"
+          maxlength="500"
+        >
+      </div>
+      <div class="d-flex flex-wrap gap-2">
+        <button type="submit" class="btn btn-sm btn-outline-primary">Save URL</button>
+        <button
+          type="submit"
+          name="sync_now"
+          value="true"
+          class="btn btn-sm btn-primary"
+        >Save URL &amp; Fetch Race</button>
+      </div>
+    </form>
+  </div>
+</section>

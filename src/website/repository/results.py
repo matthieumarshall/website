@@ -6,7 +6,9 @@ from website.db import Connection
 from website.models import Race, Result
 from website.repository._rows import fetch_all, fetch_count, fetch_one, require
 
-_RACE_SELECT = "SELECT id, fixture_id, name, display_order, created_at FROM races"
+_RACE_SELECT = (
+    "SELECT id, fixture_id, name, display_order, created_at, racetec_url FROM races"
+)
 _RESULT_SELECT = (
     "SELECT id, race_id, position, race_number, athlete_name, time,"
     " category, category_position, gender, gender_position, club FROM results"
@@ -31,6 +33,17 @@ def list_races_for_fixture(db: Connection, fixture_id: int) -> list[Race]:
 def get_race_by_id(db: Connection, race_id: int) -> Race | None:
     """Return the race with *race_id*, or None."""
     return fetch_one(db, Race, f"{_RACE_SELECT} WHERE id = ?", [race_id])
+
+
+def update_race_racetec_url(
+    db: Connection, race_id: int, racetec_url: str | None
+) -> Race | None:
+    """Set a race's individual RaceTec results URL."""
+    db.execute(
+        "UPDATE races SET racetec_url = ? WHERE id = ?",
+        [racetec_url, race_id],
+    )
+    return get_race_by_id(db, race_id)
 
 
 def create_race(

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse
 
 from website.web.csrf import CsrfProtected
-from website.web.deps import Fixtures, RendererDep, ResultsSync
+from website.web.deps import Fixtures, RendererDep, Results, ResultsSync
 from website.web.security import RequireStaff
 
 router = APIRouter(prefix="/fixtures", tags=["fixtures-sync"])
@@ -20,15 +20,18 @@ def fixture_sync_panel(
     request: Request,
     _: RequireStaff,
     fixtures_svc: Fixtures,
+    results_svc: Results,
     ui: RendererDep,
 ) -> HTMLResponse:
     """Return the sync status card / panel for a fixture."""
     fixture = fixtures_svc.get_fixture(fixture_id)
+    races = results_svc.race_panel(fixture_id).races
     return ui.page(
         request,
         _SYNC_TEMPLATE,
         _PAGE,
         fixture=fixture,
+        races=races,
     )
 
 
@@ -39,6 +42,7 @@ async def fixture_sync_now(
     _: RequireStaff,
     _csrf: CsrfProtected,
     fixtures_svc: Fixtures,
+    results_svc: Results,
     sync_svc: ResultsSync,
     ui: RendererDep,
 ) -> HTMLResponse:
@@ -50,17 +54,19 @@ async def fixture_sync_now(
         _SYNC_TEMPLATE,
         _PAGE,
         fixture=fixture,
+        races=results_svc.race_panel(fixture_id).races,
         sync_summary=summary,
     )
 
 
 @router.post("/{fixture_id}/sync-settings", response_class=HTMLResponse)
-def fixture_sync_settings(
+def fixture_sync_settings(  # noqa: PLR0913 — FastAPI dependencies and form fields
     fixture_id: int,
     request: Request,
     _: RequireStaff,
     _csrf: CsrfProtected,
     sync_svc: ResultsSync,
+    results_svc: Results,
     ui: RendererDep,
     tempo_results_url: Annotated[str | None, Form()] = None,
     auto_sync_enabled: Annotated[bool, Form()] = False,
@@ -80,7 +86,40 @@ def fixture_sync_settings(
         _SYNC_TEMPLATE,
         _PAGE,
         fixture=updated_fixture,
+        races=results_svc.race_panel(fixture_id).races,
         settings_updated=True,
+    )
+
+
+@router.post("/{fixture_id}/race/{race_id}/sync", response_class=HTMLResponse)
+async def fixture_race_sync(  # noqa: PLR0913 — FastAPI dependencies and form fields
+    fixture_id: int,
+    race_id: int,
+    request: Request,
+    _: RequireStaff,
+    _csrf: CsrfProtected,
+    fixtures_svc: Fixtures,
+    results_svc: Results,
+    sync_svc: ResultsSync,
+    ui: RendererDep,
+    racetec_url: Annotated[str | None, Form()] = None,
+    sync_now: Annotated[bool, Form()] = False,
+) -> HTMLResponse:
+    """Staff: save a race-specific URL and optionally fetch that race."""
+    sync_svc.update_race_url(fixture_id, race_id, racetec_url)
+    summary = (
+        await sync_svc.sync_race_from_url(fixture_id, race_id) if sync_now else None
+    )
+    fixture = fixtures_svc.get_fixture(fixture_id)
+    race, _ = results_svc.race_results(race_id)
+    return ui.page(
+        request,
+        "_race_racetec_controls.html",
+        _PAGE,
+        fixture=fixture,
+        race=race,
+        sync_summary=summary,
+        settings_updated=not sync_now,
     )
 
 
@@ -93,6 +132,7 @@ async def fixture_upload_results_csv(
     race_name: Annotated[str, Form()],
     csv_file: UploadFile,
     fixtures_svc: Fixtures,
+    results_svc: Results,
     sync_svc: ResultsSync,
     ui: RendererDep,
 ) -> HTMLResponse:
@@ -116,5 +156,6 @@ async def fixture_upload_results_csv(
         _SYNC_TEMPLATE,
         _PAGE,
         fixture=fixture,
+        races=results_svc.race_panel(fixture_id).races,
         sync_summary=summary,
     )

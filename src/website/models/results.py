@@ -15,6 +15,7 @@ class Race(BaseModel):
     name: str
     display_order: int
     created_at: datetime
+    racetec_url: str | None = None
 
 
 class Result(BaseModel):

@@ -1,5 +1,6 @@
 {# _fixture_results_sync.html — Staff results sync panel with on-demand sync, auto-sync settings, and CSV fallback. #}
 {% set _is_staff = current_user and current_user.role in (UserRole.admin.value, UserRole.content_creator.value) %}
+{% set _has_race_urls = races | selectattr("racetec_url") | list | length > 0 %}
 
 {% if fixture and _is_staff %}
 <div id="fixture-sync-panel-{{ fixture.id }}" class="card mt-3 border-secondary-subtle">
@@ -35,7 +36,7 @@
       <button
         type="submit"
         class="btn btn-sm btn-primary d-flex align-items-center gap-1"
-        {% if not fixture.tempo_results_url %}disabled aria-disabled="true" title="Configure a results URL first"{% endif %}
+        {% if not fixture.tempo_results_url and not _has_race_urls %}disabled aria-disabled="true" title="Configure a results URL first"{% endif %}
       >
         <span id="sync-spinner-{{ fixture.id }}" class="spinner-border spinner-border-sm htmx-indicator" role="status" aria-hidden="true"></span>
         <span>Fetch Results Now</span>
@@ -127,7 +128,7 @@
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
               <div class="mb-3">
-                <label for="sync-url-{{ fixture.id }}" class="form-label fw-semibold">Tempo Events / RaceTec Results URL</label>
+                <label for="sync-url-{{ fixture.id }}" class="form-label fw-semibold">Fixture-wide Results URL</label>
                 <input
                   type="url"
                   id="sync-url-{{ fixture.id }}"
@@ -136,7 +137,7 @@
                   value="{{ fixture.tempo_results_url or '' }}"
                   placeholder="https://www.racetecresults.com/results.aspx?CId=16418&RId=1006"
                 >
-                <div class="form-text">Set this in advance before race day.</div>
+                <div class="form-text">Set a whole-fixture URL for bulk imports. Set separate URLs per race below.</div>
               </div>
 
               <div class="form-check form-switch mb-3">
@@ -185,6 +186,39 @@
           </div>
         </div>
       </div>
+
+      {# Per-race RaceTec URLs #}
+      {% if races %}
+      <div class="accordion-item">
+        <h4 class="accordion-header" id="heading-race-urls-{{ fixture.id }}">
+          <button
+            class="accordion-button collapsed py-2"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#collapse-race-urls-{{ fixture.id }}"
+            aria-expanded="false"
+            aria-controls="collapse-race-urls-{{ fixture.id }}"
+          >
+            Individual Race URLs
+          </button>
+        </h4>
+        <div
+          id="collapse-race-urls-{{ fixture.id }}"
+          class="accordion-collapse collapse"
+          aria-labelledby="heading-race-urls-{{ fixture.id }}"
+          data-bs-parent="#sync-accordion-{{ fixture.id }}"
+        >
+          <div class="accordion-body">
+            <p class="small text-muted">
+              Set a direct RaceTec results URL for each race. Use “Save URL &amp; Fetch Race” to import only that race.
+            </p>
+            {% for race in races %}
+              {% include "_race_racetec_controls.html" %}
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      {% endif %}
 
       {# Manual CSV Upload Fallback Panel #}
       <div class="accordion-item">

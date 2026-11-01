@@ -91,6 +91,137 @@ def test_update_sync_settings_caps_at_24_hours(
     )
 
 
+@pytest.mark.asyncio
+async def test_sync_race_from_url_only_replaces_selected_race(
+    test_db: duckdb.DuckDBPyConnection,
+) -> None:
+    season = repository.create_season(test_db, "2025-2026")
+    fixture = repository.create_fixture(
+        test_db,
+        season_id=season.id,
+        title="Round 5",
+        date="2026-03-01",
+        location_name="Henley Showground",
+        address="Henley",
+        timetable=[],
+        travel_instructions="",
+    )
+    target_race = repository.create_race(test_db, fixture.id, "Senior Men's Race")
+    other_race = repository.create_race(test_db, fixture.id, "Senior Women's Race")
+    repository.create_result(
+        test_db, target_race.id, 1, "Old Runner", "00:30:00", "SM", "Male"
+    )
+    repository.create_result(
+        test_db, other_race.id, 1, "Unaffected Runner", "00:31:00", "SW", "Female"
+    )
+    service = ResultsSyncService(test_db)
+    racetec_url = "https://www.racetecresults.com/results.aspx?CId=1&RId=2&EId=7"
+    service.update_race_url(
+        fixture.id,
+        target_race.id,
+        racetec_url,
+    )
+    scraped_races = [
+        ParsedRaceWithResults(
+            race_name="Senior Men's Race",
+            results=[
+                ParsedResult(
+                    position=1,
+                    athlete_name="Updated Runner",
+                    time="00:29:00",
+                    category="SM",
+                    gender="Male",
+                )
+            ],
+        ),
+        ParsedRaceWithResults(
+            race_name="Senior Women's Race",
+            results=[
+                ParsedResult(
+                    position=1,
+                    athlete_name="Wrong Race Runner",
+                    time="00:32:00",
+                    category="SW",
+                    gender="Female",
+                )
+            ],
+        ),
+    ]
+
+    with patch(
+        "website.services.results_sync.scrape_racetec_results",
+        new_callable=AsyncMock,
+        return_value=scraped_races,
+    ) as scrape:
+        summary = await service.sync_race_from_url(fixture.id, target_race.id)
+
+    scrape.assert_awaited_once_with(racetec_url)
+    assert summary.success is True
+    assert summary.races == ["Senior Men's Race"]
+    target_results = repository.list_results_for_race(test_db, target_race.id)
+    other_results = repository.list_results_for_race(test_db, other_race.id)
+    assert [result.athlete_name for result in target_results] == ["Updated Runner"]
+    assert [result.athlete_name for result in other_results] == ["Unaffected Runner"]
+
+
+@pytest.mark.asyncio
+async def test_fixture_sync_fetches_each_configured_race_url(
+    test_db: duckdb.DuckDBPyConnection,
+) -> None:
+    season = repository.create_season(test_db, "2025-2026")
+    fixture = repository.create_fixture(
+        test_db,
+        season_id=season.id,
+        title="Round 5",
+        date="2026-03-01",
+        location_name="Henley Showground",
+        address="Henley",
+        timetable=[],
+        travel_instructions="",
+        tempo_results_url=("https://www.racetecresults.com/results.aspx?CId=1&RId=2"),
+    )
+    races = [
+        repository.create_race(test_db, fixture.id, "Senior Men's Race"),
+        repository.create_race(test_db, fixture.id, "Senior Women's Race"),
+    ]
+    urls = [
+        "https://www.racetecresults.com/results.aspx?CId=1&RId=2&EId=7",
+        "https://www.racetecresults.com/results.aspx?CId=1&RId=2&EId=8",
+    ]
+    service = ResultsSyncService(test_db)
+    for race, url in zip(races, urls, strict=True):
+        service.update_race_url(fixture.id, race.id, url)
+    scraped_races = [
+        [
+            ParsedRaceWithResults(
+                race_name=race.name,
+                results=[
+                    ParsedResult(
+                        position=1,
+                        athlete_name=f"Runner {index}",
+                        time="00:30:00",
+                        category="SM",
+                        gender="Male",
+                    )
+                ],
+            )
+        ]
+        for index, race in enumerate(races, start=1)
+    ]
+
+    with patch(
+        "website.services.results_sync.scrape_racetec_results",
+        new_callable=AsyncMock,
+        side_effect=scraped_races,
+    ) as scrape:
+        summary = await service.sync_fixture_from_url(fixture.id)
+
+    assert summary.success is True
+    assert summary.races_synced == 2
+    assert summary.finishers_synced == 2
+    assert [call.args[0] for call in scrape.await_args_list] == urls
+
+
 def test_ingest_parsed_races_and_standings(
     test_db: duckdb.DuckDBPyConnection,
 ) -> None:

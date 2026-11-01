@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from website.models.forms import FixtureCopyForm, FixtureForm, SeasonForm
 from website.services.fixtures import COPY_PARTS, FixtureImages
 from website.web.csrf import CsrfProtected
-from website.web.deps import Fixtures, ImageStoreDep, RendererDep
+from website.web.deps import Fixtures, ImageStoreDep, RendererDep, Results
 from website.web.rendering import Renderer
 from website.web.security import RequireStaff
 from website.web.uploads import read_upload
@@ -45,27 +45,51 @@ def _gallery(
 
 @router.get("", response_class=HTMLResponse)
 def fixtures(
-    request: Request, service: Fixtures, ui: RendererDep, season_id: int | None = None
+    request: Request,
+    service: Fixtures,
+    results_svc: Results,
+    ui: RendererDep,
+    season_id: int | None = None,
 ) -> HTMLResponse:
     """Show a season's fixtures (default: latest season)."""
     view = service.season_view(season_id)
+    races = (
+        results_svc.race_panel(view.active_fixture.id).races
+        if view.active_fixture
+        else []
+    )
     return ui.page(
-        request, "fixtures.html", _PAGE, season=view.selected_season, view=view
+        request,
+        "fixtures.html",
+        _PAGE,
+        season=view.selected_season,
+        view=view,
+        races=races,
     )
 
 
 @router.get("/season-panel", response_class=HTMLResponse)
 def fixtures_season_panel(
-    request: Request, service: Fixtures, ui: RendererDep, season_id: int | None = None
+    request: Request,
+    service: Fixtures,
+    results_svc: Results,
+    ui: RendererDep,
+    season_id: int | None = None,
 ) -> HTMLResponse:
     """HTMX: swap in another season's fixtures."""
     view = service.season_view(season_id)
+    races = (
+        results_svc.race_panel(view.active_fixture.id).races
+        if view.active_fixture
+        else []
+    )
     return ui.page(
         request,
         "_fixtures_season_panel.html",
         _PAGE,
         season=view.selected_season,
         view=view,
+        races=races,
     )
 
 
@@ -74,13 +98,20 @@ def fixtures_fixture_detail(
     request: Request,
     fixture_id: int,
     service: Fixtures,
+    results_svc: Results,
     ui: RendererDep,
     season_id: int | None = None,
 ) -> HTMLResponse:
     """HTMX: swap in a fixture's details."""
     detail = service.detail(fixture_id)
+    races = results_svc.race_panel(fixture_id).races
     return ui.page(
-        request, "_fixture_detail.html", _PAGE, season_id=season_id, view=detail
+        request,
+        "_fixture_detail.html",
+        _PAGE,
+        season_id=season_id,
+        view=detail,
+        races=races,
     )
 
 
