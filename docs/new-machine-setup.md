@@ -93,8 +93,16 @@ just seed-user <username> <password> admin
 uv run playwright install
 ```
 
-The results-sync scraper uses Chromium. Production deployment installs Chromium
-and its Linux dependencies automatically.
+The results-sync scraper uses Chromium. On the production VPS, install Chromium's
+Linux system dependencies once after creating the project's virtual environment:
+
+```sh
+sudo /home/manager/website/.venv/bin/python -m playwright install-deps chromium
+```
+
+Deployments install and verify the Chromium browser, but do not use privileged
+package installation. Repeat the system-dependency installation if a Playwright
+upgrade changes its required Linux libraries.
 
 ---
 
