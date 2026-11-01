@@ -73,6 +73,19 @@ def _make_result(
 # ---------------------------------------------------------------------------
 
 
+def test_create_race_returns_inserted_row_in_same_transaction(
+    test_db: duckdb.DuckDBPyConnection,
+) -> None:
+    season = _make_season(test_db)
+    fixture = _make_fixture(test_db, season.id)
+    test_db.execute("BEGIN")
+    first = repository.create_race(test_db, fixture.id, "First")
+    second = repository.create_race(test_db, fixture.id, "Second")
+    test_db.execute("COMMIT")
+    assert first.id != second.id
+    assert second.name == "Second"
+
+
 def test_canonical_sort_juniors_first(test_db: duckdb.DuckDBPyConnection):
     season = _make_season(test_db)
     fixture = _make_fixture(test_db, season.id)

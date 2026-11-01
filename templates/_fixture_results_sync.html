@@ -137,7 +137,7 @@
                   value="{{ fixture.tempo_results_url or '' }}"
                   placeholder="https://www.racetecresults.com/results.aspx?CId=16418&RId=1006"
                 >
-                <div class="form-text">Set a whole-fixture URL for bulk imports. Set separate URLs per race below.</div>
+                <div class="form-text">Set a whole-fixture URL for bulk imports, or configure individual race URLs below. Individual URLs take priority when configured.</div>
               </div>
 
               <div class="form-check form-switch mb-3">
@@ -188,15 +188,14 @@
       </div>
 
       {# Per-race RaceTec URLs #}
-      {% if races %}
       <div class="accordion-item">
         <h4 class="accordion-header" id="heading-race-urls-{{ fixture.id }}">
           <button
-            class="accordion-button collapsed py-2"
+            class="accordion-button{% if not race_panel_open %} collapsed{% endif %} py-2"
             type="button"
             data-bs-toggle="collapse"
             data-bs-target="#collapse-race-urls-{{ fixture.id }}"
-            aria-expanded="false"
+            aria-expanded="{{ 'true' if race_panel_open else 'false' }}"
             aria-controls="collapse-race-urls-{{ fixture.id }}"
           >
             Individual Race URLs
@@ -204,21 +203,49 @@
         </h4>
         <div
           id="collapse-race-urls-{{ fixture.id }}"
-          class="accordion-collapse collapse"
+          class="accordion-collapse collapse{% if race_panel_open %} show{% endif %}"
           aria-labelledby="heading-race-urls-{{ fixture.id }}"
           data-bs-parent="#sync-accordion-{{ fixture.id }}"
         >
           <div class="accordion-body">
             <p class="small text-muted">
-              Set a direct RaceTec results URL for each race. Use “Save URL &amp; Fetch Race” to import only that race.
+              Add a race, then set its direct RaceTec results URL. Use “Save URL &amp; Fetch Race” to import only that race.
             </p>
+            {% if race_create_error %}
+            <div class="alert alert-danger py-2" role="alert">{{ race_create_error }}</div>
+            {% elif race_created %}
+            <div class="alert alert-success py-2" role="status">Race added. Set its RaceTec URL below.</div>
+            {% endif %}
+            <form method="post" action="/fixtures/{{ fixture.id }}/races" class="mb-3">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <label for="new-race-name-{{ fixture.id }}" class="form-label">Race name</label>
+              <input
+                type="text"
+                id="new-race-name-{{ fixture.id }}"
+                name="race_name"
+                class="form-control form-control-sm"
+                list="timetable-races-{{ fixture.id }}"
+                value="{{ race_name or '' }}"
+                required
+              >
+              <datalist id="timetable-races-{{ fixture.id }}">
+                {% for entry in fixture.timetable %}
+                {% if entry.event | trim %}<option value="{{ entry.event }}">{{ entry.time }}</option>{% endif %}
+                {% endfor %}
+              </datalist>
+              <div class="form-text">Choose a timetable event or enter a name. Changing the timetable does not change races.</div>
+              <button type="submit" class="btn btn-sm btn-outline-primary mt-2">Add Race</button>
+            </form>
+            {% if not races %}
+            <p class="text-muted">No races have been added for this fixture yet.</p>
+            {% endif %}
             {% for race in races %}
+              {% set return_to_fixture = true %}
               {% include "_race_racetec_controls.html" %}
             {% endfor %}
           </div>
         </div>
       </div>
-      {% endif %}
 
       {# Manual CSV Upload Fallback Panel #}
       <div class="accordion-item">

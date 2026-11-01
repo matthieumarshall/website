@@ -50,15 +50,12 @@ def create_race(
     db: Connection, fixture_id: int, name: str, display_order: int = 0
 ) -> Race:
     """Insert a race and return it."""
-    db.execute(
-        "INSERT INTO races (fixture_id, name, display_order) VALUES (?, ?, ?)",
-        [fixture_id, name, display_order],
-    )
     race = fetch_one(
         db,
         Race,
-        f"{_RACE_SELECT} WHERE fixture_id = ? ORDER BY created_at DESC LIMIT 1",
-        [fixture_id],
+        "INSERT INTO races (fixture_id, name, display_order) VALUES (?, ?, ?) "
+        "RETURNING id, fixture_id, name, display_order, created_at, racetec_url",
+        [fixture_id, name, display_order],
     )
     return require(race, "race")
 

@@ -65,6 +65,16 @@ just seed-rules
 
 Log in at [http://localhost:8000/login](http://localhost:8000/login) with username `admin` and password `admin123`.
 
+## Setting up RaceTec results
+
+On a fixture, staff can open **Race Results Integration → Individual Race URLs**
+and add each race before results are available. Choose a suggested timetable
+event or enter another name, then save its RaceTec URL or save and fetch that
+race. Timetable entries are suggestions, not linked records: later timetable
+edits do not rename races. When any individual race URLs are configured,
+fixture-wide manual and automatic sync use those URLs instead of the
+fixture-wide URL. Races without individual URLs are not included in that sync.
+
 ## Project Structure
 
 ```

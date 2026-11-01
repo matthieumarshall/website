@@ -10,7 +10,7 @@ from pyresults import get_valid_category_codes
 
 from website import repository
 from website.db import Connection
-from website.errors import NotFoundError
+from website.errors import ConflictError, NotFoundError, ValidationError
 from website.integrations.racetec import (
     RaceTecScrapeError,
     parse_csv_results,
@@ -156,6 +156,19 @@ class ResultsSyncService:
         if not updated:
             raise NotFoundError(f"Fixture {fixture_id} not found")
         return updated
+
+    def create_race(self, fixture_id: int, name: str) -> Race:
+        """Create a named results race before importing its results."""
+        if repository.get_fixture_by_id(self._db, fixture_id) is None:
+            raise NotFoundError(f"Fixture {fixture_id} not found")
+        name = name.strip()
+        if not name:
+            raise ValidationError("Enter a race name.")
+        if repository.get_race_by_name(self._db, fixture_id, name):
+            raise ConflictError(
+                "A race with this name already exists for this fixture."
+            )
+        return repository.create_race(self._db, fixture_id, name)
 
     def update_race_url(
         self, fixture_id: int, race_id: int, racetec_url: str | None
