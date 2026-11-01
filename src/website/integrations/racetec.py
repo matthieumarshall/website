@@ -172,6 +172,20 @@ def parse_races_from_html(
     return races
 
 
+def _races_for_event(
+    races: list[tuple[int, str, str]],
+    title: str,
+    url: str,
+    eid_param: str | None,
+) -> list[tuple[int, str, str]]:
+    """Limit a results page to its requested event, if the URL names one."""
+    requested_eid = int(eid_param) if eid_param and eid_param.isdigit() else None
+    if requested_eid is not None:
+        selected = [race for race in races if race[0] == requested_eid]
+        return selected or [(requested_eid, title or "Race Results", url)]
+    return races or [(1, title or "Race Results", url)]
+
+
 def parse_pager_total_pages(html: str) -> int:
     """Extract total pages count from bottom pager HTML."""
     match = _PAGER_TOTAL_RE.search(html)
@@ -617,13 +631,12 @@ async def scrape_racetec_results(
                     page, url, timeout_ms=30000, wait_ms=3000
                 )
                 base_site = f"{parsed.scheme}://{parsed.netloc}"
-                races = parse_races_from_html(html, base_url=base_site)
-
-                if not races:
-                    # Fallback: maybe the URL directly points to a single EId
-                    eid_param = qs.get("EId", [None])[0]
-                    eid = int(eid_param) if eid_param and eid_param.isdigit() else None
-                    races = [(eid or 1, title or "Race Results", url)]
+                races = _races_for_event(
+                    parse_races_from_html(html, base_url=base_site),
+                    title,
+                    url,
+                    qs.get("EId", [None])[0],
+                )
 
                 for eid, race_name, race_url in races:
                     if not _is_allowed_racetec_url(race_url):

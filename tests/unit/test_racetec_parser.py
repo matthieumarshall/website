@@ -257,6 +257,22 @@ async def test_scrape_racetec_results_reads_races_and_results() -> None:
 
 
 @pytest.mark.asyncio
+async def test_scrape_racetec_results_with_eid_only_fetches_selected_race() -> None:
+    manager, _ = _mock_playwright([_SAMPLE_NAV_HTML, _SAMPLE_TABLE_HTML])
+    page = manager.__aenter__.return_value.chromium.launch.return_value.new_context.return_value.new_page.return_value
+    url = "https://www.racetecresults.com/results.aspx?CId=16418&RId=1006&EId=7"
+
+    with patch("website.integrations.racetec.async_playwright", return_value=manager):
+        races = await scrape_racetec_results(url)
+
+    assert len(races) == 1
+    assert races[0].race_name == "Senior Men's Race"
+    assert page.goto.await_args_list[1].args[0] == (
+        "https://www.racetecresults.com/results.aspx?CId=16418&RId=1006&EId=7&dt=0"
+    )
+
+
+@pytest.mark.asyncio
 async def test_scrape_racetec_results_raises_for_cloudflare_challenge() -> None:
     manager, _ = _mock_playwright([_SINGLE_RACE_NAV_HTML])
     page = manager.__aenter__.return_value.chromium.launch.return_value

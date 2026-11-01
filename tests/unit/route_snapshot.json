@@ -429,6 +429,10 @@
   ],
   [
     "POST",
+    "/fixtures/{fixture_id}/race/{race_id}/sync"
+  ],
+  [
+    "POST",
     "/fixtures/{fixture_id}/sync"
   ],
   [

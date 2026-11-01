@@ -16,7 +16,7 @@ from website.integrations.racetec import (
     parse_csv_results,
     scrape_racetec_results,
 )
-from website.models import Fixture, ParsedRaceWithResults
+from website.models import Fixture, ParsedRaceWithResults, Race
 from website.services.standings_calculator import recalculate_standings
 
 _logger = logging.getLogger(__name__)
@@ -155,6 +155,21 @@ class ResultsSyncService:
         )
         if not updated:
             raise NotFoundError(f"Fixture {fixture_id} not found")
+        return updated
+
+    def update_race_url(
+        self, fixture_id: int, race_id: int, racetec_url: str | None
+    ) -> Race:
+        """Set the RaceTec URL for a race belonging to *fixture_id*."""
+        race = repository.get_race_by_id(self._db, race_id)
+        if race is None or race.fixture_id != fixture_id:
+            raise NotFoundError("Race not found")
+        clean_url = racetec_url.strip() if racetec_url else None
+        updated = repository.update_race_racetec_url(
+            self._db, race_id=race_id, racetec_url=clean_url or None
+        )
+        if updated is None:
+            raise NotFoundError("Race not found")
         return updated
 
     def ingest_parsed_races(
@@ -325,6 +340,30 @@ class ResultsSyncService:
         if not fixture:
             raise NotFoundError(f"Fixture {fixture_id} not found")
 
+        configured_races = (
+            [
+                race
+                for race in repository.list_races_for_fixture(self._db, fixture.id)
+                if race.racetec_url
+            ]
+            if url is None
+            else []
+        )
+        if configured_races:
+            summaries = [
+                await self.sync_race_from_url(fixture.id, race.id)
+                for race in configured_races
+            ]
+            errors = [summary.error for summary in summaries if summary.error]
+            return SyncSummary(
+                fixture_id=fixture.id,
+                races_synced=sum(summary.races_synced for summary in summaries),
+                finishers_synced=sum(summary.finishers_synced for summary in summaries),
+                races=[name for summary in summaries for name in summary.races],
+                success=all(summary.success for summary in summaries),
+                error="; ".join(errors) or None,
+            )
+
         target_url = url or fixture.tempo_results_url
         if not target_url:
             raise ValueError("No results URL provided or configured for this fixture")
@@ -356,6 +395,62 @@ class ResultsSyncService:
             )
 
         return self.ingest_parsed_races(fixture, parsed_races)
+
+    async def sync_race_from_url(self, fixture_id: int, race_id: int) -> SyncSummary:
+        """Fetch and replace results from one race's configured RaceTec URL."""
+        fixture = repository.get_fixture_by_id(self._db, fixture_id)
+        race = repository.get_race_by_id(self._db, race_id)
+        if fixture is None or race is None or race.fixture_id != fixture_id:
+            raise NotFoundError("Race not found")
+
+        def failed_summary(error: str) -> SyncSummary:
+            repository.update_fixture_sync_status(
+                self._db,
+                fixture_id=fixture.id,
+                sync_status="error",
+                sync_error=error,
+            )
+            return SyncSummary(
+                fixture_id=fixture.id,
+                races_synced=0,
+                finishers_synced=0,
+                races=[],
+                success=False,
+                error=error,
+            )
+
+        if not race.racetec_url:
+            return failed_summary("No RaceTec URL configured for this race.")
+
+        repository.update_fixture_sync_status(
+            self._db,
+            fixture_id=fixture.id,
+            sync_status="syncing",
+            sync_error=None,
+            last_sync_attempt_at=datetime.now(UTC),
+        )
+        try:
+            parsed_races = await scrape_racetec_results(race.racetec_url)
+        except RaceTecScrapeError as exc:
+            return failed_summary(str(exc))
+
+        populated_races = [parsed for parsed in parsed_races if parsed.results]
+        matching_races = [
+            parsed
+            for parsed in populated_races
+            if parsed.race_name.strip().casefold() == race.name.strip().casefold()
+        ]
+        if len(matching_races) == 1:
+            selected_race = matching_races[0]
+        elif not matching_races and len(populated_races) == 1:
+            selected_race = populated_races[0]
+        else:
+            return failed_summary(
+                f"RaceTec URL did not identify exactly one result set for {race.name}."
+            )
+
+        selected_race = selected_race.model_copy(update={"race_name": race.name})
+        return self.ingest_parsed_races(fixture, [selected_race])
 
     async def check_and_run_due_syncs(self) -> list[SyncSummary]:
         """Poll and execute due synchronisations for all active fixtures."""

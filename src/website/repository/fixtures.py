@@ -188,12 +188,14 @@ def update_fixture_sync_status(
 
 
 def list_fixtures_needing_sync(db: Connection) -> list[Fixture]:
-    """Return fixtures with active auto-sync."""
+    """Return fixtures with active auto-sync and at least one configured URL."""
     return fetch_all(
         db,
         Fixture,
-        f"{_FIXTURE_SELECT} WHERE auto_sync_enabled = true"
-        " AND tempo_results_url IS NOT NULL",
+        f"{_FIXTURE_SELECT} WHERE auto_sync_enabled = true"  # nosec B608 — fixed SQL fragments
+        " AND (tempo_results_url IS NOT NULL OR EXISTS ("
+        " SELECT 1 FROM races WHERE races.fixture_id = fixtures.id"
+        " AND races.racetec_url IS NOT NULL))",
         [],
     )
 

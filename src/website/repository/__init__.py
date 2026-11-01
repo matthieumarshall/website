@@ -111,6 +111,7 @@ from website.repository.results import (
     list_races_for_fixture,
     list_results_for_race,
     race_sort_key,
+    update_race_racetec_url,
 )
 from website.repository.seasons import (
     create_season,
@@ -243,6 +244,7 @@ __all__ = [
     "update_fixture_sync_settings",
     "update_fixture_sync_status",
     "update_post",
+    "update_race_racetec_url",
     "update_winner_override",
     "upsert_club_allocation",
     "upsert_fixture_document",
