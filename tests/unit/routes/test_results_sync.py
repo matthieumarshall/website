@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from website import repository
 from website.models import ParsedRaceWithResults, ParsedResult
+from website.models.fixtures import TimetableEntry
 
 
 def _get_csrf(client: TestClient) -> str:
@@ -29,7 +30,7 @@ def sync_fixture(test_db: duckdb.DuckDBPyConnection) -> tuple[int, int]:
         date="2026-03-01",
         location_name="Henley Showground",
         address="Henley",
-        timetable=[],
+        timetable=[TimetableEntry(time="11:00", event="Under 11 Girls Race")],
         travel_instructions="",
         tempo_results_url="https://www.racetecresults.com/results.aspx?CId=16418&RId=1006",
     )
@@ -37,6 +38,17 @@ def sync_fixture(test_db: duckdb.DuckDBPyConnection) -> tuple[int, int]:
 
 
 class TestResultsSyncPermissions:
+    def test_create_race_requires_staff(
+        self, test_client: TestClient, sync_fixture: tuple[int, int]
+    ) -> None:
+        _, fixture_id = sync_fixture
+        response = test_client.post(
+            f"/fixtures/{fixture_id}/races",
+            data={"csrf_token": "fake", "race_name": "Under 11 Girls Race"},
+            follow_redirects=False,
+        )
+        assert response.status_code in (302, 403)
+
     def test_sync_panel_requires_staff(
         self, test_client: TestClient, sync_fixture: tuple[int, int]
     ) -> None:
@@ -84,6 +96,102 @@ class TestResultsSyncPermissions:
 
 
 class TestResultsSyncStaffOperations:
+    def test_empty_race_panel_offers_timetable_suggestions(
+        self, admin_client: TestClient, sync_fixture: tuple[int, int]
+    ) -> None:
+        _, fixture_id = sync_fixture
+        response = admin_client.get(f"/fixtures/{fixture_id}/sync-panel")
+        assert response.status_code == 200
+        assert "Individual Race URLs" in response.text
+        assert "No races have been added" in response.text
+        assert 'value="Under 11 Girls Race">11:00</option>' in response.text
+        assert f'action="/fixtures/{fixture_id}/races"' in response.text
+
+    def test_add_race_then_save_url(
+        self,
+        admin_client: TestClient,
+        test_db: duckdb.DuckDBPyConnection,
+        sync_fixture: tuple[int, int],
+    ) -> None:
+        season_id, fixture_id = sync_fixture
+        first_fixture = repository.create_fixture(
+            test_db, season_id, "Earlier", "2026-01-01", "Venue", "Address", [], ""
+        )
+        test_db.execute(
+            "UPDATE fixtures SET tempo_results_url = NULL WHERE id = ?", [fixture_id]
+        )
+        csrf = _get_csrf(admin_client)
+        response = admin_client.post(
+            f"/fixtures/{fixture_id}/races",
+            data={"csrf_token": csrf, "race_name": "  Under 11 Girls Race  "},
+        )
+        assert response.status_code == 200
+        assert "Race added." in response.text
+        assert 'class="accordion-collapse collapse show"' in response.text
+        assert 'aria-label="Fixture 2: Round 5"' in response.text
+        assert repository.list_races_for_fixture(test_db, first_fixture.id) == []
+        races = repository.list_races_for_fixture(test_db, fixture_id)
+        assert len(races) == 1
+        assert races[0].name == "Under 11 Girls Race"
+        assert f"racetec-url-{races[0].id}" in response.text
+        assert 'title="Configure a results URL first"' in response.text
+        url = "https://www.racetecresults.com/results.aspx?CId=1&RId=2&EId=1"
+        response = admin_client.post(
+            f"/fixtures/{fixture_id}/race/{races[0].id}/sync",
+            data={"csrf_token": csrf, "racetec_url": url, "return_to_fixture": "true"},
+        )
+        assert response.status_code == 200
+        assert f'id="fixture-sync-panel-{fixture_id}"' in response.text
+        assert 'title="Configure a results URL first"' not in response.text
+        saved = repository.get_race_by_id(test_db, races[0].id)
+        assert saved is not None
+        assert saved.racetec_url == url
+
+        response = admin_client.post(
+            f"/fixtures/{fixture_id}/race/{races[0].id}/sync",
+            data={"csrf_token": csrf, "racetec_url": "", "return_to_fixture": "true"},
+        )
+        assert response.status_code == 200
+        assert 'title="Configure a results URL first"' in response.text
+        saved = repository.get_race_by_id(test_db, races[0].id)
+        assert saved is not None
+        assert saved.racetec_url is None
+
+    @pytest.mark.parametrize(
+        ("name", "status", "message"),
+        [
+            ("   ", 422, "Enter a race name."),
+            ("  UNDER 11 GIRLS RACE ", 409, "A race with this name already exists"),
+        ],
+    )
+    def test_add_race_validation(
+        self,
+        admin_client: TestClient,
+        test_db: duckdb.DuckDBPyConnection,
+        sync_fixture: tuple[int, int],
+        name: str,
+        status: int,
+        message: str,
+    ) -> None:
+        _, fixture_id = sync_fixture
+        repository.create_race(test_db, fixture_id, "Under 11 Girls Race")
+        response = admin_client.post(
+            f"/fixtures/{fixture_id}/races",
+            data={"csrf_token": _get_csrf(admin_client), "race_name": name},
+        )
+        assert response.status_code == status
+        assert message in response.text
+        assert len(repository.list_races_for_fixture(test_db, fixture_id)) == 1
+
+    def test_add_race_rejects_missing_csrf(
+        self, admin_client: TestClient, sync_fixture: tuple[int, int]
+    ) -> None:
+        _, fixture_id = sync_fixture
+        response = admin_client.post(
+            f"/fixtures/{fixture_id}/races", data={"race_name": "Race"}
+        )
+        assert response.status_code in (403, 422)
+
     def test_sync_panel_renders_for_admin(
         self, admin_client: TestClient, sync_fixture: tuple[int, int]
     ) -> None:
@@ -120,11 +228,13 @@ class TestResultsSyncStaffOperations:
             assert f"racetec-url-{race.id}" in response.text
             assert "Under 11 Girls Race" in response.text
 
+    @pytest.mark.parametrize("return_to_fixture", [False, True])
     def test_save_and_fetch_race_url_imports_only_selected_race(
         self,
         admin_client: TestClient,
         test_db: duckdb.DuckDBPyConnection,
         sync_fixture: tuple[int, int],
+        return_to_fixture: bool,
     ) -> None:
         _, fixture_id = sync_fixture
         race = repository.create_race(test_db, fixture_id, "Under 11 Girls Race")
@@ -168,11 +278,16 @@ class TestResultsSyncStaffOperations:
                     "csrf_token": csrf,
                     "racetec_url": racetec_url,
                     "sync_now": "true",
+                    "return_to_fixture": str(return_to_fixture).lower(),
                 },
             )
 
         assert response.status_code == 200
         assert "Imported 1 finishers" in response.text
+        if return_to_fixture:
+            assert f'id="fixture-sync-panel-{fixture_id}"' in response.text
+        else:
+            assert f'id="racetec-race-controls-{race.id}"' in response.text
         scrape.assert_awaited_once_with(racetec_url)
         saved_race = repository.get_race_by_id(test_db, race.id)
         assert saved_race is not None

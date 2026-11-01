@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse
 
+from website.errors import ConflictError, ValidationError
 from website.web.csrf import CsrfProtected
 from website.web.deps import Fixtures, RendererDep, Results, ResultsSync
 from website.web.security import RequireStaff
@@ -104,6 +105,7 @@ async def fixture_race_sync(  # noqa: PLR0913 — FastAPI dependencies and form 
     ui: RendererDep,
     racetec_url: Annotated[str | None, Form()] = None,
     sync_now: Annotated[bool, Form()] = False,
+    return_to_fixture: Annotated[bool, Form()] = False,
 ) -> HTMLResponse:
     """Staff: save a race-specific URL and optionally fetch that race."""
     sync_svc.update_race_url(fixture_id, race_id, racetec_url)
@@ -111,6 +113,17 @@ async def fixture_race_sync(  # noqa: PLR0913 — FastAPI dependencies and form 
         await sync_svc.sync_race_from_url(fixture_id, race_id) if sync_now else None
     )
     fixture = fixtures_svc.get_fixture(fixture_id)
+    if return_to_fixture:
+        return ui.page(
+            request,
+            _SYNC_TEMPLATE,
+            _PAGE,
+            fixture=fixture,
+            races=results_svc.race_panel(fixture_id).races,
+            sync_summary=summary,
+            settings_updated=not sync_now,
+            race_panel_open=True,
+        )
     race, _ = results_svc.race_results(race_id)
     return ui.page(
         request,
@@ -120,6 +133,50 @@ async def fixture_race_sync(  # noqa: PLR0913 — FastAPI dependencies and form 
         race=race,
         sync_summary=summary,
         settings_updated=not sync_now,
+    )
+
+
+@router.post("/{fixture_id}/races", response_class=HTMLResponse)
+def fixture_create_race(
+    fixture_id: int,
+    request: Request,
+    _: RequireStaff,
+    _csrf: CsrfProtected,
+    fixtures_svc: Fixtures,
+    results_svc: Results,
+    sync_svc: ResultsSync,
+    ui: RendererDep,
+    race_name: Annotated[str, Form()] = "",
+) -> HTMLResponse:
+    """Create a race and show its URL controls on the selected fixture."""
+    detail = fixtures_svc.detail(fixture_id)
+    error = None
+    status_code = 200
+    try:
+        sync_svc.create_race(fixture_id, race_name)
+    except (ValidationError, ConflictError) as exc:
+        error = exc.message
+        status_code = 409 if isinstance(exc, ConflictError) else 422
+
+    view = fixtures_svc.season_view(detail.fixture.season_id).model_copy(
+        update={
+            "active_fixture": detail.fixture,
+            "images": detail.images,
+            "documents": detail.documents,
+        }
+    )
+    return ui.page(
+        request,
+        "fixtures.html",
+        _PAGE,
+        view=view,
+        status_code=status_code,
+        races=results_svc.race_panel(fixture_id).races,
+        has_results=detail.has_results,
+        race_panel_open=True,
+        race_create_error=error,
+        race_name=race_name if error else "",
+        race_created=error is None,
     )
 
 

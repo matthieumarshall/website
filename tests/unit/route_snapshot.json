@@ -433,6 +433,10 @@
   ],
   [
     "POST",
+    "/fixtures/{fixture_id}/races"
+  ],
+  [
+    "POST",
     "/fixtures/{fixture_id}/sync"
   ],
   [

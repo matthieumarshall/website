@@ -7,6 +7,7 @@ import duckdb
 import pytest
 
 from website import repository
+from website.errors import NotFoundError
 from website.integrations.racetec import RaceTecScrapeError
 from website.models import ParsedRaceWithResults, ParsedResult
 from website.services.results_sync import (
@@ -38,6 +39,13 @@ def test_normalise_category() -> None:
 
     # Unknown category falls back to stripped original
     assert normalise_category("SuperVeteran", "Male") == "SuperVeteran"
+
+
+def test_create_race_requires_existing_fixture(
+    test_db: duckdb.DuckDBPyConnection,
+) -> None:
+    with pytest.raises(NotFoundError):
+        ResultsSyncService(test_db).create_race(9999, "Race")
 
 
 def test_update_sync_settings_caps_at_24_hours(
