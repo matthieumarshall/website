@@ -3,9 +3,10 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Form, Request, UploadFile
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from website.errors import ConflictError, ValidationError
+from website.models.forms import ResultForm
 from website.web.csrf import CsrfProtected
 from website.web.deps import Fixtures, RendererDep, Results, ResultsSync
 from website.web.security import RequireStaff
@@ -13,6 +14,16 @@ from website.web.security import RequireStaff
 router = APIRouter(prefix="/fixtures", tags=["fixtures-sync"])
 _PAGE = "fixtures"
 _SYNC_TEMPLATE = "_fixture_results_sync.html"
+
+
+def _results_redirect(
+    season_id: int, fixture_id: int, race_id: int
+) -> RedirectResponse:
+    """Return to the selected race after a staff result change."""
+    return RedirectResponse(
+        url=f"/results?season_id={season_id}&fixture_id={fixture_id}&race_id={race_id}",
+        status_code=303,
+    )
 
 
 @router.get("/{fixture_id}/sync-panel", response_class=HTMLResponse)
@@ -216,3 +227,61 @@ async def fixture_upload_results_csv(
         races=results_svc.race_panel(fixture_id).races,
         sync_summary=summary,
     )
+
+
+@router.post("/{fixture_id}/race/{race_id}/results")
+def fixture_create_manual_result(
+    fixture_id: int,
+    race_id: int,
+    form: Annotated[ResultForm, Form()],
+    _: RequireStaff,
+    _csrf: CsrfProtected,
+    fixtures_svc: Fixtures,
+    results_svc: Results,
+) -> RedirectResponse:
+    """Add a result that remains intact when external data is refreshed."""
+    fixture = fixtures_svc.get_fixture(fixture_id)
+    race, _ = results_svc.race_results(race_id)
+    if race.fixture_id != fixture.id:
+        raise ValidationError("Race does not belong to this round")
+    results_svc.create_manual_result(race_id, **form.model_dump())
+    return _results_redirect(fixture.season_id, fixture_id, race_id)
+
+
+@router.post("/{fixture_id}/race/{race_id}/results/{result_id}/edit")
+def fixture_update_manual_result(
+    fixture_id: int,
+    race_id: int,
+    result_id: int,
+    form: Annotated[ResultForm, Form()],
+    _: RequireStaff,
+    _csrf: CsrfProtected,
+    fixtures_svc: Fixtures,
+    results_svc: Results,
+) -> RedirectResponse:
+    """Edit and lock a result so subsequent imports cannot overwrite it."""
+    fixture = fixtures_svc.get_fixture(fixture_id)
+    race, _ = results_svc.race_results(race_id)
+    if race.fixture_id != fixture.id:
+        raise ValidationError("Race does not belong to this round")
+    results_svc.update_manual_result(race_id, result_id, **form.model_dump())
+    return _results_redirect(fixture.season_id, fixture_id, race_id)
+
+
+@router.post("/{fixture_id}/race/{race_id}/results/{result_id}/delete")
+def fixture_delete_manual_result(
+    fixture_id: int,
+    race_id: int,
+    result_id: int,
+    _: RequireStaff,
+    _csrf: CsrfProtected,
+    fixtures_svc: Fixtures,
+    results_svc: Results,
+) -> RedirectResponse:
+    """Delete one result from a race."""
+    fixture = fixtures_svc.get_fixture(fixture_id)
+    race, _ = results_svc.race_results(race_id)
+    if race.fixture_id != fixture.id:
+        raise ValidationError("Race does not belong to this round")
+    results_svc.delete_result(race_id, result_id)
+    return _results_redirect(fixture.season_id, fixture_id, race_id)

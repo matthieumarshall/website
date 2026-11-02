@@ -34,6 +34,9 @@ class Result(BaseModel):
     gender: str
     gender_position: int | None
     club: str | None
+    source: str = "imported"
+    is_locked: bool = False
+    external_key: str | None = None
 
 
 class RaceWithResults(BaseModel):

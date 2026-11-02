@@ -128,7 +128,7 @@ class TestResultsSyncStaffOperations:
         assert response.status_code == 200
         assert "Race added." in response.text
         assert 'class="accordion-collapse collapse show"' in response.text
-        assert 'aria-label="Fixture 2: Round 5"' in response.text
+        assert 'aria-label="Round 1: Round 5"' in response.text
         assert repository.list_races_for_fixture(test_db, first_fixture.id) == []
         races = repository.list_races_for_fixture(test_db, fixture_id)
         assert len(races) == 1

@@ -11,7 +11,8 @@ _RACE_SELECT = (
 )
 _RESULT_SELECT = (
     "SELECT id, race_id, position, race_number, athlete_name, time,"
-    " category, category_position, gender, gender_position, club FROM results"
+    " category, category_position, gender, gender_position, club, source,"
+    " is_locked, external_key FROM results"
 )
 _AGE_GROUP = re.compile(r"\bU(\d+)\b", re.IGNORECASE)
 
@@ -33,6 +34,11 @@ def list_races_for_fixture(db: Connection, fixture_id: int) -> list[Race]:
 def get_race_by_id(db: Connection, race_id: int) -> Race | None:
     """Return the race with *race_id*, or None."""
     return fetch_one(db, Race, f"{_RACE_SELECT} WHERE id = ?", [race_id])
+
+
+def get_result_by_id(db: Connection, result_id: int) -> Result | None:
+    """Return one result row."""
+    return fetch_one(db, Result, f"{_RESULT_SELECT} WHERE id = ?", [result_id])
 
 
 def update_race_racetec_url(
@@ -75,6 +81,15 @@ def delete_results_for_race(db: Connection, race_id: int) -> None:
     db.execute("DELETE FROM results WHERE race_id = ?", [race_id])
 
 
+def delete_unlocked_imported_results_for_race(db: Connection, race_id: int) -> None:
+    """Clear only rows which a future import is allowed to replace."""
+    db.execute(
+        "DELETE FROM results WHERE race_id = ?"
+        " AND source = 'imported' AND is_locked = false",
+        [race_id],
+    )
+
+
 def create_results_batch(
     db: Connection,
     rows: list[
@@ -103,6 +118,96 @@ def create_results_batch(
         rows,
     )
     return len(rows)
+
+
+def create_imported_results_batch(
+    db: Connection,
+    rows: list[
+        tuple[
+            int,
+            int,
+            int | None,
+            str,
+            str,
+            str,
+            int | None,
+            str,
+            int | None,
+            str | None,
+            str,
+        ]
+    ],
+) -> int:
+    """Insert synchronised rows with the identity used to protect edits."""
+    if not rows:
+        return 0
+    db.executemany(
+        "INSERT INTO results"
+        " (race_id, position, race_number, athlete_name, time, category,"
+        " category_position, gender, gender_position, club, source, is_locked,"
+        " external_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'imported', false, ?)",
+        rows,
+    )
+    return len(rows)
+
+
+def locked_external_keys_for_race(db: Connection, race_id: int) -> set[str]:
+    """Return imported identities that staff have protected from synchronisation."""
+    rows = db.execute(
+        "SELECT external_key FROM results WHERE race_id = ?"
+        " AND is_locked = true AND external_key IS NOT NULL",
+        [race_id],
+    ).fetchall()
+    return {str(key) for (key,) in rows}
+
+
+def lock_result(db: Connection, result_id: int) -> Result | None:
+    """Mark a result as a staff correction protected from imports."""
+    db.execute(
+        "UPDATE results SET source = 'manual', is_locked = true WHERE id = ?",
+        [result_id],
+    )
+    return fetch_one(db, Result, f"{_RESULT_SELECT} WHERE id = ?", [result_id])
+
+
+def update_result(  # noqa: PLR0913 — one parameter per result column
+    db: Connection,
+    result_id: int,
+    position: int,
+    athlete_name: str,
+    time: str,
+    category: str,
+    gender: str,
+    race_number: int | None = None,
+    category_position: int | None = None,
+    gender_position: int | None = None,
+    club: str | None = None,
+) -> Result | None:
+    """Save a staff correction and protect it from future imports."""
+    db.execute(
+        "UPDATE results SET position = ?, race_number = ?, athlete_name = ?,"
+        " time = ?, category = ?, category_position = ?, gender = ?,"
+        " gender_position = ?, club = ?, source = 'manual', is_locked = true"
+        " WHERE id = ?",
+        [
+            position,
+            race_number,
+            athlete_name,
+            time,
+            category,
+            category_position,
+            gender,
+            gender_position,
+            club,
+            result_id,
+        ],
+    )
+    return get_result_by_id(db, result_id)
+
+
+def delete_result(db: Connection, result_id: int) -> None:
+    """Delete one result row."""
+    db.execute("DELETE FROM results WHERE id = ?", [result_id])
 
 
 def list_results_for_race(db: Connection, race_id: int) -> list[Result]:

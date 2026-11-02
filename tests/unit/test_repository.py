@@ -403,15 +403,13 @@ class TestListFixturesForSeason:
         assert len(repository.list_fixtures_for_season(db, s1.id)) == 1
         assert len(repository.list_fixtures_for_season(db, s2.id)) == 1
 
-    def test_ordered_by_date_ascending(self, db: duckdb.DuckDBPyConnection) -> None:
+    def test_ordered_by_round_number(self, db: duckdb.DuckDBPyConnection) -> None:
         season = _make_season(db)
         repository.create_fixture(db, season.id, "R3", "2025-11-01", "V", "A", [], "")
         repository.create_fixture(db, season.id, "R1", "2025-09-01", "V", "A", [], "")
         repository.create_fixture(db, season.id, "R2", "2025-10-01", "V", "A", [], "")
         fixtures = repository.list_fixtures_for_season(db, season.id)
-        assert fixtures[0].title == "R1"
-        assert fixtures[1].title == "R2"
-        assert fixtures[2].title == "R3"
+        assert [fixture.title for fixture in fixtures] == ["R3", "R1", "R2"]
 
 
 class TestGetFixtureById:

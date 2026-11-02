@@ -103,6 +103,17 @@ def normalise_category(raw_category: str, gender: str) -> str:
     return stripped
 
 
+def _external_result_key(
+    race_number: int | None, athlete_name: str, club: str | None
+) -> str:
+    """Build the stable-enough identity used to retain a staff correction."""
+    if race_number is not None:
+        return f"number:{race_number}"
+    return "name:" + "|".join(
+        (athlete_name.strip().casefold(), (club or "").strip().casefold())
+    )
+
+
 class SyncSummary(BaseModel):
     """Outcome of a race results synchronisation operation."""
 
@@ -168,7 +179,9 @@ class ResultsSyncService:
             raise ConflictError(
                 "A race with this name already exists for this fixture."
             )
-        return repository.create_race(self._db, fixture_id, name)
+        race = repository.create_race(self._db, fixture_id, name)
+        repository.link_matching_timetable_race(self._db, fixture_id, race.id, name)
+        return race
 
     def update_race_url(
         self, fixture_id: int, race_id: int, racetec_url: str | None
@@ -231,8 +244,14 @@ class ResultsSyncService:
                     race = repository.create_race(
                         self._db, fixture_id=fixture.id, name=pr.race_name
                     )
+                    repository.link_matching_timetable_race(
+                        self._db, fixture.id, race.id, pr.race_name
+                    )
 
-                repository.delete_results_for_race(self._db, race.id)
+                protected_keys = repository.locked_external_keys_for_race(
+                    self._db, race.id
+                )
+                repository.delete_unlocked_imported_results_for_race(self._db, race.id)
 
                 batch_rows: list[
                     tuple[
@@ -246,6 +265,7 @@ class ResultsSyncService:
                         str,
                         int | None,
                         str | None,
+                        str,
                     ]
                 ] = [
                     (
@@ -259,11 +279,14 @@ class ResultsSyncService:
                         r.gender,
                         r.gender_position,
                         r.club,
+                        _external_result_key(r.race_number, r.athlete_name, r.club),
                     )
                     for r in pr.results
+                    if _external_result_key(r.race_number, r.athlete_name, r.club)
+                    not in protected_keys
                 ]
 
-                repository.create_results_batch(self._db, batch_rows)
+                repository.create_imported_results_batch(self._db, batch_rows)
                 total_finishers += len(batch_rows)
                 race_names.append(pr.race_name)
 

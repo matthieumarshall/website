@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict
 
 from website import repository
 from website.db import Connection
-from website.errors import NotFoundError
+from website.errors import NotFoundError, ValidationError
 from website.export import filter_results
 from website.models import Fixture, Race, Result, Season
 from website.services._common import found
@@ -165,6 +165,85 @@ class ResultsService:
         """
         race = found(repository.get_race_by_id(self._db, race_id), "Race not found")
         return race, repository.list_results_for_race(self._db, race_id)
+
+    def create_manual_result(  # noqa: PLR0913
+        self,
+        race_id: int,
+        position: int,
+        athlete_name: str,
+        time: str,
+        category: str,
+        gender: str,
+        race_number: int | None = None,
+        category_position: int | None = None,
+        gender_position: int | None = None,
+        club: str | None = None,
+    ) -> Result:
+        """Add a staff-owned result that synchronisation must retain."""
+        if repository.get_race_by_id(self._db, race_id) is None:
+            raise NotFoundError("Race not found")
+        if not athlete_name.strip() or not time.strip() or not category.strip():
+            raise ValidationError("Name, time and category are required")
+        result = repository.create_result(
+            self._db,
+            race_id,
+            position,
+            athlete_name.strip(),
+            time.strip(),
+            category.strip(),
+            gender.strip(),
+            race_number,
+            category_position,
+            gender_position,
+            club.strip() if club else None,
+        )
+        return found(repository.lock_result(self._db, result.id), "Result not found")
+
+    def update_manual_result(  # noqa: PLR0913
+        self,
+        race_id: int,
+        result_id: int,
+        position: int,
+        athlete_name: str,
+        time: str,
+        category: str,
+        gender: str,
+        race_number: int | None = None,
+        category_position: int | None = None,
+        gender_position: int | None = None,
+        club: str | None = None,
+    ) -> Result:
+        """Save a staff correction, retaining it on later imports."""
+        result = found(
+            repository.get_result_by_id(self._db, result_id), "Result not found"
+        )
+        if result.race_id != race_id:
+            raise NotFoundError("Result not found")
+        return found(
+            repository.update_result(
+                self._db,
+                result_id,
+                position,
+                athlete_name.strip(),
+                time.strip(),
+                category.strip(),
+                gender.strip(),
+                race_number,
+                category_position,
+                gender_position,
+                club.strip() if club else None,
+            ),
+            "Result not found",
+        )
+
+    def delete_result(self, race_id: int, result_id: int) -> None:
+        """Delete one result after ensuring it belongs to the selected race."""
+        result = found(
+            repository.get_result_by_id(self._db, result_id), "Result not found"
+        )
+        if result.race_id != race_id:
+            raise NotFoundError("Result not found")
+        repository.delete_result(self._db, result_id)
 
     def export(self, race_id: int, filters: ResultFilters) -> ResultsExport:
         """Return a race's results filtered for export.
