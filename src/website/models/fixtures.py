@@ -10,12 +10,20 @@ MAX_FIXTURES_PER_SEASON = 5
 
 
 class TimetableEntry(BaseModel):
-    """One row of a fixture's race timetable."""
+    """One scheduled item in a round timetable.
+
+    A schedule item may be an operational event, or it can point at the race
+    that it schedules.  Keeping the link optional preserves items such as
+    course inspection and prize giving.
+    """
 
     model_config = ConfigDict(frozen=True)
 
     event: str
     time: str
+    id: int | None = None
+    race_id: int | None = None
+    display_order: int = 0
 
 
 def parse_timetable_json(timetable_json: str) -> list[TimetableEntry]:
@@ -48,6 +56,7 @@ class Season(BaseModel):
     id: int
     name: str
     created_at: datetime
+    round_number: int | None = None
 
 
 class SeasonCreate(BaseModel):

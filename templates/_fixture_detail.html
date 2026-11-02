@@ -1,7 +1,7 @@
 {% if fixture %}
 <article class="card">
   <div class="card-body">
-    <h2 class="card-title h5">{{ fixture.title }}</h2>
+    <h2 class="card-title h5">Round {{ fixture.round_number or '' }} {{ fixture.title }}</h2>
 
     <dl class="row mb-0">
       <dt class="col-sm-3">Date</dt>
@@ -75,12 +75,12 @@
       <a
         href="/fixtures/seasons/{{ fixture.season_id }}/fixtures/{{ fixture.id }}/edit"
         class="btn btn-sm btn-outline-secondary"
-      >Edit</a>
+      >Edit round</a>
 
       <a
         href="/fixtures/seasons/{{ fixture.season_id }}/fixtures/{{ fixture.id }}/copy"
         class="btn btn-sm btn-outline-primary"
-      >Copy</a>
+      >Copy round</a>
 
       <form
         action="/fixtures/seasons/{{ fixture.season_id }}/fixtures/{{ fixture.id }}/delete"

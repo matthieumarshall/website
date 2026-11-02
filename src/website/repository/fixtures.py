@@ -17,14 +17,69 @@ _FIXTURE_SELECT = (
     " travel_instructions, created_at, latitude, longitude, what3words, source_pdf,"
     " tempo_results_url, auto_sync_enabled, auto_sync_until,"
     " auto_sync_interval_minutes, last_synced_at, last_sync_attempt_at,"
-    " sync_status, sync_error"
+    " sync_status, sync_error, round_number"
     " FROM fixtures"
 )
 _IMAGE_SELECT = "SELECT id, fixture_id, filename, uploaded_at FROM fixture_images"
+_TIMETABLE_SELECT = (
+    "SELECT id, race_id, time, event, display_order FROM timetable_items"
+)
 
 
 def _timetable_json(timetable: list[TimetableEntry]) -> str:
     return json.dumps([entry.model_dump() for entry in timetable])
+
+
+def list_timetable_items(db: Connection, fixture_id: int) -> list[TimetableEntry]:
+    """Return a round schedule in its staff-defined order."""
+    return fetch_all(
+        db,
+        TimetableEntry,
+        f"{_TIMETABLE_SELECT} WHERE fixture_id = ? ORDER BY display_order, id",
+        [fixture_id],
+    )
+
+
+def _with_schedule(db: Connection, fixture: Fixture | None) -> Fixture | None:
+    """Prefer the linked schedule, preserving legacy JSON until it is edited."""
+    if fixture is None:
+        return None
+    schedule = list_timetable_items(db, fixture.id)
+    return fixture.model_copy(update={"timetable": schedule or fixture.timetable})
+
+
+def replace_timetable_items(
+    db: Connection, fixture_id: int, timetable: list[TimetableEntry]
+) -> list[TimetableEntry]:
+    """Replace a round schedule and mirror it to the legacy JSON column."""
+    db.execute("DELETE FROM timetable_items WHERE fixture_id = ?", [fixture_id])
+    if timetable:
+        db.executemany(
+            "INSERT INTO timetable_items"
+            " (fixture_id, race_id, time, event, display_order)"
+            " VALUES (?, ?, ?, ?, ?)",
+            [
+                (fixture_id, entry.race_id, entry.time, entry.event, index)
+                for index, entry in enumerate(timetable)
+            ],
+        )
+    db.execute(
+        "UPDATE fixtures SET timetable = ? WHERE id = ?",
+        [_timetable_json(timetable), fixture_id],
+    )
+    return list_timetable_items(db, fixture_id)
+
+
+def link_matching_timetable_race(
+    db: Connection, fixture_id: int, race_id: int, race_name: str
+) -> None:
+    """Link matching schedule labels to a newly-created race."""
+    db.execute(
+        "UPDATE timetable_items SET race_id = ?"
+        " WHERE fixture_id = ? AND race_id IS NULL"
+        " AND LOWER(TRIM(event)) = LOWER(TRIM(?))",
+        [race_id, fixture_id, race_name],
+    )
 
 
 def count_fixtures_for_season(db: Connection, season_id: int) -> int:
@@ -35,13 +90,16 @@ def count_fixtures_for_season(db: Connection, season_id: int) -> int:
 
 
 def list_fixtures_for_season(db: Connection, season_id: int) -> list[Fixture]:
-    """Return a season's fixtures in date order."""
-    return fetch_all(
+    """Return a season's rounds in their stable order."""
+    fixtures = fetch_all(
         db,
         Fixture,
-        f"{_FIXTURE_SELECT} WHERE season_id = ? ORDER BY date ASC",
+        f"{_FIXTURE_SELECT} WHERE season_id = ? ORDER BY round_number ASC, date ASC",
         [season_id],
     )
+    return [
+        resolved for fixture in fixtures if (resolved := _with_schedule(db, fixture))
+    ]
 
 
 def list_fixture_dates(db: Connection, season_id: int) -> list[dt.date]:
@@ -54,7 +112,9 @@ def list_fixture_dates(db: Connection, season_id: int) -> list[dt.date]:
 
 def get_fixture_by_id(db: Connection, fixture_id: int) -> Fixture | None:
     """Return the fixture with *fixture_id*, or None."""
-    return fetch_one(db, Fixture, f"{_FIXTURE_SELECT} WHERE id = ?", [fixture_id])
+    return _with_schedule(
+        db, fetch_one(db, Fixture, f"{_FIXTURE_SELECT} WHERE id = ?", [fixture_id])
+    )
 
 
 def create_fixture(  # noqa: PLR0913 — one parameter per fixture column
@@ -82,11 +142,13 @@ def create_fixture(  # noqa: PLR0913 — one parameter per fixture column
             f"Season {season_id} already has {current_count} fixtures "
             f"(maximum is {MAX_FIXTURES_PER_SEASON})."
         )
+    round_number = current_count + 1
     db.execute(
         "INSERT INTO fixtures"
         " (season_id, title, date, location_name, address, timetable,"
-        " travel_instructions, latitude, longitude, what3words, tempo_results_url)"
-        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        " travel_instructions, latitude, longitude, what3words, tempo_results_url,"
+        " round_number)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
             season_id,
             title,
@@ -99,6 +161,7 @@ def create_fixture(  # noqa: PLR0913 — one parameter per fixture column
             longitude,
             what3words,
             tempo_results_url,
+            round_number,
         ],
     )
     fixture = fetch_one(
@@ -107,7 +170,9 @@ def create_fixture(  # noqa: PLR0913 — one parameter per fixture column
         f"{_FIXTURE_SELECT} WHERE season_id = ? ORDER BY created_at DESC LIMIT 1",
         [season_id],
     )
-    return require(fixture, "fixture")
+    created = require(fixture, "fixture")
+    replace_timetable_items(db, created.id, timetable)
+    return require(get_fixture_by_id(db, created.id), "fixture")
 
 
 def update_fixture(  # noqa: PLR0913 — one parameter per fixture column
@@ -143,6 +208,9 @@ def update_fixture(  # noqa: PLR0913 — one parameter per fixture column
             fixture_id,
         ],
     )
+    if get_fixture_by_id(db, fixture_id) is None:
+        return None
+    replace_timetable_items(db, fixture_id, timetable)
     return get_fixture_by_id(db, fixture_id)
 
 
@@ -201,7 +269,14 @@ def list_fixtures_needing_sync(db: Connection) -> list[Fixture]:
 
 
 def delete_fixture(db: Connection, fixture_id: int) -> bool:
-    """Delete a fixture and its documents and images."""
+    """Delete a round and all relational children in dependency order."""
+    race_rows = db.execute(
+        "SELECT id FROM races WHERE fixture_id = ?", [fixture_id]
+    ).fetchall()
+    for (race_id,) in race_rows:
+        db.execute("DELETE FROM results WHERE race_id = ?", [race_id])
+    db.execute("DELETE FROM timetable_items WHERE fixture_id = ?", [fixture_id])
+    db.execute("DELETE FROM races WHERE fixture_id = ?", [fixture_id])
     db.execute("DELETE FROM fixture_documents WHERE fixture_id = ?", [fixture_id])
     db.execute("DELETE FROM fixture_images WHERE fixture_id = ?", [fixture_id])
     db.execute("DELETE FROM fixtures WHERE id = ?", [fixture_id])

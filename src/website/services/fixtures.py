@@ -68,7 +68,7 @@ class FixtureImages(BaseModel):
     images: list[FixtureImage]
 
 
-COPY_PARTS = ("location", "timetable", "travel", "maps")
+COPY_PARTS = ("location", "timetable", "races", "travel", "maps")
 
 
 def _prefill(source: Fixture, parts: frozenset[str]) -> Fixture:
@@ -87,6 +87,24 @@ def _prefill(source: Fixture, parts: frozenset[str]) -> Fixture:
     if "travel" not in parts:
         blank["travel_instructions"] = ""
     return source.model_copy(update=blank)
+
+
+def _copy_parts(target: Fixture, source: Fixture, parts: frozenset[str]) -> Fixture:
+    """Overlay selected reusable round definition parts onto *target*."""
+    updates: dict[str, object] = {}
+    if "location" in parts:
+        updates.update(
+            location_name=source.location_name,
+            address=source.address,
+            latitude=source.latitude,
+            longitude=source.longitude,
+            what3words=source.what3words,
+        )
+    if "timetable" in parts:
+        updates["timetable"] = source.timetable
+    if "travel" in parts:
+        updates["travel_instructions"] = source.travel_instructions
+    return target.model_copy(update=updates)
 
 
 def _validated_fixture(form: FixtureForm) -> FixtureCreate:
@@ -276,10 +294,37 @@ class FixtureService:
         chosen = frozenset(COPY_PARTS if parts is None else parts)
         return _prefill(self.get_fixture(source_id), chosen)
 
+    def copy_parts_into(
+        self, target_id: int, source_id: int, parts: list[str] | None = None
+    ) -> Fixture:
+        """Return a target round prefilled with selected parts from another round."""
+        chosen = frozenset(COPY_PARTS if parts is None else parts)
+        return _copy_parts(
+            self.get_fixture(target_id), self.get_fixture(source_id), chosen
+        )
+
     def _copy_images(self, source_id: int, target_id: int) -> None:
         for image in repository.list_fixture_images(self._db, source_id):
             repository.create_fixture_image(
                 self._db, target_id, self._images.copy(image.filename)
+            )
+
+    def _copy_races(self, source_id: int, target_id: int) -> None:
+        """Clone missing races and connect matching copied schedule entries."""
+        for source_race in repository.list_races_for_fixture(self._db, source_id):
+            if repository.get_race_by_name(self._db, target_id, source_race.name):
+                continue
+            race = repository.create_race(
+                self._db,
+                target_id,
+                source_race.name,
+                display_order=source_race.display_order,
+            )
+            repository.update_race_racetec_url(
+                self._db, race.id, source_race.racetec_url
+            )
+            repository.link_matching_timetable_race(
+                self._db, target_id, race.id, source_race.name
             )
 
     def create_fixture(self, season_id: int, form: FixtureForm) -> Fixture:
@@ -312,6 +357,8 @@ class FixtureService:
             raise ConflictError(str(exc)) from exc
         if form.copy_maps and form.copy_from_fixture_id is not None:
             self._copy_images(form.copy_from_fixture_id, created.id)
+        if form.copy_races and form.copy_from_fixture_id is not None:
+            self._copy_races(form.copy_from_fixture_id, created.id)
         return created
 
     def update_fixture(self, fixture_id: int, form: FixtureForm) -> Fixture:
@@ -339,7 +386,12 @@ class FixtureService:
             what3words=what3words,
             tempo_results_url=fixture.tempo_results_url,
         )
-        return found(updated, "Fixture not found")
+        updated = found(updated, "Fixture not found")
+        if form.copy_maps and form.copy_from_fixture_id is not None:
+            self._copy_images(form.copy_from_fixture_id, fixture_id)
+        if form.copy_races and form.copy_from_fixture_id is not None:
+            self._copy_races(form.copy_from_fixture_id, fixture_id)
+        return updated
 
     def delete_fixture(self, fixture_id: int) -> None:
         """Delete a fixture."""
