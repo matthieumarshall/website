@@ -429,6 +429,18 @@
   ],
   [
     "POST",
+    "/fixtures/{fixture_id}/race/{race_id}/results"
+  ],
+  [
+    "POST",
+    "/fixtures/{fixture_id}/race/{race_id}/results/{result_id}/delete"
+  ],
+  [
+    "POST",
+    "/fixtures/{fixture_id}/race/{race_id}/results/{result_id}/edit"
+  ],
+  [
+    "POST",
     "/fixtures/{fixture_id}/race/{race_id}/sync"
   ],
   [
