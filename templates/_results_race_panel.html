@@ -29,7 +29,8 @@
 {% if active_race and current_user and current_user.role in (UserRole.admin.value, UserRole.content_creator.value) %}
 {% set fixture = active_fixture %}
 {% set race = active_race %}
-{% include "_race_racetec_controls.html" %}
+{% set return_to = "results" %}
+{% include "_race_csv_upload.html" %}
 {% endif %}
 
 {# Filter controls island — sentinel for results-filter.js #}

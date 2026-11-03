@@ -1,0 +1,49 @@
+{% set _is_staff = current_user and current_user.role in (UserRole.admin.value, UserRole.content_creator.value) %}
+
+{% if fixture and _is_staff %}
+<section id="fixture-results-panel-{{ fixture.id }}" class="card mt-3 border-secondary-subtle">
+  <div class="card-header">
+    <h3 class="h6 mb-0 fw-bold">Race Results</h3>
+  </div>
+  <div class="card-body">
+    {% if race_create_error %}
+    <div class="alert alert-danger py-2" role="alert">{{ race_create_error }}</div>
+    {% elif race_created %}
+    <div class="alert alert-success py-2" role="status">Race added. Upload its results below.</div>
+    {% endif %}
+
+    <form method="post" action="/fixtures/{{ fixture.id }}/races" class="mb-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label for="new-race-name-{{ fixture.id }}" class="form-label">Race name</label>
+      <input
+        type="text"
+        id="new-race-name-{{ fixture.id }}"
+        name="race_name"
+        class="form-control form-control-sm"
+        list="timetable-races-{{ fixture.id }}"
+        value="{{ race_name or '' }}"
+        required
+      >
+      <datalist id="timetable-races-{{ fixture.id }}">
+        {% for entry in fixture.timetable %}
+        {% if entry.event | trim %}<option value="{{ entry.event }}">{{ entry.time }}</option>{% endif %}
+        {% endfor %}
+      </datalist>
+      <div class="form-text">Choose a timetable event or enter a name.</div>
+      <button type="submit" class="btn btn-sm btn-outline-primary mt-2">Add Race</button>
+    </form>
+
+    {% if not races %}
+    <p class="text-muted mb-0">No races have been added for this fixture yet.</p>
+    {% else %}
+    <div class="d-grid gap-3">
+      {% for race in races %}
+      {% set return_to = "fixtures" %}
+      {% set season_id = fixture.season_id %}
+      {% include "_race_csv_upload.html" %}
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% endif %}

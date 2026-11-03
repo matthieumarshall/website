@@ -161,10 +161,6 @@
   ],
   [
     "GET",
-    "/fixtures/{fixture_id}/sync-panel"
-  ],
-  [
-    "GET",
     "/links"
   ],
   [
@@ -429,23 +425,11 @@
   ],
   [
     "POST",
-    "/fixtures/{fixture_id}/race/{race_id}/sync"
+    "/fixtures/{fixture_id}/race/{race_id}/upload-csv"
   ],
   [
     "POST",
     "/fixtures/{fixture_id}/races"
-  ],
-  [
-    "POST",
-    "/fixtures/{fixture_id}/sync"
-  ],
-  [
-    "POST",
-    "/fixtures/{fixture_id}/sync-settings"
-  ],
-  [
-    "POST",
-    "/fixtures/{fixture_id}/upload-results-csv"
   ],
   [
     "POST",

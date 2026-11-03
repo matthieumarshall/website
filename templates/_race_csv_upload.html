@@ -1,0 +1,37 @@
+<section id="race-csv-upload-{{ race.id }}" class="card">
+  <div class="card-body">
+    <h4 class="h6 card-title">{{ race.name }}</h4>
+    <form
+      method="post"
+      action="/fixtures/{{ fixture.id }}/race/{{ race.id }}/upload-csv"
+      enctype="multipart/form-data"
+      hx-post="/fixtures/{{ fixture.id }}/race/{{ race.id }}/upload-csv"
+      hx-target="{% if return_to == 'results' %}#race-panel{% else %}#fixture-results-panel-{{ fixture.id }}{% endif %}"
+      hx-swap="{% if return_to == 'results' %}innerHTML{% else %}outerHTML{% endif %}"
+      hx-encoding="multipart/form-data"
+    >
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="return_to" value="{{ return_to }}">
+      <input type="hidden" name="season_id" value="{{ season_id or fixture.season_id }}">
+      {% if upload_summary and upload_summary.race_id == race.id %}
+      <div class="alert alert-success py-2" role="status">
+        Imported {{ upload_summary.finishers_imported }} results. The previous results were replaced.
+      </div>
+      {% elif upload_error and upload_error_race_id == race.id %}
+      <div class="alert alert-danger py-2" role="alert">{{ upload_error }}</div>
+      {% endif %}
+      <div class="mb-2">
+        <label for="csv-file-{{ return_to }}-{{ race.id }}" class="form-label">Results CSV</label>
+        <input
+          type="file"
+          id="csv-file-{{ return_to }}-{{ race.id }}"
+          name="csv_file"
+          class="form-control form-control-sm"
+          accept=".csv,text/csv"
+          required
+        >
+      </div>
+      <button type="submit" class="btn btn-sm btn-outline-success">Upload and Replace Results</button>
+    </form>
+  </div>
+</section>

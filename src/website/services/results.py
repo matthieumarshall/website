@@ -22,7 +22,7 @@ class ResultsBrowser(BaseModel):
     seasons: list[Season]
     selected_season: Season | None
     fixtures: list[Fixture]
-    round1_results_status: Literal["not_available", "syncing", "published"] | None
+    round1_results_status: Literal["not_available", "published"] | None
     active_fixture: Fixture | None
     races: list[Race]
     active_race: Race | None
@@ -90,13 +90,11 @@ class ResultsService:
             else []
         )
         round1_fixture = fixtures[0] if fixtures else None
-        round1_results_status: Literal["not_available", "syncing", "published"] | None
+        round1_results_status: Literal["not_available", "published"] | None
         if round1_fixture is None:
             round1_results_status = "not_available" if selected_season else None
         elif repository.fixture_has_results(db, round1_fixture.id):
             round1_results_status = "published"
-        elif round1_fixture.sync_status == "syncing":
-            round1_results_status = "syncing"
         else:
             round1_results_status = "not_available"
         if fixture_id is None and fixtures:

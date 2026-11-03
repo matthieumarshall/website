@@ -53,7 +53,6 @@ class FixtureForm(_Form):
     what3words_word1: str = ""
     what3words_word2: str = ""
     what3words_word3: str = ""
-    tempo_results_url: str = ""
     # Set when the fixture was prefilled from another one.
     copy_from_fixture_id: int | None = None
     copy_maps: bool = False
