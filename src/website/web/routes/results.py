@@ -30,7 +30,13 @@ def results(
 ) -> HTMLResponse:
     """Show results, defaulting to the latest season's first fixture and race."""
     view = service.browse(season_id, fixture_id, race_id)
-    return ui.page(request, "results.html", _PAGE, view=view)
+    return ui.page(
+        request,
+        "results.html",
+        _PAGE,
+        view=view,
+        season_id=view.selected_season.id if view.selected_season else None,
+    )
 
 
 @router.get("/fixture-panel", response_class=HTMLResponse)
@@ -39,7 +45,13 @@ def results_fixture_panel(
 ) -> HTMLResponse:
     """HTMX: swap in a season's fixtures with the first fixture selected."""
     view = service.browse(season_id)
-    return ui.page(request, "_results_fixture_panel.html", _PAGE, view=view)
+    return ui.page(
+        request,
+        "_results_fixture_panel.html",
+        _PAGE,
+        view=view,
+        season_id=view.selected_season.id if view.selected_season else None,
+    )
 
 
 @router.get("/race-panel", response_class=HTMLResponse)

@@ -49,7 +49,26 @@
         {% for fixture in fixtures %}
         {% set fid_str = fixture.id | string %}
         {% if fid_str in scores %}
+        {% if standings_type == "team" %}
+        <td class="text-center">
+          {{ scores[fid_str] }}
+          {% for round_result in team_round_results %}
+          {% if round_result.fixture_id == fixture.id and round_result.team_name == row.team_name %}
+          <div class="small text-muted">{{ round_result.category }} · Pos {{ round_result.position }} · Score {{ round_result.score }}</div>
+          {% if round_result.scoring_members %}
+          <details class="small">
+            <summary>Scoring runners</summary>
+            <ul class="mb-0 ps-3 text-start">
+              {% for member in round_result.scoring_members %}<li>{{ member }}</li>{% endfor %}
+            </ul>
+          </details>
+          {% endif %}
+          {% endif %}
+          {% endfor %}
+        </td>
+        {% else %}
         <td class="text-center">{{ scores[fid_str] }}</td>
+        {% endif %}
         {% else %}
         <td class="text-center text-muted">—</td>
         {% endif %}

@@ -58,7 +58,7 @@ def seed_full_dataset(con: duckdb.DuckDBPyConnection) -> SeededIds:
         timetable=[],
         travel_instructions="",
     )
-    # Seed individual standings so standings UI tests have data to render
+    # Keep fixed UI seed rows when result-upload tests recalculate standings.
     fid = str(fixture.id)
     con.executemany(
         "INSERT INTO individual_standings"
@@ -75,7 +75,7 @@ def seed_full_dataset(con: duckdb.DuckDBPyConnection) -> SeededIds:
                 15,
                 1,
                 f'{{"{fid}": 1}}',
-                False,
+                True,
             ),
             (
                 season.id,
@@ -86,7 +86,7 @@ def seed_full_dataset(con: duckdb.DuckDBPyConnection) -> SeededIds:
                 28,
                 1,
                 f'{{"{fid}": 2}}',
-                False,
+                True,
             ),
         ],
     )
@@ -106,7 +106,7 @@ def seed_full_dataset(con: duckdb.DuckDBPyConnection) -> SeededIds:
                 10,
                 1,
                 f'{{"{fid}": 1}}',
-                False,
+                True,
             )
             for cat in [
                 "MV40",
@@ -138,7 +138,7 @@ def seed_full_dataset(con: duckdb.DuckDBPyConnection) -> SeededIds:
             10,
             1,
             f'{{"{fid}": 1}}',
-            False,
+            True,
         ),
     )
     # Seed additional team categories so the team tab group also wraps.
@@ -158,7 +158,7 @@ def seed_full_dataset(con: duckdb.DuckDBPyConnection) -> SeededIds:
                 10,
                 1,
                 f'{{"{fid}": 1}}',
-                False,
+                True,
             )
             for cat in [
                 "Men's Teams D1",

@@ -45,7 +45,6 @@ from website.models.public_content import (
     WinnerOverride,
 )
 from website.models.results import (
-    ParsedRaceWithResults,
     ParsedResult,
     Race,
     RaceWithResults,
@@ -53,10 +52,12 @@ from website.models.results import (
 )
 from website.models.standings import (
     CalculatedIndividualStanding,
+    CalculatedTeamRoundResult,
     CalculatedTeamStanding,
     IndividualStanding,
     StandingCategory,
     StandingsType,
+    TeamRoundResult,
     TeamStanding,
 )
 from website.models.users import STAFF_ROLES, CurrentUser, User, UserRole
@@ -72,6 +73,7 @@ __all__ = [
     "AthleteEntryListing",
     "AthleteEntryRow",
     "CalculatedIndividualStanding",
+    "CalculatedTeamRoundResult",
     "CalculatedTeamStanding",
     "Club",
     "ClubAllocationRow",
@@ -94,7 +96,6 @@ __all__ = [
     "IndividualStanding",
     "PaginatedPosts",
     "PaidAthleteEntry",
-    "ParsedRaceWithResults",
     "ParsedResult",
     "Post",
     "PostCreate",
@@ -108,6 +109,7 @@ __all__ = [
     "StandingCategory",
     "StandingsType",
     "StaticPage",
+    "TeamRoundResult",
     "TeamStanding",
     "TimetableEntry",
     "User",

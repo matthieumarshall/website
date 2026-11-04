@@ -14,6 +14,7 @@ from website.models import (
     IndividualStanding,
     Season,
     StandingCategory,
+    TeamRoundResult,
     TeamStanding,
 )
 from website.models.standings import ScoreValue
@@ -46,6 +47,7 @@ class StandingsTable(BaseModel):
     standings_type: str
     rows: list[StandingRow]
     fixtures: list[Fixture]
+    team_round_results: list[TeamRoundResult]
 
 
 def _parse_scores(raw: str) -> dict[str, object]:
@@ -151,12 +153,18 @@ class StandingsService:
             )
             for row in loaded
         ]
+        team_round_results = (
+            repository.list_team_round_results_for_season(self._db, season_id, category)
+            if standings_type == "team"
+            else []
+        )
         return StandingsTable(
             season=season,
             category=category,
             standings_type=standings_type,
             rows=rows,
             fixtures=fixtures,
+            team_round_results=team_round_results,
         )
 
     def recalculate(self, season_id: int) -> None:

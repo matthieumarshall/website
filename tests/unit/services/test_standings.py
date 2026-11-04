@@ -8,6 +8,7 @@ import pytest
 from website import repository
 from website.errors import NotFoundError, OperationFailedError
 from website.models import Fixture
+from website.services.results import ResultsService
 from website.services.standings import StandingsService, scores_by_fixture
 
 
@@ -80,6 +81,73 @@ class TestRecalculate:
         fixture_ids = {str(f.id) for f in table.fixtures}
         for row in table.rows:
             assert set(row.scores_by_fixture) <= fixture_ids
+
+        team_fixture = repository.list_fixtures_for_season(test_db, season_id)[0]
+        round_results = repository.list_team_round_results_for_fixture(
+            test_db, team_fixture.id, "Men"
+        )
+        assert len(round_results) == 1
+        assert round_results[0].position == 1
+        assert round_results[0].score > 0
+        assert round_results[0].scoring_members == [
+            "Ann (1)",
+            "Ben (2)",
+            "Cat (3)",
+        ]
+
+        team_table = service.table(season_id, "Men", "team")
+        assert team_table.team_round_results
+        assert team_table.team_round_results[0].fixture_id == team_fixture.id
+
+        panel = ResultsService(test_db).race_panel(team_fixture.id)
+        assert panel.team_round_results == round_results
+
+    def test_round_results_rank_teams_within_the_fixture(
+        self, test_db: duckdb.DuckDBPyConnection
+    ) -> None:
+        season = repository.create_season(test_db, "2025-26")
+        fixture = repository.create_fixture(
+            test_db, season.id, "Round 1", "2025-10-05", "Park", "Addr", [], ""
+        )
+        race = repository.create_race(test_db, fixture.id, "Men")
+        for position, (name, club) in enumerate(
+            [
+                ("A Runner", "Fast AC"),
+                ("B Runner", "Fast AC"),
+                ("C Runner", "Fast AC"),
+                ("D Runner", "Slow AC"),
+                ("E Runner", "Slow AC"),
+                ("F Runner", "Slow AC"),
+            ],
+            start=1,
+        ):
+            repository.create_result(
+                test_db,
+                race_id=race.id,
+                position=position,
+                athlete_name=name,
+                time=f"00:3{position}:00",
+                category="SM",
+                gender="M",
+                club=club,
+            )
+
+        StandingsService(test_db).recalculate(season.id)
+
+        round_results = repository.list_team_round_results_for_fixture(
+            test_db, fixture.id, "Men"
+        )
+        assert [result.position for result in round_results] == [1, 2]
+        assert [result.team_name for result in round_results] == [
+            "Fast AC A",
+            "Slow AC A",
+        ]
+        assert round_results[0].score < round_results[1].score
+        assert round_results[0].scoring_members == [
+            "A Runner (1)",
+            "B Runner (2)",
+            "C Runner (3)",
+        ]
 
     def test_recalculate_unknown_season(
         self, test_db: duckdb.DuckDBPyConnection

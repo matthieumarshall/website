@@ -5,9 +5,11 @@ import json
 from website.db import Connection
 from website.models import (
     CalculatedIndividualStanding,
+    CalculatedTeamRoundResult,
     CalculatedTeamStanding,
     IndividualStanding,
     StandingCategory,
+    TeamRoundResult,
     TeamStanding,
 )
 from website.repository._rows import fetch_all, fetch_count
@@ -21,6 +23,10 @@ _TEAM_SELECT = (
     "SELECT id, season_id, category, position, team_name, club, team_label,"
     " total_score, rounds_competed, fixture_scores, is_imported, updated_at"
     " FROM team_standings"
+)
+_TEAM_ROUND_RESULT_SELECT = (
+    "SELECT tr.id, tr.fixture_id, tr.category, tr.position, tr.team_name,"
+    " tr.club, tr.team_label, tr.score, tr.scoring_members"
 )
 
 
@@ -61,6 +67,44 @@ def load_team_standings(
         TeamStanding,
         f"{_TEAM_SELECT} WHERE season_id = ? ORDER BY category ASC, position ASC",
         [season_id],
+    )
+
+
+def list_team_round_results_for_fixture(
+    db: Connection, fixture_id: int, category: str | None = None
+) -> list[TeamRoundResult]:
+    """Return one fixture's team results, optionally limited to a category."""
+    if category is not None:
+        return fetch_all(
+            db,
+            TeamRoundResult,
+            f"{_TEAM_ROUND_RESULT_SELECT} FROM team_round_results tr"
+            " WHERE tr.fixture_id = ? AND tr.category = ?"
+            " ORDER BY position ASC",
+            [fixture_id, category],
+        )
+    return fetch_all(
+        db,
+        TeamRoundResult,
+        f"{_TEAM_ROUND_RESULT_SELECT} FROM team_round_results tr"
+        " WHERE tr.fixture_id = ?"
+        " ORDER BY category ASC, position ASC",
+        [fixture_id],
+    )
+
+
+def list_team_round_results_for_season(
+    db: Connection, season_id: int, category: str
+) -> list[TeamRoundResult]:
+    """Return a season's calculated team results for one category."""
+    return fetch_all(
+        db,
+        TeamRoundResult,
+        f"{_TEAM_ROUND_RESULT_SELECT} FROM team_round_results tr"
+        " JOIN fixtures f ON f.id = tr.fixture_id"
+        " WHERE f.season_id = ? AND tr.category = ?"
+        " ORDER BY f.date ASC, tr.position ASC",
+        [season_id, category],
     )
 
 
@@ -149,6 +193,38 @@ def replace_calculated_team_standings(
                 row.total_score,
                 row.rounds_competed,
                 json.dumps(row.fixture_scores),
+            ]
+            for row in rows
+        ],
+    )
+
+
+def replace_calculated_team_round_results(
+    db: Connection, season_id: int, rows: list[CalculatedTeamRoundResult]
+) -> None:
+    """Replace a season's calculated per-fixture team results."""
+    db.execute(
+        "DELETE FROM team_round_results"
+        " WHERE fixture_id IN (SELECT id FROM fixtures WHERE season_id = ?)",
+        [season_id],
+    )
+    if not rows:
+        return
+    db.executemany(
+        "INSERT INTO team_round_results"
+        " (fixture_id, category, position, team_name, club, team_label, score,"
+        "  scoring_members)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+            [
+                row.fixture_id,
+                row.category,
+                row.position,
+                row.team_name,
+                row.club,
+                row.team_label,
+                row.score,
+                json.dumps(row.scoring_members),
             ]
             for row in rows
         ],

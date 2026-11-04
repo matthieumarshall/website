@@ -15,7 +15,6 @@ class Race(BaseModel):
     name: str
     display_order: int
     created_at: datetime
-    racetec_url: str | None = None
 
 
 class Result(BaseModel):
@@ -46,7 +45,7 @@ class RaceWithResults(BaseModel):
 
 
 class ParsedResult(BaseModel):
-    """An externally fetched or imported finisher result before DB persistence."""
+    """A CSV-imported finisher result before database persistence."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -59,13 +58,3 @@ class ParsedResult(BaseModel):
     gender: str = ""
     gender_position: int | None = None
     club: str | None = None
-
-
-class ParsedRaceWithResults(BaseModel):
-    """A race and its parsed finishers from an external sync or import."""
-
-    model_config = ConfigDict(frozen=True)
-
-    race_name: str
-    eid: int | None = None
-    results: list[ParsedResult]

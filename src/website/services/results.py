@@ -9,7 +9,7 @@ from website import repository
 from website.db import Connection
 from website.errors import NotFoundError
 from website.export import filter_results
-from website.models import Fixture, Race, Result, Season
+from website.models import Fixture, Race, Result, Season, TeamRoundResult
 from website.services._common import found
 from website.services.archive import stored_file
 
@@ -22,11 +22,12 @@ class ResultsBrowser(BaseModel):
     seasons: list[Season]
     selected_season: Season | None
     fixtures: list[Fixture]
-    round1_results_status: Literal["not_available", "syncing", "published"] | None
+    round1_results_status: Literal["not_available", "published"] | None
     active_fixture: Fixture | None
     races: list[Race]
     active_race: Race | None
     race_results: list[Result]
+    team_round_results: list[TeamRoundResult]
 
 
 class RacePanel(BaseModel):
@@ -38,6 +39,7 @@ class RacePanel(BaseModel):
     races: list[Race]
     active_race: Race | None
     race_results: list[Result]
+    team_round_results: list[TeamRoundResult]
 
 
 class ResultsExport(BaseModel):
@@ -90,13 +92,11 @@ class ResultsService:
             else []
         )
         round1_fixture = fixtures[0] if fixtures else None
-        round1_results_status: Literal["not_available", "syncing", "published"] | None
+        round1_results_status: Literal["not_available", "published"] | None
         if round1_fixture is None:
             round1_results_status = "not_available" if selected_season else None
         elif repository.fixture_has_results(db, round1_fixture.id):
             round1_results_status = "published"
-        elif round1_fixture.sync_status == "syncing":
-            round1_results_status = "syncing"
         else:
             round1_results_status = "not_available"
         if fixture_id is None and fixtures:
@@ -129,6 +129,11 @@ class ResultsService:
                 if active_race
                 else []
             ),
+            team_round_results=(
+                repository.list_team_round_results_for_fixture(db, active_fixture.id)
+                if active_fixture
+                else []
+            ),
         )
 
     def race_panel(self, fixture_id: int, race_id: int | None = None) -> RacePanel:
@@ -154,6 +159,9 @@ class ResultsService:
                 repository.list_results_for_race(db, active_race.id)
                 if active_race
                 else []
+            ),
+            team_round_results=repository.list_team_round_results_for_fixture(
+                db, fixture_id
             ),
         )
 

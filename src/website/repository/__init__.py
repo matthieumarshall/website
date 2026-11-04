@@ -75,11 +75,8 @@ from website.repository.fixtures import (
     list_fixture_dates,
     list_fixture_images,
     list_fixtures_for_season,
-    list_fixtures_needing_sync,
     set_fixture_source_pdf,
     update_fixture,
-    update_fixture_sync_settings,
-    update_fixture_sync_status,
 )
 from website.repository.links import (
     create_external_link,
@@ -111,7 +108,6 @@ from website.repository.results import (
     list_races_for_fixture,
     list_results_for_race,
     race_sort_key,
-    update_race_racetec_url,
 )
 from website.repository.seasons import (
     create_season,
@@ -121,9 +117,12 @@ from website.repository.seasons import (
 )
 from website.repository.standings import (
     list_standing_categories,
+    list_team_round_results_for_fixture,
+    list_team_round_results_for_season,
     load_individual_standings,
     load_team_standings,
     replace_calculated_individual_standings,
+    replace_calculated_team_round_results,
     replace_calculated_team_standings,
     season_has_standings,
 )
@@ -213,7 +212,6 @@ __all__ = [
     "list_fixture_documents",
     "list_fixture_images",
     "list_fixtures_for_season",
-    "list_fixtures_needing_sync",
     "list_paid_athlete_entries_for_season",
     "list_posts",
     "list_public_clubs",
@@ -222,11 +220,14 @@ __all__ = [
     "list_results_for_race",
     "list_seasons",
     "list_standing_categories",
+    "list_team_round_results_for_fixture",
+    "list_team_round_results_for_season",
     "list_winner_overrides",
     "load_individual_standings",
     "load_team_standings",
     "race_sort_key",
     "replace_calculated_individual_standings",
+    "replace_calculated_team_round_results",
     "replace_calculated_team_standings",
     "season_has_standings",
     "set_batch_stripe_session",
@@ -241,10 +242,7 @@ __all__ = [
     "update_division_assignment",
     "update_external_link",
     "update_fixture",
-    "update_fixture_sync_settings",
-    "update_fixture_sync_status",
     "update_post",
-    "update_race_racetec_url",
     "update_winner_override",
     "upsert_club_allocation",
     "upsert_fixture_document",
