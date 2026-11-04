@@ -117,9 +117,12 @@ from website.repository.seasons import (
 )
 from website.repository.standings import (
     list_standing_categories,
+    list_team_round_results_for_fixture,
+    list_team_round_results_for_season,
     load_individual_standings,
     load_team_standings,
     replace_calculated_individual_standings,
+    replace_calculated_team_round_results,
     replace_calculated_team_standings,
     season_has_standings,
 )
@@ -217,11 +220,14 @@ __all__ = [
     "list_results_for_race",
     "list_seasons",
     "list_standing_categories",
+    "list_team_round_results_for_fixture",
+    "list_team_round_results_for_season",
     "list_winner_overrides",
     "load_individual_standings",
     "load_team_standings",
     "race_sort_key",
     "replace_calculated_individual_standings",
+    "replace_calculated_team_round_results",
     "replace_calculated_team_standings",
     "season_has_standings",
     "set_batch_stripe_session",

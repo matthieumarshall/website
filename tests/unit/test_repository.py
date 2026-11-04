@@ -3,7 +3,13 @@ import pytest
 
 from website import repository
 from website.db import run_migrations
-from website.models import PaginatedPosts, Post, User, UserRole
+from website.models import (
+    CalculatedTeamRoundResult,
+    PaginatedPosts,
+    Post,
+    User,
+    UserRole,
+)
 from website.passwords import hash_password
 
 # ---------------------------------------------------------------------------
@@ -477,6 +483,34 @@ class TestDeleteFixture:
             db, season.id, "R1", "2025-09-01", "V", "A", [], ""
         )
         assert repository.delete_fixture(db, fixture.id) is True
+
+    def test_deletes_round_team_results_with_fixture(
+        self, db: duckdb.DuckDBPyConnection
+    ) -> None:
+        season = _make_season(db)
+        fixture = repository.create_fixture(
+            db, season.id, "R1", "2025-09-01", "V", "A", [], ""
+        )
+        repository.replace_calculated_team_round_results(
+            db,
+            season.id,
+            [
+                CalculatedTeamRoundResult(
+                    fixture_id=fixture.id,
+                    category="Men",
+                    position=1,
+                    team_name="Test AC A",
+                    club="Test AC",
+                    team_label="A",
+                    score=10,
+                    scoring_members=["Runner (1)"],
+                )
+            ],
+        )
+
+        repository.delete_fixture(db, fixture.id)
+
+        assert repository.list_team_round_results_for_fixture(db, fixture.id) == []
 
 
 class TestCountFixturesForSeason:

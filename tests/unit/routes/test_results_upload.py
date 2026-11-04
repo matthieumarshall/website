@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from website import repository
 from website.models.fixtures import TimetableEntry
+from website.services.standings import StandingsService
 
 _CSV_HEADER = "Pos,Race No,Name,Time,Category,Cat Pos,Gender,Gen Pos,Club\n"
 
@@ -126,7 +127,7 @@ def test_results_page_upload_returns_updated_race_panel(
     race_upload_fixture: tuple[int, int],
 ) -> None:
     season_id, fixture_id = race_upload_fixture
-    race = repository.create_race(test_db, fixture_id, "Senior Men")
+    race = repository.create_race(test_db, fixture_id, "Men")
 
     response = admin_client.post(
         f"/fixtures/{fixture_id}/race/{race.id}/upload-csv",
@@ -142,10 +143,56 @@ def test_results_page_upload_returns_updated_race_panel(
     assert response.status_code == 200
     assert "Uploaded Runner" in response.text
     assert "Imported 1 results. The previous results were replaced." in response.text
+    assert "Team scores for Round 5" in response.text
+    assert "Oxford City AC A" in response.text
     assert [
         result.athlete_name
         for result in repository.list_results_for_race(test_db, race.id)
     ] == ["Uploaded Runner"]
+
+
+def test_team_round_scores_render_on_results_and_standings_pages(
+    admin_client: TestClient,
+    test_db: duckdb.DuckDBPyConnection,
+    race_upload_fixture: tuple[int, int],
+) -> None:
+    season_id, fixture_id = race_upload_fixture
+    race = repository.create_race(test_db, fixture_id, "Men")
+    runners = [
+        ("A Runner", "Oxford City AC"),
+        ("B Runner", "Oxford City AC"),
+        ("C Runner", "Oxford City AC"),
+        ("D Runner", "Witney AC"),
+        ("E Runner", "Witney AC"),
+        ("F Runner", "Witney AC"),
+    ]
+    for position, (name, club) in enumerate(runners, start=1):
+        repository.create_result(
+            test_db,
+            race_id=race.id,
+            position=position,
+            athlete_name=name,
+            time=f"00:3{position}:00",
+            category="SM",
+            gender="M",
+            club=club,
+        )
+    StandingsService(test_db).recalculate(season_id)
+
+    results_response = admin_client.get(
+        f"/results?season_id={season_id}&fixture_id={fixture_id}&race_id={race.id}"
+    )
+    standings_response = admin_client.get(
+        f"/standings/table?season_id={season_id}&category=Men&standings_type=team"
+    )
+
+    assert results_response.status_code == standings_response.status_code == 200
+    assert "Team scores for Round 5" in results_response.text
+    assert "Oxford City AC A" in results_response.text
+    assert "A Runner (1)" in results_response.text
+    assert "Scoring runners" in standings_response.text
+    assert "Pos 1" in standings_response.text
+    assert "A Runner (1)" in standings_response.text
 
 
 def test_invalid_upload_preserves_results(

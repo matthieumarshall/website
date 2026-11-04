@@ -9,7 +9,7 @@ from website import repository
 from website.db import Connection
 from website.errors import NotFoundError
 from website.export import filter_results
-from website.models import Fixture, Race, Result, Season
+from website.models import Fixture, Race, Result, Season, TeamRoundResult
 from website.services._common import found
 from website.services.archive import stored_file
 
@@ -27,6 +27,7 @@ class ResultsBrowser(BaseModel):
     races: list[Race]
     active_race: Race | None
     race_results: list[Result]
+    team_round_results: list[TeamRoundResult]
 
 
 class RacePanel(BaseModel):
@@ -38,6 +39,7 @@ class RacePanel(BaseModel):
     races: list[Race]
     active_race: Race | None
     race_results: list[Result]
+    team_round_results: list[TeamRoundResult]
 
 
 class ResultsExport(BaseModel):
@@ -127,6 +129,11 @@ class ResultsService:
                 if active_race
                 else []
             ),
+            team_round_results=(
+                repository.list_team_round_results_for_fixture(db, active_fixture.id)
+                if active_fixture
+                else []
+            ),
         )
 
     def race_panel(self, fixture_id: int, race_id: int | None = None) -> RacePanel:
@@ -152,6 +159,9 @@ class ResultsService:
                 repository.list_results_for_race(db, active_race.id)
                 if active_race
                 else []
+            ),
+            team_round_results=repository.list_team_round_results_for_fixture(
+                db, fixture_id
             ),
         )
 

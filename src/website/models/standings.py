@@ -1,9 +1,10 @@
 """Season standings rows and categories."""
 
+import json
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 ScoreValue = int | float | str
 StandingsType = Literal["individual", "team"]
@@ -66,6 +67,35 @@ class CalculatedTeamStanding(BaseModel):
     total_score: int
     rounds_competed: int
     fixture_scores: dict[str, int]
+
+
+class _TeamRoundResultData(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    fixture_id: int
+    category: str
+    position: int
+    team_name: str
+    club: str | None
+    team_label: str | None
+    score: int
+    scoring_members: list[str]
+
+    @field_validator("scoring_members", mode="before")
+    @classmethod
+    def parse_scoring_members(cls, value: object) -> object:
+        """Decode the JSON representation stored by DuckDB."""
+        return json.loads(value) if isinstance(value, str) else value
+
+
+class TeamRoundResult(_TeamRoundResultData):
+    """A team's calculated result and scoring runners for one fixture."""
+
+    id: int
+
+
+class CalculatedTeamRoundResult(_TeamRoundResultData):
+    """A freshly calculated team result, ready to be stored."""
 
 
 class StandingCategory(BaseModel):

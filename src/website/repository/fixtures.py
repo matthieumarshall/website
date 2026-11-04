@@ -143,6 +143,7 @@ def delete_fixture(db: Connection, fixture_id: int) -> bool:
     """Delete a fixture and its documents and images."""
     db.execute("DELETE FROM fixture_documents WHERE fixture_id = ?", [fixture_id])
     db.execute("DELETE FROM fixture_images WHERE fixture_id = ?", [fixture_id])
+    db.execute("DELETE FROM team_round_results WHERE fixture_id = ?", [fixture_id])
     db.execute("DELETE FROM fixtures WHERE id = ?", [fixture_id])
     return True
 

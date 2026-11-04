@@ -36,6 +36,7 @@ from website import repository
 from website.db import Connection
 from website.models import (
     CalculatedIndividualStanding,
+    CalculatedTeamRoundResult,
     CalculatedTeamStanding,
     Fixture,
     Race,
@@ -60,6 +61,7 @@ class _Scorers:
         self.team_results = InMemoryTeamResultRepository()
         self.team_scores = InMemoryScoreRepository()
         self.team_scoring = TeamScoringService(config=config)
+        self.team_round_results: list[CalculatedTeamRoundResult] = []
 
     def run(self) -> None:
         IndividualScoreService(
@@ -102,6 +104,9 @@ def recalculate_standings(db: Connection, season_id: int) -> None:
     repository.replace_calculated_team_standings(
         db, season_id, _team_rows(scorers.team_scores, fixture_for_round)
     )
+    repository.replace_calculated_team_round_results(
+        db, season_id, scorers.team_round_results
+    )
     _logger.info(
         "Standings recalculated for season %s (%d fixtures).", season_id, len(fixtures)
     )
@@ -113,11 +118,15 @@ def _load_fixture(
     for race in repository.list_races_for_fixture(db, fixture.id):
         results = repository.list_results_for_race(db, race.id)
         if results:
-            _load_race(scorers, race, results, round_number)
+            _load_race(scorers, fixture.id, race, results, round_number)
 
 
 def _load_race(
-    scorers: _Scorers, race: Race, results: list[Result], round_number: str
+    scorers: _Scorers,
+    fixture_id: int,
+    race: Race,
+    results: list[Result],
+    round_number: str,
 ) -> None:
     race_result = DomainRaceResult(race_name=race.name, round_number=round_number)
     for result in results:
@@ -135,11 +144,15 @@ def _load_race(
             )
         )
     scorers.race_results.save_race_result(race_result)
-    _save_round_team_results(scorers, race, race_result, round_number)
+    _save_round_team_results(scorers, fixture_id, race, race_result, round_number)
 
 
 def _save_round_team_results(
-    scorers: _Scorers, race: Race, race_result: DomainRaceResult, round_number: str
+    scorers: _Scorers,
+    fixture_id: int,
+    race: Race,
+    race_result: DomainRaceResult,
+    round_number: str,
 ) -> None:
     """Pre-calculate per-round team results for each team category of a race."""
     service = scorers.team_scoring
@@ -161,6 +174,26 @@ def _save_round_team_results(
             scorers.team_results.save_team_results(
                 category_code, round_number, result_data
             )
+            for row in result_data:
+                team_name = str(row["Team"])
+                club, team_label = _split_team_name(team_name)
+                scoring_members = [
+                    str(row[f"Runner{index}"])
+                    for index in range(1, category.team_size + 1)
+                    if row.get(f"Runner{index}")
+                ]
+                scorers.team_round_results.append(
+                    CalculatedTeamRoundResult(
+                        fixture_id=fixture_id,
+                        category=category_code,
+                        position=int(row["Pos"]),
+                        team_name=team_name,
+                        club=club,
+                        team_label=team_label,
+                        score=int(row["Score"]),
+                        scoring_members=scoring_members,
+                    )
+                )
         except ValueError as exc:
             _logger.warning(
                 "Could not calculate teams for %s in round %s: %s",
