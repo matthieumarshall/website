@@ -16,13 +16,17 @@ This mapping is the source of truth for all standings calculations.
 """
 
 import logging
+import re
 from datetime import timedelta
 from pathlib import Path
 
 from pyresults import (
     Athlete,
+    Category,
+    CategoryType,
     CompetitionConfig,
     DomainRaceResult,
+    Gender,
     IndividualScoreService,
     InMemoryRaceResultRepository,
     InMemoryScoreRepository,
@@ -49,6 +53,88 @@ _CAPPED_TOTAL = 999999
 _TIME_PARTS_HMS = 3
 _TIME_PARTS_MS = 2
 _OPEN_CATEGORIES = ("Men", "Women")
+_JUNIOR_TEAM_SIZE = 3
+_PRODUCTION_JUNIOR_TEAM_CATEGORIES = (
+    (
+        "U10B",
+        "Under 10 Boys",
+        Gender.MALE,
+        "U10",
+        ("U10B", "U10 Boys", "Under 10 Boys"),
+    ),
+    (
+        "U10G",
+        "Under 10 Girls",
+        Gender.FEMALE,
+        "U10",
+        ("U10G", "U10 Girls", "Under 10 Girls"),
+    ),
+    (
+        "U12B",
+        "Under 12 Boys",
+        Gender.MALE,
+        "U12",
+        ("U12B", "U12 Boys", "Under 12 Boys"),
+    ),
+    (
+        "U12G",
+        "Under 12 Girls",
+        Gender.FEMALE,
+        "U12",
+        ("U12G", "U12 Girls", "Under 12 Girls"),
+    ),
+    (
+        "U14B",
+        "Under 14 Boys",
+        Gender.MALE,
+        "U14",
+        ("U14B", "U14 Boys", "Under 14 Boys"),
+    ),
+    (
+        "U14G",
+        "Under 14 Girls",
+        Gender.FEMALE,
+        "U14",
+        ("U14G", "U14 Girls", "Under 14 Girls"),
+    ),
+    (
+        "U16B",
+        "Under 16 Boys",
+        Gender.MALE,
+        "U16",
+        ("U16B", "U16 Boys", "Under 16 Boys"),
+    ),
+    (
+        "U16G",
+        "Under 16 Girls",
+        Gender.FEMALE,
+        "U16",
+        ("U16G", "U16 Girls", "Under 16 Girls"),
+    ),
+    (
+        "U18M",
+        "Under 18 Men",
+        Gender.MALE,
+        "U18",
+        ("U18M", "U18 Boys", "U18 Men", "Under 18 Boys", "Under 18 Men"),
+    ),
+    (
+        "U18W",
+        "Under 18 Women",
+        Gender.FEMALE,
+        "U18",
+        ("U18W", "U18 Girls", "U18 Women", "Under 18 Girls", "Under 18 Women"),
+    ),
+)
+_PRODUCTION_CATEGORY_ALIASES: dict[str, str] = {
+    alias.casefold(): code
+    for code, _, _, _, aliases in _PRODUCTION_JUNIOR_TEAM_CATEGORIES
+    for alias in aliases
+}
+_PRODUCTION_RACE_ALIASES = {
+    "u20/senior/masters men": "Men",
+    "u20/senior/masters women": "Women",
+}
 
 
 class _Scorers:
@@ -140,7 +226,7 @@ def _load_race(
                 position=result.position,
                 time=_parse_time(result.time),
                 gender=result.gender,
-                category=result.category,
+                category=_scoring_category(result.category),
             )
         )
     scorers.race_results.save_race_result(race_result)
@@ -156,7 +242,8 @@ def _save_round_team_results(
 ) -> None:
     """Pre-calculate per-round team results for each team category of a race."""
     service = scorers.team_scoring
-    for category_code in service.get_team_categories_for_race(race.name):
+    team_race_name = _canonical_team_race_name(race.name)
+    for category_code in service.get_team_categories_for_race(team_race_name):
         try:
             category = scorers.config.category_config.get_category(category_code)
             teams = service.calculate_teams_for_race(race_result, category)
@@ -210,9 +297,39 @@ def _build_season_config(round_numbers: list[str]) -> CompetitionConfig:
     used.
     """
     base = build_default_config()
+    for code, name, gender, race_name, _ in _PRODUCTION_JUNIOR_TEAM_CATEGORIES:
+        base.category_config.categories.setdefault(
+            code,
+            Category(
+                code=code,
+                name=name,
+                category_type=CategoryType.TEAM,
+                gender=gender,
+                race_name=race_name,
+                team_size=_JUNIOR_TEAM_SIZE,
+                age_group=race_name,
+            ),
+        )
     base.round_numbers = round_numbers
     base.data_base_path = Path("/dev/null")  # never accessed; in-memory only
     return base
+
+
+def _scoring_category(category: str) -> str:
+    """Canonicalise production junior category labels for team scoring."""
+    stripped = category.strip()
+    return _PRODUCTION_CATEGORY_ALIASES.get(stripped.casefold(), stripped)
+
+
+def _canonical_team_race_name(race_name: str) -> str:
+    """Map production event titles to the scorer's category race names."""
+    normalized = re.sub(r"\s*/\s*", "/", " ".join(race_name.casefold().split()))
+    if normalized in _PRODUCTION_RACE_ALIASES:
+        return _PRODUCTION_RACE_ALIASES[normalized]
+    age_group = re.fullmatch(r"u(\d+)(?:\s+boys\s*(?:&|and)\s*girls)?", normalized)
+    if age_group:
+        return f"U{age_group.group(1)}"
+    return race_name.strip()
 
 
 def _parse_time(time_str: str) -> timedelta:
