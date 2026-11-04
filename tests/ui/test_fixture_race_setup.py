@@ -14,8 +14,11 @@ def test_upload_results_from_fixtures_and_results(
     admin_browser.set_viewport_size({"width": width, "height": 900})
     race_name = f"UI setup race {width} {uuid4().hex[:8]}"
     admin_browser.goto("http://localhost:8000/fixtures")
-    admin_browser.locator("#season-panel [data-fixture-tab]").nth(1).click()
+    fixture_tab = admin_browser.locator("#season-panel [data-fixture-tab]").nth(1)
+    fixture_title = fixture_tab.inner_text().split(". ", maxsplit=1)[1]
+    fixture_tab.click()
     panel = admin_browser.locator("#fixture-detail")
+    expect(panel.locator("h2.card-title")).to_have_text(fixture_title)
     panel.get_by_label("Race name", exact=True).fill(race_name)
     panel.get_by_role("button", name="Add Race").click()
 
