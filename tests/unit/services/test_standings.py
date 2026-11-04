@@ -149,6 +149,80 @@ class TestRecalculate:
             "C Runner (3)",
         ]
 
+    def test_production_race_names_and_category_labels_are_scored(
+        self, test_db: duckdb.DuckDBPyConnection
+    ) -> None:
+        season = repository.create_season(test_db, "2026-27")
+        fixture = repository.create_fixture(
+            test_db, season.id, "Round 1", "2026-10-04", "Park", "Addr", [], ""
+        )
+        junior_groups = (
+            (10, "U10B", "U10 Boys", "U10G", "U10 Girls"),
+            (12, "U12B", "U12 Boys", "U12G", "U12 Girls"),
+            (14, "U14B", "U14 Boys", "U14G", "U14 Girls"),
+            (16, "U16B", "U16 Boys", "U16G", "U16 Girls"),
+            (18, "U18M", "U18 Boys", "U18W", "U18 Girls"),
+        )
+        expected_junior_categories: set[str] = set()
+        for age, male_code, male_label, female_code, female_label in junior_groups:
+            race = repository.create_race(test_db, fixture.id, f"U{age} Boys & Girls")
+            expected_junior_categories.update((male_code, female_code))
+            for position in range(1, 7):
+                is_male = position % 2 == 1
+                member_number = (position + 1) // 2
+                code = male_code if is_male else female_code
+                label = male_label if is_male else female_label
+                category = code if member_number != 2 else label
+                gender = "M" if is_male else "F"
+                name = f"U{age} {'Boy' if is_male else 'Girl'} {member_number}"
+                repository.create_result(
+                    test_db,
+                    race_id=race.id,
+                    position=position,
+                    athlete_name=name,
+                    time=f"00:3{position}:00",
+                    category=category,
+                    gender=gender,
+                    club="Oxford AC",
+                )
+
+        for race_name, category, gender, count in (
+            ("U20/Senior/Masters Men", "SM", "M", 7),
+            ("U20/Senior/Masters Women", "SW", "F", 4),
+        ):
+            race = repository.create_race(test_db, fixture.id, race_name)
+            for position in range(1, count + 1):
+                repository.create_result(
+                    test_db,
+                    race_id=race.id,
+                    position=position,
+                    athlete_name=f"{race_name} Runner {position}",
+                    time=f"00:3{position}:00",
+                    category=category,
+                    gender=gender,
+                    club="Oxford AC",
+                )
+
+        StandingsService(test_db).recalculate(season.id)
+
+        round_results = repository.list_team_round_results_for_fixture(
+            test_db, fixture.id
+        )
+        members_by_category = {
+            result.category: result.scoring_members for result in round_results
+        }
+        assert set(members_by_category) == expected_junior_categories | {
+            "Men",
+            "Women",
+        }
+        assert all(
+            len(members_by_category[category]) == 3
+            for category in expected_junior_categories
+        )
+        assert len(members_by_category["Men"]) == 7
+        assert len(members_by_category["Women"]) == 4
+        assert members_by_category["U10G"][0] == "U10 Girl 1 (1)"
+
     def test_recalculate_unknown_season(
         self, test_db: duckdb.DuckDBPyConnection
     ) -> None:
