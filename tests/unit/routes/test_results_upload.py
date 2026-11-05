@@ -143,8 +143,9 @@ def test_results_page_upload_returns_updated_race_panel(
     assert response.status_code == 200
     assert "Uploaded Runner" in response.text
     assert "Imported 1 results. The previous results were replaced." in response.text
-    assert "Team scores for Round 5" in response.text
-    assert "Oxford City AC A" in response.text
+    assert "Individual Results" in response.text
+    assert "Team Results" in response.text
+    assert "Team scores for Round 5" not in response.text
     assert [
         result.athlete_name
         for result in repository.list_results_for_race(test_db, race.id)
@@ -182,14 +183,35 @@ def test_team_round_scores_render_on_results_and_standings_pages(
     results_response = admin_client.get(
         f"/results?season_id={season_id}&fixture_id={fixture_id}&race_id={race.id}"
     )
+    team_response = admin_client.get(
+        f"/results?season_id={season_id}&fixture_id={fixture_id}"
+        f"&race_id={race.id}&view_mode=team"
+    )
+    fixture_panel_response = admin_client.get(
+        f"/results/fixture-panel?season_id={season_id}&view_mode=team"
+    )
     standings_response = admin_client.get(
         f"/standings/table?season_id={season_id}&category=Men&standings_type=team"
     )
 
-    assert results_response.status_code == standings_response.status_code == 200
-    assert "Team scores for Round 5" in results_response.text
-    assert "Oxford City AC A" in results_response.text
-    assert "A Runner (1)" in results_response.text
+    assert (
+        results_response.status_code
+        == team_response.status_code
+        == fixture_panel_response.status_code
+        == standings_response.status_code
+        == 200
+    )
+    assert "Individual Results" in results_response.text
+    assert "Team scores for Round 5" not in results_response.text
+    assert 'id="results-filter"' in results_response.text
+    assert 'id="results-view-mode"' in team_response.text
+    assert 'name="view_mode"' in team_response.text
+    assert 'value="team"' in team_response.text
+    assert 'hx-include="#results-view-mode"' in fixture_panel_response.text
+    assert "Team scores for Round 5" in team_response.text
+    assert "Oxford City AC A" in team_response.text
+    assert "A Runner (1)" in team_response.text
+    assert 'id="results-filter"' not in team_response.text
     assert "Scoring runners" in standings_response.text
     assert "Pos 1" in standings_response.text
     assert "A Runner (1)" in standings_response.text

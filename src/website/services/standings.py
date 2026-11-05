@@ -20,6 +20,10 @@ from website.models import (
 from website.models.standings import ScoreValue
 from website.services._common import found
 from website.services.standings_calculator import recalculate_standings
+from website.services.standings_categories import (
+    merge_standing_categories,
+    standing_category_catalog,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -109,7 +113,11 @@ class StandingsService:
         season = repository.get_season_by_id(self._db, season_id)
         if season is None:
             return None, []
-        return season, repository.list_standing_categories(self._db, season_id)
+        return season, merge_standing_categories(
+            standing_category_catalog(season.name),
+            repository.list_standing_categories(self._db, season_id),
+            season.name,
+        )
 
     def overview(self, season_id: int | None) -> StandingsOverview:
         """Return seasons plus the categories of *season_id* (default: latest)."""

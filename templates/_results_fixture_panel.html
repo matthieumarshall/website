@@ -22,6 +22,7 @@
       class="btn btn-outline-secondary{% if active_fixture and active_fixture.id == fixture.id %} active{% endif %}"
       data-fixture-tab="true"
       hx-get="/results/race-panel?fixture_id={{ fixture.id }}&season_id={{ selected_season.id }}"
+      hx-include="#results-view-mode"
       hx-target="#race-panel"
       hx-swap="innerHTML"
       hx-push-url="true"

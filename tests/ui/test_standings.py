@@ -29,6 +29,33 @@ class TestStandingsPage:
         content = browser.content()
         assert "UI Test Season 2026" in content
 
+    def test_all_current_category_tabs_include_empty_categories(
+        self, browser: Page
+    ) -> None:
+        """Current-format category tabs are present even without standings rows."""
+        response = browser.request.get(
+            f"{BASE}/standings/category-panel", params={"season_id": "1"}
+        )
+        assert response.ok
+        body = response.text()
+        assert 'aria-label="Individual standings for U10B"' in body
+        assert 'aria-label="Individual standings for U18W"' in body
+        assert 'aria-label="Team standings for U10G"' in body
+        assert 'aria-label="Team standings for Men"' in body
+        assert "U23M" not in body
+        assert "U23W" not in body
+
+        empty_table = browser.request.get(
+            f"{BASE}/standings/table",
+            params={
+                "season_id": "1",
+                "category": "U14B",
+                "standings_type": "individual",
+            },
+        )
+        assert empty_table.ok
+        assert "No standings data available for U14B." in empty_table.text()
+
     def test_individual_standings_table_renders(self, browser: Page):
         """Individual standings table shows seeded athletes."""
         # Fetch the HTMX partial directly to verify template rendering

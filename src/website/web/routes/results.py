@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, Response
 
 from website.export import build_csv, build_pdf
-from website.services.results import ResultFilters
+from website.services.results import ResultFilters, ResultsViewMode
 from website.web.deps import RendererDep, Results, SettingsDep
 from website.web.stored_files import stored_file_response
 
@@ -27,30 +27,37 @@ def results(
     season_id: int | None = None,
     fixture_id: int | None = None,
     race_id: int | None = None,
+    view_mode: ResultsViewMode = "individual",
 ) -> HTMLResponse:
     """Show results, defaulting to the latest season's first fixture and race."""
-    view = service.browse(season_id, fixture_id, race_id)
+    view = service.browse(season_id, fixture_id, race_id, view_mode)
     return ui.page(
         request,
         "results.html",
         _PAGE,
         view=view,
         season_id=view.selected_season.id if view.selected_season else None,
+        view_mode=view.view_mode,
     )
 
 
 @router.get("/fixture-panel", response_class=HTMLResponse)
 def results_fixture_panel(
-    request: Request, service: Results, ui: RendererDep, season_id: int | None = None
+    request: Request,
+    service: Results,
+    ui: RendererDep,
+    season_id: int | None = None,
+    view_mode: ResultsViewMode = "individual",
 ) -> HTMLResponse:
     """HTMX: swap in a season's fixtures with the first fixture selected."""
-    view = service.browse(season_id)
+    view = service.browse(season_id, view_mode=view_mode)
     return ui.page(
         request,
         "_results_fixture_panel.html",
         _PAGE,
         view=view,
         season_id=view.selected_season.id if view.selected_season else None,
+        view_mode=view.view_mode,
     )
 
 
@@ -62,15 +69,17 @@ def results_race_panel(
     ui: RendererDep,
     season_id: int | None = None,
     race_id: int | None = None,
+    view_mode: ResultsViewMode = "individual",
 ) -> HTMLResponse:
     """HTMX: swap in a fixture's races with one race selected."""
-    panel = service.race_panel(fixture_id, race_id)
+    panel = service.race_panel(fixture_id, race_id, view_mode)
     return ui.page(
         request,
         "_results_race_panel.html",
         _PAGE,
         season_id=season_id,
         view=panel,
+        view_mode=panel.view_mode,
     )
 
 

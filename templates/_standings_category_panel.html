@@ -2,24 +2,21 @@
 <p class="text-muted">No season selected.</p>
 {% elif not categories %}
 <p class="text-muted">
-  No standings available for {{ selected_season.name }} yet.
-  {% if is_admin %}
-  Use the button below to calculate them from the uploaded results.
-  {% endif %}
+  No standings categories are configured for {{ selected_season.name }}.
 </p>
-{% if is_admin %}
-<form method="post" action="/standings/recalculate" class="mt-2">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-  <input type="hidden" name="season_id" value="{{ selected_season.id }}">
-  <button type="submit" class="btn btn-primary btn-sm">
-    Calculate standings
-  </button>
-</form>
-{% endif %}
 {% else %}
-{# Separate into individual and team category lists #}
+{% set _has_standings = categories | selectattr("count", "gt", 0) | list %}
+{% if not _has_standings %}
+<p class="text-muted" role="status">
+  No standings available for {{ selected_season.name }} yet.
+  {% if is_admin %}Use the button below to calculate them from the uploaded results.{% endif %}
+</p>
+{% endif %}
+
 {% set individual_cats = categories | selectattr("type", "equalto", "individual") | list %}
 {% set team_cats = categories | selectattr("type", "equalto", "team") | list %}
+{% set populated_individual_cats = individual_cats | selectattr("count", "gt", 0) | list %}
+{% set first_individual_cat = (populated_individual_cats or individual_cats) | first %}
 
 {% if individual_cats %}
 <h2 class="h5 mt-2 mb-2">Individual</h2>
@@ -28,12 +25,12 @@
     {% for cat in individual_cats %}
     <button
       type="button"
-      class="btn btn-outline-secondary{% if loop.first %} active{% endif %}"
+      class="btn btn-outline-secondary{% if cat.category == first_individual_cat.category %} active{% endif %}"
       hx-get="/standings/table?season_id={{ selected_season.id }}&category={{ cat.category }}&standings_type=individual"
       hx-target="#standings-table-panel"
       hx-swap="innerHTML"
       aria-label="Individual standings for {{ cat.category }}"
-      aria-pressed="{{ 'true' if loop.first else 'false' }}"
+      aria-pressed="{{ 'true' if cat.category == first_individual_cat.category else 'false' }}"
     >{{ cat.category }}</button>
     {% endfor %}
   </div>
@@ -60,24 +57,22 @@
 {% endif %}
 
 <div id="standings-table-panel">
-  {# Load the first individual category by default if any exist #}
   {% if individual_cats %}
-  {% set first_cat = individual_cats[0] %}
-  {% set default_rows = [] %}
-  {# The initial table is server-rendered via the standings route context which
-     doesn't include rows — the HTMX trigger on load handles the first load.
-     Show a loading placeholder until HTMX fires. #}
-  <p class="text-muted small"
-     hx-get="/standings/table?season_id={{ selected_season.id }}&category={{ individual_cats[0].category }}&standings_type=individual"
-     hx-trigger="load"
-     hx-target="#standings-table-panel"
-     hx-swap="innerHTML">Loading…</p>
+  <p
+    class="text-muted small"
+    hx-get="/standings/table?season_id={{ selected_season.id }}&category={{ first_individual_cat.category }}&standings_type=individual"
+    hx-trigger="load"
+    hx-target="#standings-table-panel"
+    hx-swap="innerHTML"
+  >Loading…</p>
   {% elif team_cats %}
-  <p class="text-muted small"
-     hx-get="/standings/table?season_id={{ selected_season.id }}&category={{ team_cats[0].category }}&standings_type=team"
-     hx-trigger="load"
-     hx-target="#standings-table-panel"
-     hx-swap="innerHTML">Loading…</p>
+  <p
+    class="text-muted small"
+    hx-get="/standings/table?season_id={{ selected_season.id }}&category={{ team_cats[0].category }}&standings_type=team"
+    hx-trigger="load"
+    hx-target="#standings-table-panel"
+    hx-swap="innerHTML"
+  >Loading…</p>
   {% endif %}
 </div>
 
@@ -86,7 +81,7 @@
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <input type="hidden" name="season_id" value="{{ selected_season.id }}">
   <button type="submit" class="btn btn-outline-secondary btn-sm">
-    Recalculate standings
+    {{ "Recalculate standings" if _has_standings else "Calculate standings" }}
   </button>
 </form>
 {% endif %}
