@@ -4,7 +4,7 @@ Covers tasks T048-T050 (US2: standings UI) and T063-T072 (US3: results browsing 
 All tests rely on the seeded "UI Test Season 2026" data created in conftest.py.
 """
 
-from playwright.sync_api import Page
+from playwright.sync_api import Page, expect
 
 BASE = "http://localhost:8000"
 
@@ -134,6 +134,51 @@ class TestHistoricalResultsBrowsing:
         assert "Senior Women Race" in body, (
             "Seeded race name not found in race-panel response"
         )
+
+    def test_team_results_view_replaces_individual_view_and_persists(
+        self, browser: Page
+    ) -> None:
+        """The selected Results view survives a fixture switch."""
+        browser.goto(f"{BASE}/results?season_id=1")
+        browser.wait_for_load_state("networkidle")
+
+        individual_button = browser.get_by_role(
+            "button", name="Individual Results", exact=True
+        )
+        team_button = browser.get_by_role("button", name="Team Results", exact=True)
+        expect(individual_button).to_have_attribute("aria-pressed", "true")
+        expect(browser.locator("#results-filter")).to_be_visible()
+
+        team_button.click()
+
+        expect(team_button).to_have_attribute("aria-pressed", "true")
+        expect(browser.locator("#team-round-results-heading")).to_be_visible()
+        expect(browser.locator("#results-filter")).to_have_count(0)
+        assert "view_mode=team" in browser.url
+
+        fixture_tab = browser.locator("#fixture-panel [data-fixture-tab]").nth(1)
+        expect(browser.locator("#results-view-mode")).to_have_value("team")
+        assert fixture_tab.get_attribute("hx-include") == "#results-view-mode"
+        fixture_title = fixture_tab.inner_text().split(". ", maxsplit=1)[1]
+        fixture_requests: list[str] = []
+        browser.on(
+            "request",
+            lambda request: (
+                fixture_requests.append(request.url)
+                if "/results/race-panel" in request.url
+                and "fixture_id=2" in request.url
+                else None
+            ),
+        )
+        fixture_tab.click()
+        expect(browser.locator("#team-round-results-heading")).to_have_text(
+            f"Team scores for {fixture_title}"
+        )
+        assert any("view_mode=team" in url for url in fixture_requests)
+        expect(
+            browser.get_by_role("button", name="Team Results", exact=True)
+        ).to_have_attribute("aria-pressed", "true")
+        assert "view_mode=team" in browser.url
 
     def test_results_race_table_shows_all_columns(self, browser: Page) -> None:
         """T066: Race results table contains position, name, time, category, club."""
