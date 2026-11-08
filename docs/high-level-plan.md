@@ -43,7 +43,7 @@ Planned islands:
 - `admin` and `content_creator` roles — **DONE**
 - Account page (shows username + role badge) — **DONE**
 - `club_manager` role (team manager equivalent) — **DONE** (`require_club_manager` dependency in `identity.py`)
-- User control centre / admin user management (CRUD users, assign roles, reset credentials within the website) — *not started*
+- User control centre / admin user management — *partially done*: admins can create club-manager accounts and activate or deactivate their manager access. General user CRUD, role assignment and credential resets within the website remain outstanding.
 
 ---
 
@@ -121,7 +121,7 @@ Planned islands:
 
 ## Phase 5: Entries
 
-**Status**: Fully built (all tasks in `specs/002-team-entries/tasks.md` complete) but currently **hidden from navigation** — the public `/entries` route renders a "work in progress" placeholder pending final production England Athletics TRAPI authentication and full live testing. The underlying backend, models, migrations (0013-0021), Stripe Checkout redirect, BACS/card webhook processing, and admin allocation/pricing management are fully operational.
+**Status**: Implemented but currently **hidden from navigation** — the public `/entries` route renders a "work in progress" placeholder pending production England Athletics TRAPI authentication and live end-to-end testing. The backend, models, migrations (0013-0021), Stripe Checkout redirect, BACS/card webhook processing, and admin allocation/pricing management have been built. Live operation remains to be verified.
 
 ### 5.1 Athlete & Category Management
 - `club_manager` role — **DONE** (`require_club_manager` dependency, admin manager assignment UI)
@@ -216,7 +216,7 @@ Email hosting and mailboxes are handled directly as a managed email service prov
 ## Phase 10: Monitoring & Reliability
 
 ### 10.1 Logging
-- Structured JSON logging — *not started*
+- Structured JSON logging — *partially done*: import scripts produce JSON-lines logs; website-wide structured logging remains outstanding.
 - Ship logs to centralised location — *not started*
 - Never log passwords, tokens, or PII — **DONE** *(policy enforced in code)*
 
@@ -238,8 +238,8 @@ Email hosting and mailboxes are handled directly as a managed email service prov
 ## Phase 11: Performance
 
 ### 11.1 Asset Optimisation
-- Minify CSS/JS, compress images, use modern formats (WebP/AVIF) — *not started*
-- gzip/brotli response compression — *to be reviewed*
+- Minify CSS/JS, compress images, use modern formats (WebP/AVIF) — *partially done*: fixture document images are resized and compressed; broader asset optimisation and modern formats remain to be assessed.
+- gzip/brotli response compression — *partially done*: stored documents can be served gzip-encoded; general response compression remains to be reviewed.
 - All static assets self-hosted (no CDN leaking user IPs) — **DONE**
 
 ### 11.2 Caching

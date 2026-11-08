@@ -179,6 +179,12 @@ def test_team_round_scores_render_on_results_and_standings_pages(
             club=club,
         )
     StandingsService(test_db).recalculate(season_id)
+    test_db.execute(
+        "INSERT INTO team_round_results "
+        "(fixture_id, category, position, team_name, club, team_label, score, scoring_members) "
+        "VALUES (?, 'Women', 1, 'Women Team A', 'Women Team', 'A', 6, '[]')",
+        [fixture_id],
+    )
 
     results_response = admin_client.get(
         f"/results?season_id={season_id}&fixture_id={fixture_id}&race_id={race.id}"
@@ -211,6 +217,20 @@ def test_team_round_scores_render_on_results_and_standings_pages(
     assert "Team scores for Round 5" in team_response.text
     assert "Oxford City AC A" in team_response.text
     assert "A Runner (1)" in team_response.text
+    assert 'aria-label="Team results for Men"' in team_response.text
+    assert 'aria-label="Team results for Women"' in team_response.text
+    assert "Women Team A" not in team_response.text
+    women_response = admin_client.get(
+        f"/results/team-table?fixture_id={fixture_id}&category=Women"
+    )
+    assert "Women Team A" in women_response.text
+    assert "Oxford City AC A" not in women_response.text
+    assert "category=Women" in women_response.text
+    women_csv = admin_client.get(
+        f"/results/team-export/csv?fixture_id={fixture_id}&category=Women"
+    )
+    assert "Women Team A" in women_csv.text
+    assert "Oxford City AC A" not in women_csv.text
     assert 'id="results-filter"' not in team_response.text
     assert "Scoring runners" in standings_response.text
     assert "Pos 1" in standings_response.text

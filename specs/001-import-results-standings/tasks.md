@@ -179,6 +179,7 @@ This feature imports ~40 years of historical results and standings from legacy P
 - [X] T088 Implement summary report printing in `scripts/_import_logger.py` (format: section headers, counts, duration, log file path)
 - [X] T089 Ensure all warnings/errors from T027-T062 tasks include descriptive messages in ImportLogger calls
 - [ ] T090 Add validation helper functions to `scripts/_migration_helpers.py` (is_valid_position, is_valid_athlete_name, etc.) with logging
+  - Validation and data-quality warnings exist in the import paths, but the specifically proposed shared helpers have not been implemented as described.
 - [X] T091 Document expected warning types in README or docstring (`scripts/README-IMPORT.md` created)
 
 **Checkpoint**: Import provides transparent reporting; admins can diagnose data quality issues
@@ -209,7 +210,7 @@ This feature imports ~40 years of historical results and standings from legacy P
 - [ ] T101 Verify unit test coverage ≥85% across new modules: `coverage run -m pytest tests/unit/ && coverage report`
 - [ ] T102 Verify all UI tests pass: `playwright test tests/ui/`
 - [ ] T103 Verify pre-commit hooks pass: `pre-commit run --all-files`
-- [ ] T104 Create `.github/workflows/import-tests.yml` (CI job to run import tests on PR)
+- [X] T104 **Superseded:** A separate `.github/workflows/import-tests.yml` was not created; the existing [CI workflow](../../.github/workflows/ci-cd.yml) runs the unit test suite, including import tests.
 
 ### Final Verification
 
