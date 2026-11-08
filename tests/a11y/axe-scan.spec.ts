@@ -56,6 +56,16 @@ for (const path of publicPages) {
   });
 }
 
+test('public team results view has no axe violations', async ({ page }) => {
+  await page.goto(`/results?season_id=${seedIds.seasonId}&view_mode=team`);
+  await page.waitForLoadState('networkidle');
+  await expect(page.getByRole('button', { name: 'Team Results' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expectNoViolations(page);
+});
+
 test.describe('staff (admin) pages', () => {
   test.beforeEach(async ({ page }) => {
     await login(page, 'admin_user', 'AdminPassword123!@#');

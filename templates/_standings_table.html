@@ -1,17 +1,22 @@
 {% if not rows %}
 <p class="text-muted py-2">No standings data available for {{ category }}.</p>
 {% else %}
+{% set has_divisions = rows | selectattr("division", "defined") | selectattr("division") | list %}
+{% if has_divisions %}
+<label for="team-division-filter" class="form-label">Division</label>
+<select id="team-division-filter" class="form-select form-select-sm w-auto" data-team-filter><option value="">All divisions</option>{% for div in (1, 2, 3) %}<option value="{{ div }}">Division {{ div }}</option>{% endfor %}</select>
+{% endif %}
 {% set export_query = "season_id=" ~ season.id ~ "&category=" ~ (category | urlencode) ~ "&standings_type=" ~ (standings_type | urlencode) %}
 <div class="d-flex justify-content-end gap-2 mt-2">
   <a
     href="/standings/export/csv?{{ export_query }}"
-    class="btn btn-sm btn-outline-secondary"
+    class="btn btn-sm btn-outline-secondary" data-team-export
     download
     aria-label="Export {{ category }} standings as CSV"
   >↓ CSV</a>
   <a
     href="/standings/export/pdf?{{ export_query }}"
-    class="btn btn-sm btn-outline-secondary"
+    class="btn btn-sm btn-outline-secondary" data-team-export
     download
     aria-label="Export {{ category }} standings as PDF"
   >↓ PDF</a>
@@ -21,6 +26,7 @@
     <thead class="table-light">
       <tr>
         <th scope="col">Pos</th>
+        {% if has_divisions %}<th scope="col">Division</th>{% endif %}
         {% if standings_type == "team" %}
         <th scope="col">Team</th>
         {% else %}
@@ -38,8 +44,9 @@
     <tbody>
       {% for row in rows %}
       {% set scores = row.scores_by_fixture if row.scores_by_fixture is defined else (row.fixture_scores | fromjson if row.fixture_scores else {}) %}
-      <tr>
-        <td>{{ row.position }}</td>
+      <tr data-team-division="{{ row.division if row.division is defined and row.division else '' }}">
+        <td>{{ row.division_position if row.division_position is defined and row.division_position else row.position }}</td>
+        {% if has_divisions %}<td>{{ row.division or '-' }}</td>{% endif %}
         {% if standings_type == "team" %}
         <td>{{ row.team_name }}</td>
         {% else %}
@@ -54,7 +61,7 @@
           {{ scores[fid_str] }}
           {% for round_result in team_round_results %}
           {% if round_result.fixture_id == fixture.id and round_result.team_name == row.team_name %}
-          <div class="small text-muted">{{ round_result.category }} · Pos {{ round_result.position }} · Score {{ round_result.score }}</div>
+          <div class="small text-muted">{{ round_result.category }} · Pos {{ round_result.division_position or round_result.position }} · Score {{ round_result.score }}</div>
           {% if round_result.scoring_members %}
           <details class="small">
             <summary>Scoring runners</summary>

@@ -12,6 +12,9 @@ from website.export import filter_results
 from website.models import Fixture, Race, Result, Season, TeamRoundResult
 from website.services._common import found
 from website.services.archive import stored_file
+from website.services.team_divisions import with_divisions
+
+ResultsViewMode = Literal["individual", "team"]
 
 
 class ResultsBrowser(BaseModel):
@@ -28,6 +31,7 @@ class ResultsBrowser(BaseModel):
     active_race: Race | None
     race_results: list[Result]
     team_round_results: list[TeamRoundResult]
+    view_mode: ResultsViewMode
 
 
 class RacePanel(BaseModel):
@@ -40,6 +44,7 @@ class RacePanel(BaseModel):
     active_race: Race | None
     race_results: list[Result]
     team_round_results: list[TeamRoundResult]
+    view_mode: ResultsViewMode
 
 
 class ResultsExport(BaseModel):
@@ -75,6 +80,7 @@ class ResultsService:
         season_id: int | None = None,
         fixture_id: int | None = None,
         race_id: int | None = None,
+        view_mode: ResultsViewMode = "individual",
     ) -> ResultsBrowser:
         """Resolve the selected season, fixture and race (latest/first by default)."""
         db = self._db
@@ -130,13 +136,25 @@ class ResultsService:
                 else []
             ),
             team_round_results=(
-                repository.list_team_round_results_for_fixture(db, active_fixture.id)
+                with_divisions(
+                    db,
+                    active_fixture.season_id,
+                    repository.list_team_round_results_for_fixture(
+                        db, active_fixture.id
+                    ),
+                )
                 if active_fixture
                 else []
             ),
+            view_mode=view_mode,
         )
 
-    def race_panel(self, fixture_id: int, race_id: int | None = None) -> RacePanel:
+    def race_panel(
+        self,
+        fixture_id: int,
+        race_id: int | None = None,
+        view_mode: ResultsViewMode = "individual",
+    ) -> RacePanel:
         """Return a fixture's races with *race_id* (or the first race) selected.
 
         Raises:
@@ -160,9 +178,12 @@ class ResultsService:
                 if active_race
                 else []
             ),
-            team_round_results=repository.list_team_round_results_for_fixture(
-                db, fixture_id
+            team_round_results=with_divisions(
+                db,
+                fixture.season_id,
+                repository.list_team_round_results_for_fixture(db, fixture_id),
             ),
+            view_mode=view_mode,
         )
 
     def race_results(self, race_id: int) -> tuple[Race, list[Result]]:

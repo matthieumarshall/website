@@ -38,6 +38,8 @@ class TeamStanding(_StandingBase):
 
     team_name: str
     team_label: str | None
+    division: int | None = None
+    division_position: int | None = None
 
 
 class CalculatedIndividualStanding(BaseModel):
@@ -80,6 +82,8 @@ class _TeamRoundResultData(BaseModel):
     team_label: str | None
     score: int
     scoring_members: list[str]
+    division: int | None = None
+    division_position: int | None = None
 
     @field_validator("scoring_members", mode="before")
     @classmethod

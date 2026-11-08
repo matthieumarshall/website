@@ -12,6 +12,8 @@
       b.style.flexBasis = '';
       b.style.flexGrow = '';
       b.style.flexShrink = '';
+      b.style.minWidth = '';
+      b.style.whiteSpace = '';
     });
 
     var gap = parseFloat(getComputedStyle(container).columnGap) || 0;
@@ -40,6 +42,8 @@
       b.style.flexBasis = btnW + 'px';
       b.style.flexGrow = '0';
       b.style.flexShrink = '0';
+      b.style.minWidth = '0';
+      b.style.whiteSpace = 'normal';
     });
   }
 
@@ -52,6 +56,8 @@
       b.style.flexBasis = '';
       b.style.flexGrow = '';
       b.style.flexShrink = '';
+      b.style.minWidth = '';
+      b.style.whiteSpace = '';
     });
   }
 
@@ -73,6 +79,11 @@
       requestAnimationFrame(balanceAll);
     }, 100);
   });
+
+  document.addEventListener('click', function (event) {
+    var button = event.target.closest('[data-standings-view]');
+    if (button) document.getElementById('standings-view-mode').value = button.dataset.standingsView;
+  }, true);
 
   // Standings category active state: highlight the clicked button in the
   // category tab group while HTMX loads the new table content.

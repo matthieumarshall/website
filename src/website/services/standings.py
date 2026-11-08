@@ -20,6 +20,11 @@ from website.models import (
 from website.models.standings import ScoreValue
 from website.services._common import found
 from website.services.standings_calculator import recalculate_standings
+from website.services.standings_categories import (
+    merge_standing_categories,
+    standing_category_catalog,
+)
+from website.services.team_divisions import with_divisions
 
 _logger = logging.getLogger(__name__)
 
@@ -109,7 +114,11 @@ class StandingsService:
         season = repository.get_season_by_id(self._db, season_id)
         if season is None:
             return None, []
-        return season, repository.list_standing_categories(self._db, season_id)
+        return season, merge_standing_categories(
+            standing_category_catalog(season.name),
+            repository.list_standing_categories(self._db, season_id),
+            season.name,
+        )
 
     def overview(self, season_id: int | None) -> StandingsOverview:
         """Return seasons plus the categories of *season_id* (default: latest)."""
@@ -144,7 +153,37 @@ class StandingsService:
         if standings_type == "team":
             loaded = repository.load_team_standings(self._db, season_id, category)
         else:
-            loaded = repository.load_individual_standings(self._db, season_id, category)
+            senior_rows = repository.load_individual_standings(
+                self._db, season_id, category
+            )
+            loaded = senior_rows
+            if category in {"SM", "SW"}:
+                under23 = "U23M" if category == "SM" else "U23W"
+                seen = {
+                    (row.athlete_name.casefold(), (row.club or "").casefold())
+                    for row in senior_rows
+                }
+                additional = [
+                    row.model_copy(update={"category": category})
+                    for row in repository.load_individual_standings(
+                        self._db, season_id, under23
+                    )
+                    if (row.athlete_name.casefold(), (row.club or "").casefold())
+                    not in seen
+                ]
+                if additional:
+                    senior_rows.extend(additional)
+                    senior_rows.sort(
+                        key=lambda row: (
+                            row.total_score,
+                            -row.rounds_competed,
+                            row.position,
+                        )
+                    )
+                    loaded = [
+                        row.model_copy(update={"position": i})
+                        for i, row in enumerate(senior_rows, 1)
+                    ]
         rows: list[StandingRow] = [
             row.model_copy(
                 update={
@@ -153,11 +192,29 @@ class StandingsService:
             )
             for row in loaded
         ]
+        if standings_type == "team":
+            rows = list(
+                with_divisions(
+                    self._db,
+                    season_id,
+                    [r for r in rows if isinstance(r, TeamStanding)],
+                )
+            )
         team_round_results = (
             repository.list_team_round_results_for_season(self._db, season_id, category)
             if standings_type == "team"
             else []
         )
+        if team_round_results:
+            team_round_results = [
+                result
+                for fixture in fixtures
+                for result in with_divisions(
+                    self._db,
+                    season_id,
+                    [r for r in team_round_results if r.fixture_id == fixture.id],
+                )
+            ]
         return StandingsTable(
             season=season,
             category=category,

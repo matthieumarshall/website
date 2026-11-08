@@ -55,6 +55,8 @@ _GENDER_CATEGORY_MAP: dict[tuple[str, str], str] = {
 _CSV_COL_MAPPINGS: list[tuple[tuple[str, ...], tuple[str, ...], str]] = [
     (("pos",), ("cat", "gen"), "position"),
     (("race no", "bib", "number"), (), "race_number"),
+    (("first name", "firstname", "forename", "given name"), (), "first_name"),
+    (("last name", "lastname", "surname", "family name"), (), "last_name"),
     (("name", "athlete"), (), "name"),
     (("time",), (), "time"),
     (("cat pos",), (), "cat_pos"),
@@ -73,6 +75,7 @@ class ResultsImportSummary(BaseModel):
     race_id: int
     race_name: str
     finishers_imported: int
+    incomplete_names: list[str] = []
 
 
 def normalise_category(raw_category: str, gender: str) -> str:
@@ -128,7 +131,10 @@ def _get_field(row: list[str], col_map: dict[str, int], key: str) -> str:
 
 def _parse_csv_row(row: list[str], col_map: dict[str, int]) -> ParsedResult | None:
     position_text = _get_field(row, col_map, "position")
-    athlete_name = _get_field(row, col_map, "name")
+    first = _get_field(row, col_map, "first_name")
+    last = _get_field(row, col_map, "last_name")
+    full_name = _get_field(row, col_map, "name")
+    athlete_name = f"{first} {last}" if first and last else full_name or first or last
     if not position_text or not athlete_name:
         return None
     try:
@@ -164,7 +170,9 @@ def parse_csv_results(csv_text: str) -> list[ParsedResult]:
         if not header:
             raise ValidationError("The CSV file is empty.")
         col_map = _map_csv_headers(header)
-        if "position" not in col_map or "name" not in col_map:
+        if "position" not in col_map or not (
+            {"name", "first_name", "last_name"} & col_map.keys()
+        ):
             raise ValidationError("The CSV must include Pos and Name columns.")
 
         results = [
@@ -253,4 +261,9 @@ class ResultsImportService:
             race_id=race.id,
             race_name=race.name,
             finishers_imported=len(rows),
+            incomplete_names=[
+                r.athlete_name
+                for r in parsed_results
+                if len(r.athlete_name.split()) == 1
+            ],
         )

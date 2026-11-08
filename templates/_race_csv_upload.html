@@ -17,6 +17,9 @@
       <div class="alert alert-success py-2" role="status">
         Imported {{ upload_summary.finishers_imported }} results. The previous results were replaced.
       </div>
+      {% if upload_summary.incomplete_names %}
+      <div class="alert alert-warning py-2" role="alert">Names may be incomplete: {{ upload_summary.incomplete_names | join(", ") }}. Please check the CSV.</div>
+      {% endif %}
       {% elif upload_error and upload_error_race_id == race.id %}
       <div class="alert alert-danger py-2" role="alert">{{ upload_error }}</div>
       {% endif %}

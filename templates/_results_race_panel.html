@@ -9,15 +9,47 @@
 >↓ Download original PDF</a>
 {% endif %}
 {% else %}
-<section class="mb-3" aria-labelledby="team-round-results-heading">
+<nav aria-label="Results view" class="mb-3">
+  <div class="btn-group" role="group">
+    <button
+      type="button"
+      class="btn btn-outline-secondary{% if view_mode == 'individual' %} active{% endif %}"
+      data-results-view="individual"
+      hx-get="/results/race-panel?fixture_id={{ active_fixture.id }}{% if season_id %}&season_id={{ season_id }}{% endif %}{% if active_race %}&race_id={{ active_race.id }}{% endif %}"
+      hx-include="#results-view-mode"
+      hx-target="#race-panel"
+      hx-swap="innerHTML"
+      hx-push-url="true"
+      aria-pressed="{{ 'true' if view_mode == 'individual' else 'false' }}"
+    >Individual Results</button>
+    <button
+      type="button"
+      class="btn btn-outline-secondary{% if view_mode == 'team' %} active{% endif %}"
+      data-results-view="team"
+      hx-get="/results/race-panel?fixture_id={{ active_fixture.id }}{% if season_id %}&season_id={{ season_id }}{% endif %}{% if active_race %}&race_id={{ active_race.id }}{% endif %}"
+      hx-include="#results-view-mode"
+      hx-target="#race-panel"
+      hx-swap="innerHTML"
+      hx-push-url="true"
+      aria-pressed="{{ 'true' if view_mode == 'team' else 'false' }}"
+    >Team Results</button>
+  </div>
+</nav>
+
+{% if view_mode == "team" %}
+<section aria-labelledby="team-round-results-heading">
   <h2 id="team-round-results-heading" class="h5">Team scores for {{ active_fixture.title }}</h2>
   {% if team_round_results %}
+  <label for="team-division-filter" class="form-label">Division</label>
+  <select id="team-division-filter" class="form-select form-select-sm w-auto mb-2" data-team-filter><option value="">All divisions</option>{% for div in (1, 2, 3) %}<option value="{{ div }}">Division {{ div }}</option>{% endfor %}</select>
+  <div class="d-flex gap-2 mb-2"><a data-team-export href="/results/team-export/csv?fixture_id={{ active_fixture.id }}" class="btn btn-sm btn-outline-secondary">CSV</a><a data-team-export href="/results/team-export/pdf?fixture_id={{ active_fixture.id }}" class="btn btn-sm btn-outline-secondary">PDF</a></div>
   <div class="table-responsive" tabindex="0">
     <table class="table table-sm table-hover align-middle">
       <thead class="table-light">
         <tr>
           <th scope="col">Category</th>
           <th scope="col">Pos</th>
+          <th scope="col">Division</th>
           <th scope="col">Team</th>
           <th scope="col">Score</th>
           <th scope="col">Scoring runners</th>
@@ -25,9 +57,10 @@
       </thead>
       <tbody>
         {% for result in team_round_results %}
-        <tr>
+        <tr data-team-division="{{ result.division or '' }}">
           <td>{{ result.category }}</td>
-          <td>{{ result.position }}</td>
+          <td>{{ result.division_position or result.position }}</td>
+          <td>{{ result.division or '—' }}</td>
           <td>{{ result.team_name }}</td>
           <td>{{ result.score }}</td>
           <td>
@@ -53,7 +86,7 @@
   </p>
   {% endif %}
 </section>
-
+{% else %}
 <nav aria-label="Race tabs" class="mb-3">
   <div class="btn-group flex-wrap" role="group">
     {% for race in races %}
@@ -61,6 +94,7 @@
       type="button"
       class="btn btn-outline-secondary{% if active_race and active_race.id == race.id %} active{% endif %}"
       hx-get="/results/race-panel?race_id={{ race.id }}&fixture_id={{ active_fixture.id }}{% if season_id %}&season_id={{ season_id }}{% endif %}"
+      hx-include="#results-view-mode"
       hx-target="#race-panel"
       hx-swap="innerHTML"
       hx-push-url="true"
@@ -154,4 +188,5 @@
 <div id="race-table">
   {% include "_results_race_table.html" %}
 </div>
+{% endif %}
 {% endif %}

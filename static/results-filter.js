@@ -243,6 +243,20 @@
     btn.setAttribute("aria-pressed", "true");
   });
 
+  // Keep the hidden mode value current before HTMX includes it in fixture requests.
+  document.addEventListener(
+    "click",
+    function (evt) {
+      var viewButton = evt.target.closest("[data-results-view]");
+      if (!viewButton) return;
+      var viewModeInput = document.getElementById("results-view-mode");
+      if (viewModeInput) {
+        viewModeInput.value = viewButton.dataset.resultsView;
+      }
+    },
+    true
+  );
+
   // Initial page load
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);

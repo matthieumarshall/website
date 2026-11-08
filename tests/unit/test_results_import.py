@@ -14,6 +14,11 @@ from website.services.results_import import (
 _CSV_HEADER = "Pos,Race No,Name,Time,Category,Cat Pos,Gender,Gen Pos,Club\n"
 
 
+def test_incomplete_split_name_uses_full_name() -> None:
+    rows = parse_csv_results("Pos,Name,First Name,Last Name\n1,Jane Smith,Jane,\n")
+    assert rows[0].athlete_name == "Jane Smith"
+
+
 def _create_fixture(db: duckdb.DuckDBPyConnection, season_name: str = "2025-2026"):
     season = repository.create_season(db, season_name)
     fixture = repository.create_fixture(
@@ -168,3 +173,20 @@ def test_import_rejects_race_from_another_fixture(
         ResultsImportService(test_db).ingest_csv(
             fixture.id, race.id, _CSV_HEADER + "1,1,Runner,00:30:00,SM,1,Male,1,AC\n"
         )
+
+
+def test_parse_separate_name_columns_and_combined_names():
+    from website.services.results_import import parse_csv_results
+
+    rows = parse_csv_results("Pos,First Name,Last Name\n1,Ada,Lovelace\n2,Grace,Hopper")
+    assert [row.athlete_name for row in rows] == ["Ada Lovelace", "Grace Hopper"]
+    assert (
+        parse_csv_results("Pos,Name\n1,Ada Lovelace")[0].athlete_name == "Ada Lovelace"
+    )
+
+
+def test_parse_firstname_and_surname_headers():
+    from website.services.results_import import parse_csv_results
+
+    rows = parse_csv_results("Pos,Firstname,Surname\n1,Ada,Lovelace")
+    assert rows[0].athlete_name == "Ada Lovelace"

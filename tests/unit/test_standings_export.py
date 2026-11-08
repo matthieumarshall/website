@@ -8,9 +8,29 @@ from datetime import date, datetime
 import duckdb
 from fastapi.testclient import TestClient
 
-from website.export import build_standings_csv, build_standings_pdf
-from website.models import Fixture, IndividualStanding, TeamStanding
+from website.export import (
+    build_standings_csv,
+    build_standings_pdf,
+    build_team_results_export,
+)
+from website.models import Fixture, IndividualStanding, TeamRoundResult, TeamStanding
 from website.models.standings import ScoreValue
+
+
+def test_team_pdf_supports_unicode_runner_names() -> None:
+    row = TeamRoundResult(
+        id=1,
+        fixture_id=1,
+        category="Men",
+        position=1,
+        team_name="Club A",
+        club="Club",
+        team_label="A",
+        score=10,
+        scoring_members=["Łukasz"],
+    )
+    pdf, _ = build_team_results_export([row], "Round", "pdf")
+    assert pdf.startswith(b"%PDF")
 
 
 def _fixture(fixture_id: int) -> Fixture:

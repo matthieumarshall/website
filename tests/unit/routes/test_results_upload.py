@@ -143,8 +143,9 @@ def test_results_page_upload_returns_updated_race_panel(
     assert response.status_code == 200
     assert "Uploaded Runner" in response.text
     assert "Imported 1 results. The previous results were replaced." in response.text
-    assert "Team scores for Round 5" in response.text
-    assert "Oxford City AC A" in response.text
+    assert "Individual Results" in response.text
+    assert "Team Results" in response.text
+    assert "Team scores for Round 5" not in response.text
     assert [
         result.athlete_name
         for result in repository.list_results_for_race(test_db, race.id)
@@ -182,17 +183,55 @@ def test_team_round_scores_render_on_results_and_standings_pages(
     results_response = admin_client.get(
         f"/results?season_id={season_id}&fixture_id={fixture_id}&race_id={race.id}"
     )
+    team_response = admin_client.get(
+        f"/results?season_id={season_id}&fixture_id={fixture_id}"
+        f"&race_id={race.id}&view_mode=team"
+    )
+    fixture_panel_response = admin_client.get(
+        f"/results/fixture-panel?season_id={season_id}&view_mode=team"
+    )
     standings_response = admin_client.get(
         f"/standings/table?season_id={season_id}&category=Men&standings_type=team"
     )
 
-    assert results_response.status_code == standings_response.status_code == 200
-    assert "Team scores for Round 5" in results_response.text
-    assert "Oxford City AC A" in results_response.text
-    assert "A Runner (1)" in results_response.text
+    assert (
+        results_response.status_code
+        == team_response.status_code
+        == fixture_panel_response.status_code
+        == standings_response.status_code
+        == 200
+    )
+    assert "Individual Results" in results_response.text
+    assert "Team scores for Round 5" not in results_response.text
+    assert 'id="results-filter"' in results_response.text
+    assert 'id="results-view-mode"' in team_response.text
+    assert 'name="view_mode"' in team_response.text
+    assert 'value="team"' in team_response.text
+    assert 'hx-include="#results-view-mode"' in fixture_panel_response.text
+    assert "Team scores for Round 5" in team_response.text
+    assert "Oxford City AC A" in team_response.text
+    assert "A Runner (1)" in team_response.text
+    assert 'id="results-filter"' not in team_response.text
     assert "Scoring runners" in standings_response.text
     assert "Pos 1" in standings_response.text
     assert "A Runner (1)" in standings_response.text
+    team_csv = admin_client.get(
+        f"/results/team-export/csv?fixture_id={fixture_id}&division=3"
+    )
+    assert team_csv.status_code == 200
+    assert "Category,Pos,Division,Team,Score,Scoring runners" in team_csv.text
+    assert "Oxford City AC A" in team_csv.text
+    assert (
+        "Oxford City AC A"
+        not in admin_client.get(
+            f"/results/team-export/csv?fixture_id={fixture_id}&division=1"
+        ).text
+    )
+    standings_csv = admin_client.get(
+        f"/standings/export/csv?season_id={season_id}&category=Men&standings_type=team&division=3"
+    )
+    assert "Division" in standings_csv.text
+    assert "Oxford City AC A" in standings_csv.text
 
 
 def test_invalid_upload_preserves_results(
@@ -271,3 +310,48 @@ def test_upload_requires_staff_and_csrf(
 
     assert anonymous_response.status_code in (302, 403)
     assert csrf_response.status_code in (403, 422)
+
+
+def test_upload_warns_about_single_name_but_imports(
+    admin_client: TestClient, test_db: duckdb.DuckDBPyConnection, race_upload_fixture
+):
+    season_id, fixture_id = race_upload_fixture
+    race = repository.create_race(test_db, fixture_id, "Men")
+    response = admin_client.post(
+        f"/fixtures/{fixture_id}/race/{race.id}/upload-csv",
+        data={
+            "csrf_token": _csrf(admin_client),
+            "return_to": "results",
+            "season_id": str(season_id),
+        },
+        files={"csv_file": _csv_file("Madonna")},
+        headers={"HX-Request": "true"},
+    )
+    assert response.status_code == 200
+    assert "Names may be incomplete: Madonna" in response.text
+    assert (
+        repository.list_results_for_race(test_db, race.id)[0].athlete_name == "Madonna"
+    )
+
+
+def test_results_panel_direct_requests_render_full_page(
+    admin_client: TestClient, test_db: duckdb.DuckDBPyConnection, race_upload_fixture
+):
+    season_id, fixture_id = race_upload_fixture
+    race = repository.create_race(test_db, fixture_id, "Men")
+    url = (
+        f"/results/race-panel?fixture_id={fixture_id}&race_id={race.id}&view_mode=team"
+    )
+    page = admin_client.get(url)
+    assert page.status_code == 200
+    assert "<html" in page.text
+    assert 'id="results-view-mode"' in page.text
+    assert 'value="team"' in page.text
+    assert "results-filter.js" in page.text
+    fragment = admin_client.get(url, headers={"HX-Request": "true"})
+    assert "<html" not in fragment.text
+    season_page = admin_client.get(
+        f"/results/fixture-panel?season_id={season_id}&view_mode=team"
+    )
+    assert "<html" in season_page.text
+    assert 'value="team"' in season_page.text

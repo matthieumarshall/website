@@ -14,6 +14,7 @@
       name="season_id"
       class="form-select w-auto"
       hx-get="/results/fixture-panel"
+      hx-include="#results-view-mode"
       hx-trigger="change"
       hx-target="#fixture-panel"
       hx-swap="innerHTML"
@@ -32,12 +33,18 @@
     {% endif %}
   </div>
 
+  <input
+    type="hidden"
+    id="results-view-mode"
+    name="view_mode"
+    value="{{ view_mode }}"
+  >
   <div id="fixture-panel">
     {% include "_results_fixture_panel.html" %}
   </div>
 </div>
 {% endblock %}
 
-{% block extra_scripts %}
+{% block extra_scripts %}<script src="/static/team-division-filter.js"></script>
 <script src="/static/results-filter.js"></script>
 {% endblock %}

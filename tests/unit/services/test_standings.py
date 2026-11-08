@@ -7,9 +7,10 @@ import pytest
 
 from website import repository
 from website.errors import NotFoundError, OperationFailedError
-from website.models import Fixture
+from website.models import Fixture, IndividualStanding, TeamStanding
 from website.services.results import ResultsService
 from website.services.standings import StandingsService, scores_by_fixture
+from website.services.standings_categories import standing_category_catalog
 
 
 def _fixture(fixture_id: int) -> Fixture:
@@ -39,6 +40,108 @@ class TestScoresByFixture:
     @pytest.mark.parametrize("raw", ["", "not json", "[1, 2]"])
     def test_invalid_json_yields_no_scores(self, raw: str) -> None:
         assert scores_by_fixture(raw, [_fixture(1)]) == {}
+
+
+def test_standing_category_catalog_follows_season_format() -> None:
+    historical = standing_category_catalog("2025-26")
+    current = standing_category_catalog("2026-27")
+
+    historical_categories = {(item.category, item.type) for item in historical}
+    current_categories = {(item.category, item.type) for item in current}
+    assert ("U9B", "individual") in historical_categories
+    assert ("U9B", "team") in historical_categories
+    assert ("U10B", "individual") not in historical_categories
+    assert ("U10B", "team") not in historical_categories
+    assert ("U10B", "individual") in current_categories
+    assert ("U10B", "team") in current_categories
+    assert ("U9B", "individual") not in current_categories
+    assert ("U9B", "team") not in current_categories
+    assert not any(category.startswith("U23") for category, _ in current_categories)
+    assert any(item.category == "M35" for item in current)
+    assert any(item.category == "WV70" for item in current)
+
+
+def test_standings_overview_includes_empty_configured_categories(
+    test_db: duckdb.DuckDBPyConnection,
+) -> None:
+    season = repository.create_season(test_db, "2026-27")
+
+    categories = StandingsService(test_db).overview(season.id).categories
+
+    assert any(
+        item.category == "U10B" and item.type == "individual" and item.count == 0
+        for item in categories
+    )
+    assert any(
+        item.category == "U10B" and item.type == "team" and item.count == 0
+        for item in categories
+    )
+    assert not any(item.category in {"U23M", "U23W"} for item in categories)
+
+
+def test_imported_u23_standings_appear_in_senior_table(test_db):
+    season = repository.create_season(test_db, "2025-26")
+    test_db.execute(
+        "INSERT INTO individual_standings (season_id, category, position, athlete_name, club, total_score, rounds_competed, fixture_scores, is_imported) VALUES (?, 'U23M', 1, 'Young Runner', 'AC', 3, 1, '{}', true)",
+        [season.id],
+    )
+    service = StandingsService(test_db)
+    categories = service.overview(season.id).categories
+    assert (
+        next(
+            c.count for c in categories if c.category == "SM" and c.type == "individual"
+        )
+        == 1
+    )
+    rows = service.table(season.id, "SM", "individual").rows
+    assert len(rows) == 1
+    assert isinstance(rows[0], IndividualStanding)
+    assert (rows[0].athlete_name, rows[0].category) == ("Young Runner", "SM")
+    service.recalculate(season.id)
+    assert len(service.table(season.id, "SM", "individual").rows) == 1
+
+
+def test_missing_team_round_gets_runner_penalties(test_db):
+    season = repository.create_season(test_db, "2025-26")
+    fixtures = []
+    for number in (1, 2, 3):
+        fixture = repository.create_fixture(
+            test_db,
+            season.id,
+            f"Round {number}",
+            f"2025-10-0{number}",
+            "Park",
+            "",
+            [],
+            "",
+        )
+        fixtures.append(fixture)
+        if number == 3:
+            continue
+        race = repository.create_race(test_db, fixture.id, "Men")
+        clubs = ["Alpha"] * 7 + (["Beta"] * 7 if number == 1 else [])
+        for position, club in enumerate(clubs, 1):
+            repository.create_result(
+                test_db,
+                race.id,
+                position,
+                f"{club} {number} {position}",
+                "00:30:00",
+                "SM",
+                "M",
+                club=club,
+            )
+    service = StandingsService(test_db)
+    service.recalculate(season.id)
+    rows = {row.club: row for row in service.table(season.id, "Men", "team").rows}
+    assert isinstance(rows["Alpha"], TeamStanding)
+    assert isinstance(rows["Beta"], TeamStanding)
+    assert rows["Beta"].scores_by_fixture[str(fixtures[1].id)] == 56
+    assert str(fixtures[2].id) not in rows["Beta"].scores_by_fixture
+    assert rows["Beta"].rounds_competed == 1
+    assert rows["Beta"].total_score == 77 + 56
+    assert rows["Alpha"].division_position == 1
+    assert rows["Beta"].division_position == 2
 
 
 def _seed_results(db: duckdb.DuckDBPyConnection) -> int:
@@ -73,7 +176,7 @@ class TestRecalculate:
         overview = service.overview(season_id)
         individual = [c for c in overview.categories if c.type == "individual"]
         assert individual, "recalculation should produce individual standings"
-        category = individual[0].category
+        category = next(item.category for item in individual if item.count > 0)
         standings_type = "individual"
         table = service.table(season_id, category, standings_type)
         assert table.rows
@@ -100,7 +203,9 @@ class TestRecalculate:
         assert team_table.team_round_results[0].fixture_id == team_fixture.id
 
         panel = ResultsService(test_db).race_panel(team_fixture.id)
-        assert panel.team_round_results == round_results
+        assert panel.team_round_results[0].team_name == round_results[0].team_name
+        assert panel.team_round_results[0].division == 3
+        assert panel.team_round_results[0].division_position == 1
 
     def test_round_results_rank_teams_within_the_fixture(
         self, test_db: duckdb.DuckDBPyConnection
@@ -149,6 +254,73 @@ class TestRecalculate:
             "C Runner (3)",
         ]
 
+    def test_historical_odd_junior_bands_keep_individual_and_team_scores(
+        self, test_db: duckdb.DuckDBPyConnection
+    ) -> None:
+        season = repository.create_season(test_db, "2025-26")
+        fixture = repository.create_fixture(
+            test_db, season.id, "Round 1", "2025-10-05", "Park", "Addr", [], ""
+        )
+        race = repository.create_race(test_db, fixture.id, "U9 Boys & Girls")
+        runners = [
+            ("Boy One", "U9B", "M"),
+            ("Girl One", "U9G", "F"),
+            ("Boy Two", "U9B", "M"),
+            ("Girl Two", "U9G", "F"),
+            ("Boy Three", "U9B", "M"),
+            ("Girl Three", "U9G", "F"),
+        ]
+        for position, (name, category, gender) in enumerate(runners, start=1):
+            repository.create_result(
+                test_db,
+                race_id=race.id,
+                position=position,
+                athlete_name=name,
+                time=f"00:3{position}:00",
+                category=category,
+                gender=gender,
+                club="Oxford AC",
+            )
+
+        StandingsService(test_db).recalculate(season.id)
+
+        team_results = repository.list_team_round_results_for_fixture(
+            test_db, fixture.id
+        )
+        assert {result.category for result in team_results} == {"U9B", "U9G"}
+        assert len(repository.load_individual_standings(test_db, season.id, "U9B")) == 3
+
+    def test_separate_gendered_races_both_contribute_to_standings(
+        self, test_db: duckdb.DuckDBPyConnection
+    ) -> None:
+        season = repository.create_season(test_db, "2025-26")
+        fixture = repository.create_fixture(
+            test_db, season.id, "Round 1", "2025-10-05", "Park", "Addr", [], ""
+        )
+        for label, category, gender in (("Boys", "U13B", "M"), ("Girls", "U13G", "F")):
+            race = repository.create_race(test_db, fixture.id, f"U13 {label}")
+            for position in range(1, 4):
+                repository.create_result(
+                    test_db,
+                    race.id,
+                    position,
+                    f"{label} Runner {position}",
+                    "00:10:00",
+                    category,
+                    gender,
+                    club="Oxford AC",
+                )
+        StandingsService(test_db).recalculate(season.id)
+        for category in ("U13B", "U13G"):
+            assert (
+                len(repository.load_individual_standings(test_db, season.id, category))
+                == 3
+            )
+            assert repository.list_team_round_results_for_fixture(
+                test_db, fixture.id, category
+            )
+            assert repository.load_team_standings(test_db, season.id, category)
+
     def test_production_race_names_and_category_labels_are_scored(
         self, test_db: duckdb.DuckDBPyConnection
     ) -> None:
@@ -186,9 +358,9 @@ class TestRecalculate:
                     club="Oxford AC",
                 )
 
-        for race_name, category, gender, count in (
-            ("U20/Senior/Masters Men", "SM", "M", 7),
-            ("U20/Senior/Masters Women", "SW", "F", 4),
+        for race_name, category, gender, count, u23_code in (
+            ("U20/Senior/Masters Men", "SM", "M", 7, "U23M"),
+            ("U20/Senior/Masters Women", "SW", "F", 4, "U23W"),
         ):
             race = repository.create_race(test_db, fixture.id, race_name)
             for position in range(1, count + 1):
@@ -198,7 +370,7 @@ class TestRecalculate:
                     position=position,
                     athlete_name=f"{race_name} Runner {position}",
                     time=f"00:3{position}:00",
-                    category=category,
+                    category=u23_code if position == 1 else category,
                     gender=gender,
                     club="Oxford AC",
                 )
@@ -219,9 +391,22 @@ class TestRecalculate:
             len(members_by_category[category]) == 3
             for category in expected_junior_categories
         )
+        for category in expected_junior_categories:
+            standings = repository.load_team_standings(test_db, season.id, category)
+            assert standings, f"No season team standings for {category}"
+            assert standings[0].rounds_competed == 1
         assert len(members_by_category["Men"]) == 7
         assert len(members_by_category["Women"]) == 4
         assert members_by_category["U10G"][0] == "U10 Girl 1 (1)"
+        senior_men = repository.load_individual_standings(test_db, season.id, "SM")
+        senior_women = repository.load_individual_standings(test_db, season.id, "SW")
+        assert any(
+            row.athlete_name == "U20/Senior/Masters Men Runner 1" for row in senior_men
+        )
+        assert any(
+            row.athlete_name == "U20/Senior/Masters Women Runner 1"
+            for row in senior_women
+        )
 
     def test_recalculate_unknown_season(
         self, test_db: duckdb.DuckDBPyConnection

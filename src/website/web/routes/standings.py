@@ -1,6 +1,6 @@
 """Season standings pages and staff recalculation."""
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
@@ -18,18 +18,31 @@ _PAGE = "standings"
 
 @router.get("", response_class=HTMLResponse)
 def standings(
-    request: Request, service: Standings, ui: RendererDep, season_id: int | None = None
+    request: Request,
+    service: Standings,
+    ui: RendererDep,
+    season_id: int | None = None,
+    standings_type: Literal["individual", "team"] = "individual",
 ) -> HTMLResponse:
     """Show a season's standings categories (default: latest season)."""
     view = service.overview(season_id)
     return ui.page(
-        request, "standings.html", _PAGE, is_admin=is_staff(request), view=view
+        request,
+        "standings.html",
+        _PAGE,
+        is_admin=is_staff(request),
+        view=view,
+        standings_type=standings_type,
     )
 
 
 @router.get("/category-panel", response_class=HTMLResponse)
 def standings_category_panel(
-    request: Request, service: Standings, ui: RendererDep, season_id: int | None = None
+    request: Request,
+    service: Standings,
+    ui: RendererDep,
+    season_id: int | None = None,
+    standings_type: Literal["individual", "team"] = "individual",
 ) -> HTMLResponse:
     """HTMX: swap in the category list for another season."""
     view = service.category_panel(season_id)
@@ -40,6 +53,7 @@ def standings_category_panel(
         selected_season=view.selected_season,
         categories=view.categories,
         is_admin=is_staff(request),
+        standings_type=standings_type,
     )
 
 
@@ -67,11 +81,20 @@ def standings_export_csv(
     category: str,
     service: Standings,
     standings_type: str = "individual",
+    division: int | None = None,
 ) -> Response:
     """Download one category's standings as CSV."""
     table = service.table(season_id, category, standings_type)
     csv_text, filename = build_standings_csv(
-        table.rows, table.fixtures, table.season.name, category, standings_type
+        [
+            row
+            for row in table.rows
+            if division is None or getattr(row, "division", None) == division
+        ],
+        table.fixtures,
+        table.season.name,
+        category,
+        standings_type,
     )
     return Response(
         content=csv_text.encode("utf-8"),
@@ -86,11 +109,20 @@ def standings_export_pdf(
     category: str,
     service: Standings,
     standings_type: str = "individual",
+    division: int | None = None,
 ) -> Response:
     """Download one category's standings as PDF."""
     table = service.table(season_id, category, standings_type)
     pdf_bytes, filename = build_standings_pdf(
-        table.rows, table.fixtures, table.season.name, category, standings_type
+        [
+            row
+            for row in table.rows
+            if division is None or getattr(row, "division", None) == division
+        ],
+        table.fixtures,
+        table.season.name,
+        category,
+        standings_type,
     )
     return Response(
         content=pdf_bytes, media_type="application/pdf", headers=_attachment(filename)
