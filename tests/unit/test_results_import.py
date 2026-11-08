@@ -14,6 +14,11 @@ from website.services.results_import import (
 _CSV_HEADER = "Pos,Race No,Name,Time,Category,Cat Pos,Gender,Gen Pos,Club\n"
 
 
+def test_incomplete_split_name_uses_full_name() -> None:
+    rows = parse_csv_results("Pos,Name,First Name,Last Name\n1,Jane Smith,Jane,\n")
+    assert rows[0].athlete_name == "Jane Smith"
+
+
 def _create_fixture(db: duckdb.DuckDBPyConnection, season_name: str = "2025-2026"):
     season = repository.create_season(db, season_name)
     fixture = repository.create_fixture(

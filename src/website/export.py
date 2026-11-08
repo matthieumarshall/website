@@ -384,7 +384,8 @@ def build_team_results_export(
     pdf = FPDF(orientation="L", unit="mm", format="A4")
     pdf.set_auto_page_break(auto=True, margin=10)
     pdf.add_page()
-    pdf.set_font("Helvetica", size=8)
+    pdf.add_font("DM Sans", fname=str(_FONT_PATH))
+    pdf.set_font("DM Sans", size=8)
     for values in [header, *body]:
         for value, width in zip(values, (30, 15, 20, 60, 20, 130), strict=True):
             pdf.cell(width, 6, value[: int(width / 2)], border=1)

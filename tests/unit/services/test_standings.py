@@ -7,7 +7,7 @@ import pytest
 
 from website import repository
 from website.errors import NotFoundError, OperationFailedError
-from website.models import Fixture
+from website.models import Fixture, IndividualStanding, TeamStanding
 from website.services.results import ResultsService
 from website.services.standings import StandingsService, scores_by_fixture
 from website.services.standings_categories import standing_category_catalog
@@ -77,6 +77,71 @@ def test_standings_overview_includes_empty_configured_categories(
         for item in categories
     )
     assert not any(item.category in {"U23M", "U23W"} for item in categories)
+
+
+def test_imported_u23_standings_appear_in_senior_table(test_db):
+    season = repository.create_season(test_db, "2025-26")
+    test_db.execute(
+        "INSERT INTO individual_standings (season_id, category, position, athlete_name, club, total_score, rounds_competed, fixture_scores, is_imported) VALUES (?, 'U23M', 1, 'Young Runner', 'AC', 3, 1, '{}', true)",
+        [season.id],
+    )
+    service = StandingsService(test_db)
+    categories = service.overview(season.id).categories
+    assert (
+        next(
+            c.count for c in categories if c.category == "SM" and c.type == "individual"
+        )
+        == 1
+    )
+    rows = service.table(season.id, "SM", "individual").rows
+    assert len(rows) == 1
+    assert isinstance(rows[0], IndividualStanding)
+    assert (rows[0].athlete_name, rows[0].category) == ("Young Runner", "SM")
+    service.recalculate(season.id)
+    assert len(service.table(season.id, "SM", "individual").rows) == 1
+
+
+def test_missing_team_round_gets_runner_penalties(test_db):
+    season = repository.create_season(test_db, "2025-26")
+    fixtures = []
+    for number in (1, 2, 3):
+        fixture = repository.create_fixture(
+            test_db,
+            season.id,
+            f"Round {number}",
+            f"2025-10-0{number}",
+            "Park",
+            "",
+            [],
+            "",
+        )
+        fixtures.append(fixture)
+        if number == 3:
+            continue
+        race = repository.create_race(test_db, fixture.id, "Men")
+        clubs = ["Alpha"] * 7 + (["Beta"] * 7 if number == 1 else [])
+        for position, club in enumerate(clubs, 1):
+            repository.create_result(
+                test_db,
+                race.id,
+                position,
+                f"{club} {number} {position}",
+                "00:30:00",
+                "SM",
+                "M",
+                club=club,
+            )
+    service = StandingsService(test_db)
+    service.recalculate(season.id)
+    rows = {row.club: row for row in service.table(season.id, "Men", "team").rows}
+    assert isinstance(rows["Alpha"], TeamStanding)
+    assert isinstance(rows["Beta"], TeamStanding)
+    assert rows["Beta"].scores_by_fixture[str(fixtures[1].id)] == 56
+    assert str(fixtures[2].id) not in rows["Beta"].scores_by_fixture
+    assert rows["Beta"].rounds_competed == 1
+    assert rows["Beta"].total_score == 77 + 56
+    assert rows["Alpha"].division_position == 1
+    assert rows["Beta"].division_position == 2
 
 
 def _seed_results(db: duckdb.DuckDBPyConnection) -> int:

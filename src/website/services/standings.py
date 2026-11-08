@@ -153,7 +153,37 @@ class StandingsService:
         if standings_type == "team":
             loaded = repository.load_team_standings(self._db, season_id, category)
         else:
-            loaded = repository.load_individual_standings(self._db, season_id, category)
+            senior_rows = repository.load_individual_standings(
+                self._db, season_id, category
+            )
+            loaded = senior_rows
+            if category in {"SM", "SW"}:
+                under23 = "U23M" if category == "SM" else "U23W"
+                seen = {
+                    (row.athlete_name.casefold(), (row.club or "").casefold())
+                    for row in senior_rows
+                }
+                additional = [
+                    row.model_copy(update={"category": category})
+                    for row in repository.load_individual_standings(
+                        self._db, season_id, under23
+                    )
+                    if (row.athlete_name.casefold(), (row.club or "").casefold())
+                    not in seen
+                ]
+                if additional:
+                    senior_rows.extend(additional)
+                    senior_rows.sort(
+                        key=lambda row: (
+                            row.total_score,
+                            -row.rounds_competed,
+                            row.position,
+                        )
+                    )
+                    loaded = [
+                        row.model_copy(update={"position": i})
+                        for i, row in enumerate(senior_rows, 1)
+                    ]
         rows: list[StandingRow] = [
             row.model_copy(
                 update={

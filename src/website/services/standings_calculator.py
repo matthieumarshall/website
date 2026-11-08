@@ -68,6 +68,7 @@ class _Scorers:
         self.team_scores = InMemoryScoreRepository()
         self.team_scoring = TeamScoringService(config=config)
         self.team_round_results: list[CalculatedTeamRoundResult] = []
+        self.team_penalties: dict[str, dict[str, int]] = {}
 
     def run(self) -> None:
         IndividualScoreService(
@@ -120,7 +121,9 @@ def recalculate_standings(db: Connection, season_id: int) -> None:
         db, season_id, _individual_rows(scorers.individual_scores, fixture_for_round)
     )
     repository.replace_calculated_team_standings(
-        db, season_id, _team_rows(scorers.team_scores, fixture_for_round)
+        db,
+        season_id,
+        _team_rows(scorers.team_scores, fixture_for_round, scorers.team_penalties),
     )
     repository.replace_calculated_team_round_results(
         db, season_id, scorers.team_round_results
@@ -179,6 +182,10 @@ def _save_round_team_results(
             else:
                 penalty_score = (
                     len(race_result.get_athletes_by_category(category_code)) + 1
+                )
+            if penalty_score > 1:
+                scorers.team_penalties.setdefault(category_code, {})[round_number] = (
+                    penalty_score * category.team_size
                 )
             result_data = service.create_team_result_data(
                 teams, category.team_size, penalty_score
@@ -295,11 +302,20 @@ def _split_team_name(team_name: str) -> tuple[str, str | None]:
 
 
 def _team_rows(
-    score_repo: InMemoryScoreRepository, fixture_for_round: dict[str, int]
+    score_repo: InMemoryScoreRepository,
+    fixture_for_round: dict[str, int],
+    penalties: dict[str, dict[str, int]],
 ) -> list[CalculatedTeamStanding]:
     rows: list[CalculatedTeamStanding] = []
     for category, scores in score_repo.all_scores().items():
-        for position, score in enumerate(scores, start=1):
+        filled_scores = [
+            (score, {**penalties.get(category, {}), **score.round_scores})
+            for score in scores
+        ]
+        filled_scores.sort(
+            key=lambda item: (sum(item[1].values()), -len(item[0].round_scores))
+        )
+        for position, (score, round_scores) in enumerate(filled_scores, start=1):
             rounds_competed = len(score.round_scores)
             club, team_label = _split_team_name(score.name)
             rows.append(
@@ -310,11 +326,9 @@ def _team_rows(
                     club=club,
                     team_label=team_label,
                     # Teams count every round.
-                    total_score=_capped(score.calculate_total_score(rounds_competed)),
+                    total_score=_capped(sum(round_scores.values())),
                     rounds_competed=rounds_competed,
-                    fixture_scores=_fixture_scores(
-                        score.round_scores, fixture_for_round
-                    ),
+                    fixture_scores=_fixture_scores(round_scores, fixture_for_round),
                 )
             )
     return rows

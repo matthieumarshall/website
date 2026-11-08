@@ -259,7 +259,13 @@ def merge_standing_categories(
         and category.category not in incompatible_junior_codes
     }
     for category in stored:
-        if category.category in {"U23M", "U23W"}:
+        if category.type == "individual" and category.category in {"U23M", "U23W"}:
+            senior = "SM" if category.category == "U23M" else "SW"
+            senior_key = (senior, category.type)
+            senior_category = merged[senior_key]
+            merged[senior_key] = senior_category.model_copy(
+                update={"count": senior_category.count + category.count}
+            )
             continue
         if category.category in incompatible_junior_codes:
             continue
@@ -268,7 +274,7 @@ def merge_standing_categories(
         merged[key] = (
             category
             if current is None
-            else current.model_copy(update={"count": category.count})
+            else current.model_copy(update={"count": current.count + category.count})
         )
     return sorted(
         merged.values(),
