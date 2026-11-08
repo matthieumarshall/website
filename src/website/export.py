@@ -8,7 +8,13 @@ from pathlib import Path
 
 from fpdf import FPDF, FontFace
 
-from website.models import Fixture, IndividualStanding, Result, TeamStanding
+from website.models import (
+    Fixture,
+    IndividualStanding,
+    Result,
+    TeamRoundResult,
+    TeamStanding,
+)
 
 # Brand colours matching website CSS tokens
 _PRIMARY = (31, 58, 95)  # --brand-primary  #1f3a5f
@@ -162,16 +168,34 @@ def _standings_table(
     """Return the header and cell text of a standings table, as shown on the site."""
     name_header = "Team" if standings_type == "team" else "Name"
     rounds = [f"R{i}" for i in range(1, len(fixtures) + 1)]
-    header = ["Pos", name_header, "Club", *rounds, "Total", "Rds"]
+    has_divisions = any(
+        isinstance(row, TeamStanding) and row.division is not None for row in rows
+    )
+    header = [
+        "Pos",
+        name_header,
+        "Club",
+        *(["Division"] if has_divisions else []),
+        *rounds,
+        "Total",
+        "Rds",
+    ]
     body = []
     for row in rows:
         name = row.team_name if isinstance(row, TeamStanding) else row.athlete_name
         scores = [str(row.scores_by_fixture.get(str(f.id), "")) for f in fixtures]
         body.append(
             [
-                str(row.position),
+                str(row.division_position or row.position)
+                if isinstance(row, TeamStanding)
+                else str(row.position),
                 name,
                 row.club or "",
+                *(
+                    [str(row.division or "")]
+                    if has_divisions and isinstance(row, TeamStanding)
+                    else []
+                ),
                 *scores,
                 str(row.total_score),
                 str(row.rounds_competed),
@@ -217,7 +241,19 @@ def build_standings_pdf(
     pos_w, name_w, club_w, total_w, rds_w = _STANDINGS_FIXED_WIDTHS
     spare = _PAGE_WIDTH - sum(_STANDINGS_FIXED_WIDTHS)
     round_w = min(_MAX_ROUND_WIDTH, spare / len(fixtures)) if fixtures else 0
-    widths = [pos_w, name_w, club_w, *([round_w] * len(fixtures)), total_w, rds_w]
+    has_divisions = "Division" in header
+    if has_divisions:
+        name_w -= 10
+        club_w -= 10
+    widths = [
+        pos_w,
+        name_w,
+        club_w,
+        *([20] if has_divisions else []),
+        *([round_w] * len(fixtures)),
+        total_w,
+        rds_w,
+    ]
 
     pdf = FPDF(orientation="L", unit="mm", format="A4")
     pdf.set_auto_page_break(auto=True, margin=10)
@@ -320,3 +356,38 @@ def build_document_pdf(title: str, html_content: str) -> bytes:
 def build_rules_pdf(html_content: str) -> bytes:
     """Render the rules-and-constitution HTML content to an A4 portrait PDF."""
     return build_document_pdf("Rules and Constitution", html_content)
+
+
+def build_team_results_export(
+    rows: Sequence[TeamRoundResult], fixture_title: str, output_format: str
+) -> tuple[bytes, str]:
+    """Build a CSV or PDF of a round's team results."""
+    header = ["Category", "Pos", "Division", "Team", "Score", "Scoring runners"]
+    body = [
+        [
+            row.category,
+            str(row.division_position or row.position),
+            str(row.division or ""),
+            row.team_name,
+            str(row.score),
+            ", ".join(row.scoring_members),
+        ]
+        for row in rows
+    ]
+    filename = f"{_safe_filename(fixture_title)}_team_results.{output_format}"
+    if output_format == "csv":
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(header)
+        writer.writerows(body)
+        return buf.getvalue().encode("utf-8"), filename
+    pdf = FPDF(orientation="L", unit="mm", format="A4")
+    pdf.set_auto_page_break(auto=True, margin=10)
+    pdf.add_page()
+    pdf.set_font("Helvetica", size=8)
+    for values in [header, *body]:
+        for value, width in zip(values, (30, 15, 20, 60, 20, 130), strict=True):
+            pdf.cell(width, 6, value[: int(width / 2)], border=1)
+        pdf.ln()
+    raw = pdf.output()
+    return bytes(raw) if raw is not None else b"", filename

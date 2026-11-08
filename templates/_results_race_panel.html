@@ -40,12 +40,16 @@
 <section aria-labelledby="team-round-results-heading">
   <h2 id="team-round-results-heading" class="h5">Team scores for {{ active_fixture.title }}</h2>
   {% if team_round_results %}
+  <label for="team-division-filter" class="form-label">Division</label>
+  <select id="team-division-filter" class="form-select form-select-sm w-auto mb-2" data-team-filter><option value="">All divisions</option>{% for div in (1, 2, 3) %}<option value="{{ div }}">Division {{ div }}</option>{% endfor %}</select>
+  <div class="d-flex gap-2 mb-2"><a data-team-export href="/results/team-export/csv?fixture_id={{ active_fixture.id }}" class="btn btn-sm btn-outline-secondary">CSV</a><a data-team-export href="/results/team-export/pdf?fixture_id={{ active_fixture.id }}" class="btn btn-sm btn-outline-secondary">PDF</a></div>
   <div class="table-responsive" tabindex="0">
     <table class="table table-sm table-hover align-middle">
       <thead class="table-light">
         <tr>
           <th scope="col">Category</th>
           <th scope="col">Pos</th>
+          <th scope="col">Division</th>
           <th scope="col">Team</th>
           <th scope="col">Score</th>
           <th scope="col">Scoring runners</th>
@@ -53,9 +57,10 @@
       </thead>
       <tbody>
         {% for result in team_round_results %}
-        <tr>
+        <tr data-team-division="{{ result.division or '' }}">
           <td>{{ result.category }}</td>
-          <td>{{ result.position }}</td>
+          <td>{{ result.division_position or result.position }}</td>
+          <td>{{ result.division or '—' }}</td>
           <td>{{ result.team_name }}</td>
           <td>{{ result.score }}</td>
           <td>

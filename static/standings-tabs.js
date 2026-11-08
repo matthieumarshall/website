@@ -80,6 +80,11 @@
     }, 100);
   });
 
+  document.addEventListener('click', function (event) {
+    var button = event.target.closest('[data-standings-view]');
+    if (button) document.getElementById('standings-view-mode').value = button.dataset.standingsView;
+  }, true);
+
   // Standings category active state: highlight the clicked button in the
   // category tab group while HTMX loads the new table content.
   document.addEventListener('click', function (evt) {

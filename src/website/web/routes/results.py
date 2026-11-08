@@ -1,11 +1,11 @@
 """Public race results: browsing panels, exports and source PDFs."""
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, Response
 
-from website.export import build_csv, build_pdf
+from website.export import build_csv, build_pdf, build_team_results_export
 from website.services.results import ResultFilters, ResultsViewMode
 from website.web.deps import RendererDep, Results, SettingsDep
 from website.web.stored_files import stored_file_response
@@ -139,4 +139,28 @@ def results_source_pdf(
     path = service.source_pdf_path(fixture_id, settings.results_pdf_root)
     return stored_file_response(
         path, request.scope, media_type="application/pdf", filename=path.name
+    )
+
+
+@router.get("/team-export/{output_format}")
+def team_results_export(
+    fixture_id: int,
+    output_format: Literal["csv", "pdf"],
+    service: Results,
+    division: int | None = None,
+) -> Response:
+    """Download a round's team results, optionally filtered by division."""
+    panel = service.race_panel(fixture_id, view_mode="team")
+    rows = [
+        row
+        for row in panel.team_round_results
+        if division is None or row.division == division
+    ]
+    content, filename = build_team_results_export(
+        rows, panel.active_fixture.title, output_format
+    )
+    return Response(
+        content=content,
+        media_type="text/csv" if output_format == "csv" else "application/pdf",
+        headers=_attachment(filename),
     )

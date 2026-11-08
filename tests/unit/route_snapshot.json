@@ -225,6 +225,10 @@
   ],
   [
     "GET",
+    "/results/team-export/{output_format}"
+  ],
+  [
+    "GET",
     "/rules-and-constitution"
   ],
   [

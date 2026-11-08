@@ -12,6 +12,7 @@ from website.export import filter_results
 from website.models import Fixture, Race, Result, Season, TeamRoundResult
 from website.services._common import found
 from website.services.archive import stored_file
+from website.services.team_divisions import with_divisions
 
 ResultsViewMode = Literal["individual", "team"]
 
@@ -135,7 +136,13 @@ class ResultsService:
                 else []
             ),
             team_round_results=(
-                repository.list_team_round_results_for_fixture(db, active_fixture.id)
+                with_divisions(
+                    db,
+                    active_fixture.season_id,
+                    repository.list_team_round_results_for_fixture(
+                        db, active_fixture.id
+                    ),
+                )
                 if active_fixture
                 else []
             ),
@@ -171,8 +178,10 @@ class ResultsService:
                 if active_race
                 else []
             ),
-            team_round_results=repository.list_team_round_results_for_fixture(
-                db, fixture_id
+            team_round_results=with_divisions(
+                db,
+                fixture.season_id,
+                repository.list_team_round_results_for_fixture(db, fixture_id),
             ),
             view_mode=view_mode,
         )

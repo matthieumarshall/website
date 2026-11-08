@@ -2,7 +2,7 @@
 
 {% block title %}Standings — Oxfordshire Cross Country League{% endblock %}
 
-{% block extra_scripts %}<script src="/static/standings-tabs.js"></script>{% endblock %}
+{% block extra_scripts %}<script src="/static/team-division-filter.js"></script><script src="/static/standings-tabs.js"></script>{% endblock %}
 
 {% block content %}
 <div>
@@ -16,6 +16,7 @@
       name="season_id"
       class="form-select w-auto"
       hx-get="/standings/category-panel"
+      hx-include="#standings-view-mode"
       hx-trigger="change"
       hx-target="#category-panel"
       hx-swap="innerHTML"
@@ -34,6 +35,7 @@
     {% endif %}
   </div>
 
+  <input type="hidden" id="standings-view-mode" name="standings_type" value="{{ standings_type }}">
   <div id="category-panel">
     {% include "_standings_category_panel.html" %}
   </div>

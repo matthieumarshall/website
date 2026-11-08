@@ -24,6 +24,7 @@ from website.services.standings_categories import (
     merge_standing_categories,
     standing_category_catalog,
 )
+from website.services.team_divisions import with_divisions
 
 _logger = logging.getLogger(__name__)
 
@@ -161,11 +162,29 @@ class StandingsService:
             )
             for row in loaded
         ]
+        if standings_type == "team":
+            rows = list(
+                with_divisions(
+                    self._db,
+                    season_id,
+                    [r for r in rows if isinstance(r, TeamStanding)],
+                )
+            )
         team_round_results = (
             repository.list_team_round_results_for_season(self._db, season_id, category)
             if standings_type == "team"
             else []
         )
+        if team_round_results:
+            team_round_results = [
+                result
+                for fixture in fixtures
+                for result in with_divisions(
+                    self._db,
+                    season_id,
+                    [r for r in team_round_results if r.fixture_id == fixture.id],
+                )
+            ]
         return StandingsTable(
             season=season,
             category=category,

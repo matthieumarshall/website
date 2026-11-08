@@ -168,3 +168,20 @@ def test_import_rejects_race_from_another_fixture(
         ResultsImportService(test_db).ingest_csv(
             fixture.id, race.id, _CSV_HEADER + "1,1,Runner,00:30:00,SM,1,Male,1,AC\n"
         )
+
+
+def test_parse_separate_name_columns_and_combined_names():
+    from website.services.results_import import parse_csv_results
+
+    rows = parse_csv_results("Pos,First Name,Last Name\n1,Ada,Lovelace\n2,Grace,Hopper")
+    assert [row.athlete_name for row in rows] == ["Ada Lovelace", "Grace Hopper"]
+    assert (
+        parse_csv_results("Pos,Name\n1,Ada Lovelace")[0].athlete_name == "Ada Lovelace"
+    )
+
+
+def test_parse_firstname_and_surname_headers():
+    from website.services.results_import import parse_csv_results
+
+    rows = parse_csv_results("Pos,Firstname,Surname\n1,Ada,Lovelace")
+    assert rows[0].athlete_name == "Ada Lovelace"

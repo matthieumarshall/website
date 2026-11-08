@@ -13,67 +13,27 @@
 </p>
 {% endif %}
 
-{% set individual_cats = categories | selectattr("type", "equalto", "individual") | list %}
-{% set team_cats = categories | selectattr("type", "equalto", "team") | list %}
-{% set populated_individual_cats = individual_cats | selectattr("count", "gt", 0) | list %}
-{% set first_individual_cat = (populated_individual_cats or individual_cats) | first %}
-
-{% if individual_cats %}
-<h2 class="h5 mt-2 mb-2">Individual</h2>
-<nav aria-label="Individual category tabs" class="mb-3 standings-tab-nav">
-  <div class="d-flex flex-wrap gap-1" role="group">
-    {% for cat in individual_cats %}
-    <button
-      type="button"
-      class="btn btn-outline-secondary{% if cat.category == first_individual_cat.category %} active{% endif %}"
-      hx-get="/standings/table?season_id={{ selected_season.id }}&category={{ cat.category }}&standings_type=individual"
-      hx-target="#standings-table-panel"
-      hx-swap="innerHTML"
-      aria-label="Individual standings for {{ cat.category }}"
-      aria-pressed="{{ 'true' if cat.category == first_individual_cat.category else 'false' }}"
-    >{{ cat.category }}</button>
-    {% endfor %}
-  </div>
-</nav>
+{% set shown_cats = categories | selectattr("type", "equalto", standings_type) | list %}
+{% set populated = shown_cats | selectattr("count", "gt", 0) | list %}
+{% set first_cat = (populated or shown_cats) | first %}
+<nav aria-label="Standings view" class="mb-3"><div class="btn-group" role="group">
+  {% for mode in ("individual", "team") %}
+  <button type="button" class="btn btn-outline-secondary{% if standings_type == mode %} active{% endif %}"
+    data-standings-view="{{ mode }}" hx-get="/standings/category-panel?season_id={{ selected_season.id }}&standings_type={{ mode }}"
+    hx-target="#category-panel" hx-swap="innerHTML" aria-pressed="{{ 'true' if standings_type == mode else 'false' }}">{{ mode | title }} Standings</button>
+  {% endfor %}
+</div></nav>
+{% if shown_cats %}
+<nav aria-label="{{ standings_type | title }} category tabs" class="mb-3 standings-tab-nav"><div class="d-flex flex-wrap gap-1" role="group">
+  {% for cat in shown_cats %}
+  <button type="button" class="btn btn-outline-secondary{% if cat.category == first_cat.category %} active{% endif %}"
+    hx-get="/standings/table?season_id={{ selected_season.id }}&category={{ cat.category | urlencode }}&standings_type={{ standings_type }}"
+    hx-target="#standings-table-panel" hx-swap="innerHTML" aria-label="{{ standings_type | title }} standings for {{ cat.category }}" aria-pressed="{{ 'true' if cat.category == first_cat.category else 'false' }}">{{ cat.category }}</button>
+  {% endfor %}
+</div></nav>
 {% endif %}
-
-{% if team_cats %}
-<h2 class="h5 mt-3 mb-2">Team</h2>
-<nav aria-label="Team category tabs" class="mb-3 standings-tab-nav">
-  <div class="d-flex flex-wrap gap-1" role="group">
-    {% for cat in team_cats %}
-    <button
-      type="button"
-      class="btn btn-outline-secondary"
-      hx-get="/standings/table?season_id={{ selected_season.id }}&category={{ cat.category }}&standings_type=team"
-      hx-target="#standings-table-panel"
-      hx-swap="innerHTML"
-      aria-label="Team standings for {{ cat.category }}"
-      aria-pressed="false"
-    >{{ cat.category }}</button>
-    {% endfor %}
-  </div>
-</nav>
-{% endif %}
-
 <div id="standings-table-panel">
-  {% if individual_cats %}
-  <p
-    class="text-muted small"
-    hx-get="/standings/table?season_id={{ selected_season.id }}&category={{ first_individual_cat.category }}&standings_type=individual"
-    hx-trigger="load"
-    hx-target="#standings-table-panel"
-    hx-swap="innerHTML"
-  >Loading…</p>
-  {% elif team_cats %}
-  <p
-    class="text-muted small"
-    hx-get="/standings/table?season_id={{ selected_season.id }}&category={{ team_cats[0].category }}&standings_type=team"
-    hx-trigger="load"
-    hx-target="#standings-table-panel"
-    hx-swap="innerHTML"
-  >Loading…</p>
-  {% endif %}
+  {% if first_cat %}<p class="text-muted small" hx-get="/standings/table?season_id={{ selected_season.id }}&category={{ first_cat.category | urlencode }}&standings_type={{ standings_type }}" hx-trigger="load" hx-target="#standings-table-panel" hx-swap="innerHTML">Loading...</p>{% endif %}
 </div>
 
 {% if is_admin %}

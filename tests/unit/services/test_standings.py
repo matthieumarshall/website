@@ -138,7 +138,9 @@ class TestRecalculate:
         assert team_table.team_round_results[0].fixture_id == team_fixture.id
 
         panel = ResultsService(test_db).race_panel(team_fixture.id)
-        assert panel.team_round_results == round_results
+        assert panel.team_round_results[0].team_name == round_results[0].team_name
+        assert panel.team_round_results[0].division == 3
+        assert panel.team_round_results[0].division_position == 1
 
     def test_round_results_rank_teams_within_the_fixture(
         self, test_db: duckdb.DuckDBPyConnection
