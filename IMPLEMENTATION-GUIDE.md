@@ -1,6 +1,6 @@
 ## Implementation Guide: Import Legacy Results and Standings - Phases 4-7
 
-> **Status**: MVP (Phases 1-3) complete and committed. 290 tests passing, 78% code coverage.
+> **Historical guide:** This document records an earlier implementation plan and its test counts are historical. Standings import, historical browsing, import logging, data-quality checks and import documentation now exist. For current project status see the [high-level plan](docs/high-level-plan.md); for current import instructions see the [import guide](scripts/README-IMPORT.md), and for remaining verification see the [import task list](specs/001-import-results-standings/tasks.md). The checklists below are retained as historical proposals and do not establish that manual checks were performed.
 
 ### Current State
 

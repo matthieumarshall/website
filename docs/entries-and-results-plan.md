@@ -1,5 +1,7 @@
 # Entries & Results Plan
 
+> **Historical design plan:** The implementation has evolved since this document was written. See the [high-level plan](high-level-plan.md) for current status and remaining work. The schemas, names and proposed flows below are design history, not necessarily the implemented interfaces.
+
 ## 1. Overview
 
 The system must handle three distinct data scenarios:
@@ -290,7 +292,7 @@ When athletes share the same `counting_points`:
 | **Team manager** | Enter athletes for their club, view their own entries, see payment status |
 | **Public** | View published entry lists (names, clubs, numbers — no payment info) |
 
-The `team_manager` role (referenced in high-level-plan.md Phase 1.3) needs to be created. A team manager is associated with a club name.
+The implemented equivalent is the `club_manager` role, with a manager account associated with a club. The `team_manager` name in this document is part of the original design.
 
 ### 6.2 Entry Workflow
 
@@ -432,9 +434,12 @@ An admin can retroactively add config to compute standings for existing seasons 
 
 ## 9. Implementation Phases
 
-Suggested order based on dependencies and value:
+The following was the proposed order. Standings calculation and display, historical imports, entries and payments code, and external results fetching have since been implemented, with changes to the proposed schema and flows. Entries remain hidden pending live end-to-end validation; linking entries to results remains outstanding. See the [high-level plan](high-level-plan.md) for details.
 
 ### Phase A: Standings for Current Seasons
+
+**Status:** Standings calculation, display and staff recalculation are implemented; the original proposed configuration and page layout should not be assumed to match the implementation.
+
 1. Add `season_config` and `standings` tables.
 2. Build standings calculation logic.
 3. Add standings display on results page (new tab or section per season).
@@ -442,11 +447,17 @@ Suggested order based on dependencies and value:
 5. Add "Recalculate standings" button for admins.
 
 ### Phase B: Historic Data Import
+
+**Status:** Historical results and standings imports and browsing are implemented. See the [import guide](../scripts/README-IMPORT.md).
+
 1. Build bulk CSV importer for historic results (creates seasons/fixtures/races/results).
 2. Build CSV importer for historic standings (`is_imported = true`).
 3. Ensure browse/display works seamlessly across historic and current seasons.
 
 ### Phase C: Entries System
+
+**Status:** Entry management and number assignment are implemented under the `club_manager` role, but the public entry point is hidden pending live validation. Linking entries to results remains outstanding.
+
 1. Add `athletes` and `entries` tables.
 2. Add `team_manager` role.
 3. Build entry management UI for team managers.
@@ -455,10 +466,16 @@ Suggested order based on dependencies and value:
 6. Link entries ↔ results in the UI.
 
 ### Phase D: Payments (Stripe)
+
+**Status:** Stripe checkout, confirmation and webhook handling are implemented; live end-to-end validation remains outstanding.
+
 1. Stripe integration for entry payments.
 2. Payment confirmation and webhook handling.
 
 ### Phase E: External Results Fetch
+
+**Status:** External results fetching and staff sync are implemented; the original proposed API and preview flow are not necessarily the implemented design.
+
 1. Tempo Events API integration module.
 2. Admin "Fetch results" UI per fixture.
 3. Preview and confirmation before import.

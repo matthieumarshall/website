@@ -1,5 +1,7 @@
 # Website Development & Hosting Considerations
 
+> **Historical reference:** Some technology and hosting suggestions below predate the current implementation. See the [high-level plan](high-level-plan.md) for current decisions and development status.
+
 ## 1. Security
 
 | Area | What to Think About |
