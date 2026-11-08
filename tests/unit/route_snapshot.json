@@ -229,6 +229,10 @@
   ],
   [
     "GET",
+    "/results/team-table"
+  ],
+  [
+    "GET",
     "/rules-and-constitution"
   ],
   [
