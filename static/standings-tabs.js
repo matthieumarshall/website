@@ -65,7 +65,7 @@
 
   // Re-balance after HTMX swaps in the category panel.
   document.addEventListener('htmx:afterSwap', function (e) {
-    if (e.detail && e.detail.target && e.detail.target.id === 'category-panel') {
+    if (e.detail && e.detail.target && ['category-panel', 'race-panel', 'fixture-panel'].includes(e.detail.target.id)) {
       requestAnimationFrame(balanceAll);
     }
   });

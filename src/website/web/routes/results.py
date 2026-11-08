@@ -154,19 +154,32 @@ def results_source_pdf(
     )
 
 
+@router.get("/team-table", response_class=HTMLResponse)
+def team_results_table(
+    request: Request, fixture_id: int, category: str, service: Results, ui: RendererDep
+) -> HTMLResponse:
+    """Show one category's team scores for a round."""
+    panel = service.race_panel(fixture_id, view_mode="team")
+    return ui.page(
+        request, "_results_team_table.html", _PAGE, view=panel, category=category
+    )
+
+
 @router.get("/team-export/{output_format}")
 def team_results_export(
     fixture_id: int,
     output_format: Literal["csv", "pdf"],
     service: Results,
     division: int | None = None,
+    category: str | None = None,
 ) -> Response:
-    """Download a round's team results, optionally filtered by division."""
+    """Download a round's team results, optionally filtered by category and division."""
     panel = service.race_panel(fixture_id, view_mode="team")
     rows = [
         row
         for row in panel.team_round_results
-        if division is None or row.division == division
+        if (division is None or row.division == division)
+        and (category is None or row.category == category)
     ]
     content, filename = build_team_results_export(
         rows, panel.active_fixture.title, output_format
