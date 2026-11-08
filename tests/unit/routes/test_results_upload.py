@@ -332,3 +332,26 @@ def test_upload_warns_about_single_name_but_imports(
     assert (
         repository.list_results_for_race(test_db, race.id)[0].athlete_name == "Madonna"
     )
+
+
+def test_results_panel_direct_requests_render_full_page(
+    admin_client: TestClient, test_db: duckdb.DuckDBPyConnection, race_upload_fixture
+):
+    season_id, fixture_id = race_upload_fixture
+    race = repository.create_race(test_db, fixture_id, "Men")
+    url = (
+        f"/results/race-panel?fixture_id={fixture_id}&race_id={race.id}&view_mode=team"
+    )
+    page = admin_client.get(url)
+    assert page.status_code == 200
+    assert "<html" in page.text
+    assert 'id="results-view-mode"' in page.text
+    assert 'value="team"' in page.text
+    assert "results-filter.js" in page.text
+    fragment = admin_client.get(url, headers={"HX-Request": "true"})
+    assert "<html" not in fragment.text
+    season_page = admin_client.get(
+        f"/results/fixture-panel?season_id={season_id}&view_mode=team"
+    )
+    assert "<html" in season_page.text
+    assert 'value="team"' in season_page.text

@@ -50,6 +50,8 @@ def results_fixture_panel(
     view_mode: ResultsViewMode = "individual",
 ) -> HTMLResponse:
     """HTMX: swap in a season's fixtures with the first fixture selected."""
+    if not ui.is_htmx(request):
+        return results(request, service, ui, season_id, view_mode=view_mode)
     view = service.browse(season_id, view_mode=view_mode)
     return ui.page(
         request,
@@ -73,6 +75,16 @@ def results_race_panel(
 ) -> HTMLResponse:
     """HTMX: swap in a fixture's races with one race selected."""
     panel = service.race_panel(fixture_id, race_id, view_mode)
+    if not ui.is_htmx(request):
+        return results(
+            request,
+            service,
+            ui,
+            season_id or panel.active_fixture.season_id,
+            fixture_id,
+            race_id,
+            view_mode,
+        )
     return ui.page(
         request,
         "_results_race_panel.html",

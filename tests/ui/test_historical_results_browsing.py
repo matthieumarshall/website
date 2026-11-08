@@ -4,6 +4,8 @@ Covers tasks T048-T050 (US2: standings UI) and T063-T072 (US3: results browsing 
 All tests rely on the seeded "UI Test Season 2026" data created in conftest.py.
 """
 
+import re
+
 from playwright.sync_api import Page, expect
 
 BASE = "http://localhost:8000"
@@ -507,3 +509,14 @@ class TestResultsFilterDropdowns:
         assert no_match.is_visible(), (
             "#results-no-match message should show when no rows match the name filter"
         )
+
+
+def test_results_view_history_survives_reload(browser: Page) -> None:
+    browser.goto(f"{BASE}/results?season_id=1&fixture_id=1")
+    browser.get_by_role("button", name="Team Results").click()
+    expect(browser).to_have_url(re.compile(r"/results/race-panel\?.*view_mode=team"))
+    browser.reload()
+    expect(browser.locator("#results-view-mode")).to_have_value("team")
+    expect(browser.get_by_role("button", name="Individual Results")).to_be_visible()
+    browser.get_by_role("button", name="Individual Results").click()
+    expect(browser.locator("#results-table")).to_be_visible()

@@ -225,6 +225,37 @@ class TestRecalculate:
         assert {result.category for result in team_results} == {"U9B", "U9G"}
         assert len(repository.load_individual_standings(test_db, season.id, "U9B")) == 3
 
+    def test_separate_gendered_races_both_contribute_to_standings(
+        self, test_db: duckdb.DuckDBPyConnection
+    ) -> None:
+        season = repository.create_season(test_db, "2025-26")
+        fixture = repository.create_fixture(
+            test_db, season.id, "Round 1", "2025-10-05", "Park", "Addr", [], ""
+        )
+        for label, category, gender in (("Boys", "U13B", "M"), ("Girls", "U13G", "F")):
+            race = repository.create_race(test_db, fixture.id, f"U13 {label}")
+            for position in range(1, 4):
+                repository.create_result(
+                    test_db,
+                    race.id,
+                    position,
+                    f"{label} Runner {position}",
+                    "00:10:00",
+                    category,
+                    gender,
+                    club="Oxford AC",
+                )
+        StandingsService(test_db).recalculate(season.id)
+        for category in ("U13B", "U13G"):
+            assert (
+                len(repository.load_individual_standings(test_db, season.id, category))
+                == 3
+            )
+            assert repository.list_team_round_results_for_fixture(
+                test_db, fixture.id, category
+            )
+            assert repository.load_team_standings(test_db, season.id, category)
+
     def test_production_race_names_and_category_labels_are_scored(
         self, test_db: duckdb.DuckDBPyConnection
     ) -> None:
@@ -295,6 +326,10 @@ class TestRecalculate:
             len(members_by_category[category]) == 3
             for category in expected_junior_categories
         )
+        for category in expected_junior_categories:
+            standings = repository.load_team_standings(test_db, season.id, category)
+            assert standings, f"No season team standings for {category}"
+            assert standings[0].rounds_competed == 1
         assert len(members_by_category["Men"]) == 7
         assert len(members_by_category["Women"]) == 4
         assert members_by_category["U10G"][0] == "U10 Girl 1 (1)"

@@ -21,6 +21,7 @@ from pathlib import Path
 
 from pyresults import (
     Athlete,
+    CategoryType,
     CompetitionConfig,
     DomainRaceResult,
     IndividualScoreService,
@@ -40,7 +41,6 @@ from website.models import (
     CalculatedTeamRoundResult,
     CalculatedTeamStanding,
     Fixture,
-    Race,
     Result,
 )
 from website.services.standings_categories import (
@@ -75,13 +75,22 @@ class _Scorers:
             race_result_repo=self.race_results,
             score_repo=self.individual_scores,
         ).update_all_categories()
-        TeamScoreService(
+        team_service = TeamScoreService(
             config=self.config,
             race_result_repo=self.race_results,
             team_result_repo=self.team_results,
             team_score_repo=self.team_scores,
             team_scoring_service=self.team_scoring,
-        ).update_all_team_categories()
+        )
+        for category in self.config.category_config.get_categories_by_type(
+            CategoryType.TEAM
+        ):
+            try:
+                team_service.update_team_scores_for_category(category.code)
+            except ValueError as exc:
+                _logger.warning(
+                    "Could not update team scores for %s: %s", category.code, exc
+                )
 
 
 def recalculate_standings(db: Connection, season_id: int) -> None:
@@ -124,52 +133,42 @@ def recalculate_standings(db: Connection, season_id: int) -> None:
 def _load_fixture(
     db: Connection, scorers: _Scorers, fixture: Fixture, round_number: str
 ) -> None:
+    grouped: dict[str, list[Result]] = {}
     for race in repository.list_races_for_fixture(db, fixture.id):
         results = repository.list_results_for_race(db, race.id)
         if results:
-            _load_race(scorers, fixture.id, race, results, round_number)
-
-
-def _load_race(
-    scorers: _Scorers,
-    fixture_id: int,
-    race: Race,
-    results: list[Result],
-    round_number: str,
-) -> None:
-    scoring_race_name = team_race_name(race.name)
-    race_result = DomainRaceResult(
-        race_name=scoring_race_name, round_number=round_number
-    )
-    for result in results:
-        race_result.add_athlete(
-            Athlete(
-                name=result.athlete_name,
-                club=result.club or "",
-                race_number=(
-                    str(result.race_number) if result.race_number is not None else ""
-                ),
-                position=result.position,
-                time=_parse_time(result.time),
-                gender=result.gender,
-                category=scoring_category(result.category),
+            grouped.setdefault(team_race_name(race.name), []).extend(results)
+    for race_name, results in grouped.items():
+        race_result = DomainRaceResult(race_name=race_name, round_number=round_number)
+        for result in results:
+            race_result.add_athlete(
+                Athlete(
+                    name=result.athlete_name,
+                    club=result.club or "",
+                    race_number=(
+                        str(result.race_number)
+                        if result.race_number is not None
+                        else ""
+                    ),
+                    position=result.position,
+                    time=_parse_time(result.time),
+                    gender=result.gender,
+                    category=scoring_category(result.category),
+                )
             )
-        )
-    scorers.race_results.save_race_result(race_result)
-    _save_round_team_results(scorers, fixture_id, race, race_result, round_number)
+        scorers.race_results.save_race_result(race_result)
+        _save_round_team_results(scorers, fixture.id, race_result, round_number)
 
 
 def _save_round_team_results(
     scorers: _Scorers,
     fixture_id: int,
-    race: Race,
     race_result: DomainRaceResult,
     round_number: str,
 ) -> None:
     """Pre-calculate per-round team results for each team category of a race."""
     service = scorers.team_scoring
-    scoring_race_name = team_race_name(race.name)
-    for category_code in service.get_team_categories_for_race(scoring_race_name):
+    for category_code in service.get_team_categories_for_race(race_result.race_name):
         try:
             category = scorers.config.category_config.get_category(category_code)
             teams = service.calculate_teams_for_race(race_result, category)
