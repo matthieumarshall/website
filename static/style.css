@@ -374,3 +374,17 @@ code {
 .cookie-notice-link:focus {
   color: #fff;
 }
+.scoring-runner-list {
+  columns: 11rem auto;
+  min-width: min(26rem, 80vw);
+}
+
+.scoring-runner-list li {
+  break-inside: avoid;
+}
+
+.standings-tab-nav button {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}

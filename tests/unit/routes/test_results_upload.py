@@ -44,6 +44,28 @@ def _csv_file(name: str = "Uploaded Runner"):
     return ("results.csv", io.BytesIO(content.encode()), "text/csv")
 
 
+def test_junior_team_results_hide_divisions_and_export_penalties(
+    admin_client, test_db, race_upload_fixture
+):
+    season_id, fixture_id = race_upload_fixture
+    race = repository.create_race(test_db, fixture_id, "U11 Boys & Girls")
+    repository.create_result(
+        test_db, race.id, 1, "Junior", "00:10:00", "U11B", "M", club="Oxford"
+    )
+    StandingsService(test_db).recalculate(season_id)
+    params = {"fixture_id": fixture_id, "category": "U11B"}
+    page = admin_client.get("/results/team-table", params=params)
+    csv = admin_client.get("/results/team-export/csv", params=params)
+    pdf = admin_client.get("/results/team-export/pdf", params=params)
+    assert page.status_code == csv.status_code == pdf.status_code == 200
+    assert "Division" not in page.text
+    assert "scoring-runner-list" in page.text
+    assert page.text.count("Penalty (2)") == 2
+    assert "Division" not in csv.text
+    assert csv.text.count("Penalty (2)") == 2
+    assert pdf.content.startswith(b"%PDF")
+
+
 def test_race_creation_still_offers_manual_csv(
     admin_client: TestClient,
     test_db: duckdb.DuckDBPyConnection,

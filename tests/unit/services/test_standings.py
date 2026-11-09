@@ -165,6 +165,49 @@ def _seed_results(db: duckdb.DuckDBPyConnection) -> int:
     return season.id
 
 
+@pytest.mark.parametrize(
+    "race_name,category,wrong",
+    [
+        ("U10 Boys & Girls", "U10B", "U12B"),
+        ("U10 Boys", "U10B", "U10G"),
+        ("U9 Boys & Girls", "U9B", "U11B"),
+        ("Men", "SM", "U10B"),
+    ],
+)
+def test_ineligible_runners_do_not_affect_scoring(test_db, race_name, category, wrong):
+    season = repository.create_season(test_db, "2026-27")
+    fixture = repository.create_fixture(
+        test_db, season.id, "Round 1", "2026-10-04", "Park", "", [], ""
+    )
+    race = repository.create_race(test_db, fixture.id, race_name)
+    for position, (name, cat, club) in enumerate(
+        [
+            ("Guest Runner", category, "  gUeSt  "),
+            ("Wrong Race", wrong, "Other"),
+            ("Eligible One", category, "Oxford"),
+            ("Eligible Two", category, "Oxford"),
+        ],
+        1,
+    ):
+        repository.create_result(
+            test_db, race.id, position, name, "00:10:00", cat, "M", club=club
+        )
+
+    StandingsService(test_db).recalculate(season.id)
+    rows = repository.load_individual_standings(test_db, season.id, category)
+    assert {row.athlete_name for row in rows} == {"Eligible One", "Eligible Two"}
+    assert [row.total_score for row in rows] == [1, 2]
+    team_category = "Men" if race_name == "Men" else category
+    team = repository.list_team_round_results_for_fixture(
+        test_db, fixture.id, team_category
+    )[0]
+    assert team.scoring_members[:2] == ["Eligible One (1)", "Eligible Two (2)"]
+    assert all(member == "Penalty (3)" for member in team.scoring_members[2:])
+    assert team.score == 3 + 3 * (len(team.scoring_members) - 2)
+    assert len(repository.list_results_for_race(test_db, race.id)) == 4
+    assert not repository.load_individual_standings(test_db, season.id, wrong)
+
+
 class TestRecalculate:
     def test_recalculation_writes_standings_and_tables_resolve_scores(
         self, test_db: duckdb.DuckDBPyConnection
@@ -196,6 +239,10 @@ class TestRecalculate:
             "Ann (1)",
             "Ben (2)",
             "Cat (3)",
+            "Penalty (4)",
+            "Penalty (4)",
+            "Penalty (4)",
+            "Penalty (4)",
         ]
 
         team_table = service.table(season_id, "Men", "team")
@@ -252,6 +299,10 @@ class TestRecalculate:
             "A Runner (1)",
             "B Runner (2)",
             "C Runner (3)",
+            "Penalty (7)",
+            "Penalty (7)",
+            "Penalty (7)",
+            "Penalty (7)",
         ]
 
     def test_historical_odd_junior_bands_keep_individual_and_team_scores(

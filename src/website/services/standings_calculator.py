@@ -16,6 +16,7 @@ This mapping is the source of truth for all standings calculations.
 """
 
 import logging
+import re
 from datetime import timedelta
 from pathlib import Path
 
@@ -24,6 +25,7 @@ from pyresults import (
     CategoryType,
     CompetitionConfig,
     DomainRaceResult,
+    Gender,
     IndividualScoreService,
     InMemoryRaceResultRepository,
     InMemoryScoreRepository,
@@ -138,12 +140,17 @@ def _load_fixture(
 ) -> None:
     grouped: dict[str, list[Result]] = {}
     for race in repository.list_races_for_fixture(db, fixture.id):
-        results = repository.list_results_for_race(db, race.id)
+        race_name = team_race_name(race.name)
+        results = [
+            result
+            for result in repository.list_results_for_race(db, race.id)
+            if _eligible_result(scorers.config, race.name, result)
+        ]
         if results:
-            grouped.setdefault(team_race_name(race.name), []).extend(results)
+            grouped.setdefault(race_name, []).extend(results)
     for race_name, results in grouped.items():
         race_result = DomainRaceResult(race_name=race_name, round_number=round_number)
-        for result in results:
+        for position, result in enumerate(sorted(results, key=lambda r: r.position), 1):
             race_result.add_athlete(
                 Athlete(
                     name=result.athlete_name,
@@ -153,7 +160,7 @@ def _load_fixture(
                         if result.race_number is not None
                         else ""
                     ),
-                    position=result.position,
+                    position=position,
                     time=_parse_time(result.time),
                     gender=result.gender,
                     category=scoring_category(result.category),
@@ -161,6 +168,18 @@ def _load_fixture(
             )
         scorers.race_results.save_race_result(race_result)
         _save_round_team_results(scorers, fixture.id, race_result, round_number)
+
+
+def _eligible_result(config: CompetitionConfig, race_name: str, result: Result) -> bool:
+    """Only score non-guests in the race assigned to their category."""
+    if (result.club or "").strip().casefold() == "guest":
+        return False
+    category = config.category_config.categories.get(scoring_category(result.category))
+    if category is None or category.race_name != team_race_name(race_name):
+        return False
+    male = bool(re.search(r"\b(?:boys|men)\b", race_name, re.IGNORECASE))
+    female = bool(re.search(r"\b(?:girls|women)\b", race_name, re.IGNORECASE))
+    return male == female or category.gender == (Gender.MALE if male else Gender.FEMALE)
 
 
 def _save_round_team_results(
@@ -201,6 +220,10 @@ def _save_round_team_results(
                     for index in range(1, category.team_size + 1)
                     if row.get(f"Runner{index}")
                 ]
+                scoring_members.extend(
+                    [f"Penalty ({penalty_score})"]
+                    * (category.team_size - len(scoring_members))
+                )
                 scorers.team_round_results.append(
                     CalculatedTeamRoundResult(
                         fixture_id=fixture_id,
