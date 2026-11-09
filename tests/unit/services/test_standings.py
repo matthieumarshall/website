@@ -1,6 +1,7 @@
 """Standings: score key resolution, recalculation and the standings tables."""
 
 from datetime import date, datetime
+from pathlib import Path
 
 import duckdb
 import pytest
@@ -99,6 +100,46 @@ def test_imported_u23_standings_appear_in_senior_table(test_db):
     assert (rows[0].athlete_name, rows[0].category) == ("Young Runner", "SM")
     service.recalculate(season.id)
     assert len(service.table(season.id, "SM", "individual").rows) == 1
+
+
+def test_name_correction_migration_repairs_existing_results_and_standings(test_db):
+    season = repository.create_season(test_db, "2026-27")
+    fixture = repository.create_fixture(
+        test_db, season.id, "Round 1", "2026-10-04", "Park", "", [], ""
+    )
+    race = repository.create_race(test_db, fixture.id, "Women")
+    repository.create_result(
+        test_db, race.id, 1, "Victoria B÷deker", "00:10:00", "SW", "F", club="AC"
+    )
+    test_db.execute(
+        "INSERT INTO individual_standings "
+        "(season_id, category, position, athlete_name, total_score, is_imported) "
+        "VALUES (?, 'SW', 1, 'Victoria B÷deker', 1, true)",
+        [season.id],
+    )
+    test_db.execute(
+        "INSERT INTO team_round_results "
+        "(fixture_id, category, position, team_name, club, score, scoring_members) "
+        "VALUES (?, 'Women', 1, 'AC A', 'AC', 1, ?)",
+        [fixture.id, '["Victoria B\\u00f7deker (1)", "Another B÷deker (2)"]'],
+    )
+    migration = Path("migrations/0031_correct_victoria_bodeker.sql").read_text(
+        encoding="utf-8"
+    )
+    test_db.execute(migration)
+    test_db.execute(migration)
+    assert (
+        repository.list_results_for_race(test_db, race.id)[0].athlete_name
+        == "Victoria Bödeker"
+    )
+    assert (
+        repository.load_individual_standings(test_db, season.id, "SW")[0].athlete_name
+        == "Victoria Bödeker"
+    )
+    members = repository.list_team_round_results_for_fixture(test_db, fixture.id)[
+        0
+    ].scoring_members
+    assert members == ["Victoria Bödeker (1)", "Another B÷deker (2)"]
 
 
 def test_missing_team_round_gets_runner_penalties(test_db):
