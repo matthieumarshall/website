@@ -5,6 +5,7 @@ All tests rely on the seeded "UI Test Season 2026" data created in conftest.py.
 """
 
 import re
+from urllib.parse import urljoin
 
 from playwright.sync_api import Page, expect
 
@@ -437,6 +438,25 @@ class TestResultsFilterDropdowns:
 
         bob_row = browser.locator("#results-table tbody tr", has_text="Bob Jones")
         assert not bob_row.is_visible(), "Bob Jones (Senior Men) should be hidden"
+
+    def test_u23_results_share_senior_filter_and_export(self, browser: Page) -> None:
+        browser.goto(f"{BASE}/results")
+        browser.wait_for_load_state("networkidle")
+        select = browser.locator("#filter-category")
+        assert "U23W" not in select.locator("option").all_inner_texts()
+        select.select_option("Senior Women")
+        assert browser.locator(
+            "#results-table tbody tr", has_text="Alice Smith"
+        ).is_visible()
+        young = browser.locator("#results-table tbody tr", has_text="Young Runner")
+        assert young.is_visible()
+        assert young.get_attribute("data-category") == "Senior Women"
+        href = browser.locator("#export-csv-link").get_attribute("href")
+        assert href is not None
+        response = browser.request.get(urljoin(BASE, href))
+        assert response.ok
+        assert "Young Runner" in response.text() and "Alice Smith" in response.text()
+        assert "Bob Jones" not in response.text()
 
     def test_dropdowns_repopulated_after_fixture_tab_switch(
         self, browser: Page

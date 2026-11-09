@@ -21,6 +21,13 @@ ResultsViewMode = Literal["individual", "team"]
 def _present_race_results(race: Race, results: list[Result]) -> list[Result]:
     """Combine U23 and senior results without altering stored race data."""
     categories = [scoring_category(result.category) for result in results]
+    labels = {"SM": "SM", "SW": "SW"}
+    for result, category in zip(results, categories, strict=True):
+        if category in labels and result.category.strip().casefold() in {
+            "senior men",
+            "senior women",
+        }:
+            labels[category] = result.category.strip()
     combined = {
         category
         for result, category in zip(results, categories, strict=True)
@@ -36,7 +43,7 @@ def _present_race_results(race: Race, results: list[Result]) -> list[Result]:
         if category not in {"SM", "SW"}:
             output.append(result)
             continue
-        updates: dict[str, object] = {"category": category}
+        updates: dict[str, object] = {"category": labels[category]}
         if category in combined:
             valid_race = team_race_name(race.name) == (
                 "Men" if category == "SM" else "Women"
@@ -242,10 +249,24 @@ class ResultsService:
         """
         race, results = self.race_results(race_id)
         fixture = repository.get_fixture_by_id(self._db, race.fixture_id)
+        category = filters.category
+        if category and scoring_category(category) in {"SM", "SW"}:
+            canonical = scoring_category(category)
+            category = next(
+                (
+                    r.category
+                    for r in results
+                    if scoring_category(r.category) == canonical
+                ),
+                category,
+            )
         return ResultsExport(
             race_name=race.name,
             fixture_title=fixture.title if fixture else "Unknown",
-            results=filter_results(results, **filters.model_dump()),
+            results=filter_results(
+                results,
+                **filters.model_copy(update={"category": category}).model_dump(),
+            ),
         )
 
     def source_pdf_path(self, fixture_id: int, root: Path) -> Path:

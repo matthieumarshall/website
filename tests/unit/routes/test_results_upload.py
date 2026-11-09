@@ -68,7 +68,11 @@ def test_junior_team_results_hide_divisions_and_export_penalties(
 
 @pytest.mark.parametrize(
     ("race_name", "senior", "under23", "gender"),
-    [("Senior Men", "SM", "U23M", "M"), ("Senior Women", "SW", "U23 Women", "F")],
+    [
+        ("Senior Men", "SM", "U23M", "M"),
+        ("Senior Women", "SW", "U23 Women", "F"),
+        ("Senior Women", "Senior Women", "U23W", "F"),
+    ],
 )
 def test_individual_results_combine_u23_with_seniors(
     admin_client, test_db, race_upload_fixture, race_name, senior, under23, gender
@@ -114,6 +118,13 @@ def test_individual_results_combine_u23_with_seniors(
         assert under23 not in html
     assert "Young Runner" in csv.text and "Senior Runner" in csv.text
     assert under23 not in csv.text
+    alternate = "SW" if gender == "F" else "Senior Men"
+    assert (
+        "Young Runner"
+        in admin_client.get(
+            "/results/export/csv", params={"race_id": race.id, "category": alternate}
+        ).text
+    )
     from website.services.results import ResultsService
 
     rows = ResultsService(test_db).race_results(race.id)[1]

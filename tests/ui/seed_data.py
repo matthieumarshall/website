@@ -200,6 +200,17 @@ def seed_full_dataset(con: duckdb.DuckDBPyConnection) -> SeededIds:
         gender_position=1,
         club="Abingdon AC",
     )
+    repository.create_result(
+        con,
+        race_id=race.id,
+        position=3,
+        athlete_name="Young Runner",
+        time="37:00",
+        category="U23W",
+        gender="F",
+        category_position=1,
+        club="Oxford City AC",
+    )
     # Seed a second fixture so fixture-tab active-state tests can switch rounds
     fixture2 = repository.create_fixture(
         con,
