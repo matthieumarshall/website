@@ -150,6 +150,8 @@ _CATEGORY_ALIASES.update(
     }
 )
 _RACE_ALIASES = {
+    "senior men": "Men",
+    "senior women": "Women",
     "u20/senior/masters men": "Men",
     "u20/senior/masters women": "Women",
 }

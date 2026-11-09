@@ -12,9 +12,42 @@ from website.export import filter_results
 from website.models import Fixture, Race, Result, Season, TeamRoundResult
 from website.services._common import found
 from website.services.archive import stored_file
+from website.services.standings_categories import scoring_category, team_race_name
 from website.services.team_divisions import with_divisions
 
 ResultsViewMode = Literal["individual", "team"]
+
+
+def _present_race_results(race: Race, results: list[Result]) -> list[Result]:
+    """Combine U23 and senior results without altering stored race data."""
+    categories = [scoring_category(result.category) for result in results]
+    combined = {
+        category
+        for result, category in zip(results, categories, strict=True)
+        if category in {"SM", "SW"}
+        and result.category.strip().casefold()
+        not in {"sm", "sw", "senior men", "senior women"}
+    }
+    positions: dict[str, int] = {}
+    output = []
+    for result, category in sorted(
+        zip(results, categories, strict=True), key=lambda item: item[0].position
+    ):
+        if category not in {"SM", "SW"}:
+            output.append(result)
+            continue
+        updates: dict[str, object] = {"category": category}
+        if category in combined:
+            valid_race = team_race_name(race.name) == (
+                "Men" if category == "SM" else "Women"
+            )
+            if valid_race and (result.club or "").strip().casefold() != "guest":
+                positions[category] = positions.get(category, 0) + 1
+                updates["category_position"] = positions[category]
+            else:
+                updates["category_position"] = None
+        output.append(result.model_copy(update=updates))
+    return output
 
 
 class ResultsBrowser(BaseModel):
@@ -131,7 +164,9 @@ class ResultsService:
             races=races,
             active_race=active_race,
             race_results=(
-                repository.list_results_for_race(db, active_race.id)
+                _present_race_results(
+                    active_race, repository.list_results_for_race(db, active_race.id)
+                )
                 if active_race
                 else []
             ),
@@ -174,7 +209,9 @@ class ResultsService:
             races=races,
             active_race=active_race,
             race_results=(
-                repository.list_results_for_race(db, active_race.id)
+                _present_race_results(
+                    active_race, repository.list_results_for_race(db, active_race.id)
+                )
                 if active_race
                 else []
             ),
@@ -193,7 +230,9 @@ class ResultsService:
             NotFoundError: If the race does not exist.
         """
         race = found(repository.get_race_by_id(self._db, race_id), "Race not found")
-        return race, repository.list_results_for_race(self._db, race_id)
+        return race, _present_race_results(
+            race, repository.list_results_for_race(self._db, race_id)
+        )
 
     def export(self, race_id: int, filters: ResultFilters) -> ResultsExport:
         """Return a race's results filtered for export.
