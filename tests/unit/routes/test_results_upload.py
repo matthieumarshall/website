@@ -44,6 +44,94 @@ def _csv_file(name: str = "Uploaded Runner"):
     return ("results.csv", io.BytesIO(content.encode()), "text/csv")
 
 
+def test_junior_team_results_hide_divisions_and_export_penalties(
+    admin_client, test_db, race_upload_fixture
+):
+    season_id, fixture_id = race_upload_fixture
+    race = repository.create_race(test_db, fixture_id, "U11 Boys & Girls")
+    repository.create_result(
+        test_db, race.id, 1, "Junior", "00:10:00", "U11B", "M", club="Oxford"
+    )
+    StandingsService(test_db).recalculate(season_id)
+    params = {"fixture_id": fixture_id, "category": "U11B"}
+    page = admin_client.get("/results/team-table", params=params)
+    csv = admin_client.get("/results/team-export/csv", params=params)
+    pdf = admin_client.get("/results/team-export/pdf", params=params)
+    assert page.status_code == csv.status_code == pdf.status_code == 200
+    assert "Division" not in page.text
+    assert "scoring-runner-list" in page.text
+    assert page.text.count("Penalty (2)") == 2
+    assert "Division" not in csv.text
+    assert csv.text.count("Penalty (2)") == 2
+    assert pdf.content.startswith(b"%PDF")
+
+
+@pytest.mark.parametrize(
+    ("race_name", "senior", "under23", "gender"),
+    [
+        ("Senior Men", "SM", "U23M", "M"),
+        ("Senior Women", "SW", "U23 Women", "F"),
+        ("Senior Women", "Senior Women", "U23W", "F"),
+    ],
+)
+def test_individual_results_combine_u23_with_seniors(
+    admin_client, test_db, race_upload_fixture, race_name, senior, under23, gender
+):
+    season_id, fixture_id = race_upload_fixture
+    race = repository.create_race(test_db, fixture_id, race_name)
+    for position, name, category, club in (
+        (1, "Young Runner", under23, "AC"),
+        (2, "Guest Runner", under23, "Guest"),
+        (3, "Senior Runner", senior, "AC"),
+    ):
+        repository.create_result(
+            test_db,
+            race.id,
+            position,
+            name,
+            "00:30:00",
+            category,
+            gender,
+            category_position=1,
+            club=club,
+        )
+    page = admin_client.get(
+        "/results",
+        params={"season_id": season_id, "fixture_id": fixture_id, "race_id": race.id},
+    )
+    partial = admin_client.get("/results/race-table", params={"race_id": race.id})
+    csv = admin_client.get(
+        "/results/export/csv", params={"race_id": race.id, "category": senior}
+    )
+    pdf = admin_client.get(
+        "/results/export/pdf", params={"race_id": race.id, "category": senior}
+    )
+    assert (
+        page.status_code
+        == partial.status_code
+        == csv.status_code
+        == pdf.status_code
+        == 200
+    )
+    for html in (page.text, partial.text):
+        assert f'data-category="{senior}"' in html
+        assert under23 not in html
+    assert "Young Runner" in csv.text and "Senior Runner" in csv.text
+    assert under23 not in csv.text
+    alternate = "SW" if gender == "F" else "Senior Men"
+    assert (
+        "Young Runner"
+        in admin_client.get(
+            "/results/export/csv", params={"race_id": race.id, "category": alternate}
+        ).text
+    )
+    from website.services.results import ResultsService
+
+    rows = ResultsService(test_db).race_results(race.id)[1]
+    assert [row.category_position for row in rows] == [1, None, 2]
+    assert repository.list_results_for_race(test_db, race.id)[0].category == under23
+
+
 def test_race_creation_still_offers_manual_csv(
     admin_client: TestClient,
     test_db: duckdb.DuckDBPyConnection,

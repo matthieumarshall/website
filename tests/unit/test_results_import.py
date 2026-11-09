@@ -41,6 +41,17 @@ def test_normalise_category() -> None:
     assert normalise_category("SuperVeteran", "Male") == "SuperVeteran"
 
 
+def test_corrects_known_name_transcription_on_import() -> None:
+    rows = parse_csv_results(
+        "Pos,Name\n1,Victoria B÷deker\n2,Victoria Bödeker\n3,Another B÷deker\n"
+    )
+    assert [row.athlete_name for row in rows] == [
+        "Victoria Bödeker",
+        "Victoria Bödeker",
+        "Another B÷deker",
+    ]
+
+
 def test_parse_existing_csv_format_sorts_finishers() -> None:
     csv_text = (
         _CSV_HEADER
