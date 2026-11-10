@@ -58,7 +58,7 @@ def test_standing_category_catalog_follows_season_format() -> None:
     assert ("U9B", "individual") not in current_categories
     assert ("U9B", "team") not in current_categories
     assert not any(category.startswith("U23") for category, _ in current_categories)
-    assert any(item.category == "M35" for item in current)
+    assert not any(item.category == "M35" for item in current)
     assert any(item.category == "WV70" for item in current)
 
 
@@ -523,3 +523,128 @@ class TestRecalculate:
         season = repository.create_season(test_db, "Empty")
         StandingsService(test_db).recalculate(season.id)
         assert not repository.season_has_standings(test_db, season.id)
+
+
+@pytest.mark.parametrize(
+    "season_name, expected",
+    [
+        ("2022-23", ["M35", "M45", "M55", "M65", "M75"]),
+        ("2023-24", ["SM", "MV40", "MV50", "MV60", "MV70"]),
+    ],
+)
+def test_masters_results_and_standings_follow_season(test_db, season_name, expected):
+    season = repository.create_season(test_db, season_name)
+    fixture = repository.create_fixture(
+        test_db, season.id, "Round 1", "2023-10-01", "Park", "", [], ""
+    )
+    race = repository.create_race(test_db, fixture.id, "Men")
+    for position, category in enumerate(["M35", "M45", "M55", "M65", "M75"], 1):
+        repository.create_result(
+            test_db,
+            race.id,
+            position,
+            f"Runner {position}",
+            "30:00",
+            category,
+            "M",
+            club="AC",
+        )
+    results = ResultsService(test_db).race_results(race.id)[1]
+    assert [result.category for result in results] == expected
+    assert [
+        result.category for result in repository.list_results_for_race(test_db, race.id)
+    ] == ["M35", "M45", "M55", "M65", "M75"]
+    service = StandingsService(test_db)
+    service.recalculate(season.id)
+    for position, category in enumerate(expected, 1):
+        assert any(
+            isinstance(row, IndividualStanding)
+            and row.athlete_name == f"Runner {position}"
+            for row in service.table(season.id, category, "individual").rows
+        )
+
+
+def test_masters_combined_positions_and_export(test_db):
+    from website.services.results import ResultFilters
+
+    season = repository.create_season(test_db, "2023-2024")
+    fixture = repository.create_fixture(
+        test_db, season.id, "Round 1", "2023-10-01", "Park", "", [], ""
+    )
+    race = repository.create_race(test_db, fixture.id, "Women")
+    for position, category in enumerate(
+        ["Senior Women", "W35", "W40", "W45", "W70", "W75"], 1
+    ):
+        repository.create_result(
+            test_db,
+            race.id,
+            position,
+            f"Runner {position}",
+            "30:00",
+            category,
+            "F",
+            club="AC",
+        )
+    service = ResultsService(test_db)
+    rows = service.race_panel(fixture.id).race_results
+    assert [(r.category, r.category_position) for r in rows] == [
+        ("Senior Women", 1),
+        ("Senior Women", 2),
+        ("WV40", 1),
+        ("WV40", 2),
+        ("WV70", 1),
+        ("WV70", 2),
+    ]
+    assert len(service.export(race.id, ResultFilters(category="WV40")).results) == 2
+
+
+def test_imported_masters_are_visible_in_combined_standings(test_db):
+    season = repository.create_season(test_db, "2023-24")
+    for category, name in [("M35", "Senior"), ("M40", "Forty"), ("M45", "Forty Five")]:
+        test_db.execute(
+            "INSERT INTO individual_standings (season_id, category, position, athlete_name, club, total_score, rounds_competed, fixture_scores, is_imported) VALUES (?, ?, 1, ?, 'AC', 1, 1, '{}', true)",
+            [season.id, category, name],
+        )
+    service = StandingsService(test_db)
+    assert {
+        row.athlete_name
+        for row in service.table(season.id, "MV40", "individual").rows
+        if isinstance(row, IndividualStanding)
+    } == {"Forty", "Forty Five"}
+    assert [
+        row.athlete_name
+        for row in service.table(season.id, "SM", "individual").rows
+        if isinstance(row, IndividualStanding)
+    ] == ["Senior"]
+    categories = {
+        item.category
+        for item in service.overview(season.id).categories
+        if item.type == "individual"
+    }
+    assert not categories.intersection({"M35", "M40", "M45"})
+
+
+def test_senior_display_label_retains_combined_standings(test_db):
+    season = repository.create_season(test_db, "2023-24")
+    for category, name in [
+        ("Senior Women", "Senior"),
+        ("SW", "Open"),
+        ("W35", "Master"),
+        ("U23W", "Young"),
+    ]:
+        test_db.execute(
+            "INSERT INTO individual_standings (season_id, category, position, athlete_name, club, total_score, rounds_competed, fixture_scores, is_imported) VALUES (?, ?, 1, ?, 'AC', 1, 1, '{}', true)",
+            [season.id, category, name],
+        )
+    service = StandingsService(test_db)
+    tabs = [c for c in service.overview(season.id).categories if c.type == "individual"]
+    assert next(c for c in tabs if c.category == "Senior Women").count == 4
+    assert not any(c.category in {"SW", "W35", "U23W"} for c in tabs)
+    for category in ("Senior Women", "SW"):
+        rows = service.table(season.id, category, "individual").rows
+        assert {r.athlete_name for r in rows if isinstance(r, IndividualStanding)} == {
+            "Senior",
+            "Open",
+            "Master",
+            "Young",
+        }

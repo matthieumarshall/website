@@ -12,15 +12,21 @@ from website.export import filter_results
 from website.models import Fixture, Race, Result, Season, TeamRoundResult
 from website.services._common import found
 from website.services.archive import stored_file
-from website.services.standings_categories import scoring_category, team_race_name
+from website.services.standings_categories import (
+    scoring_category,
+    team_race_name,
+    uses_masters_bands,
+)
 from website.services.team_divisions import with_divisions
 
 ResultsViewMode = Literal["individual", "team"]
 
 
-def _present_race_results(race: Race, results: list[Result]) -> list[Result]:
+def _present_race_results(
+    race: Race, results: list[Result], season_name: str = ""
+) -> list[Result]:
     """Combine U23 and senior results without altering stored race data."""
-    categories = [scoring_category(result.category) for result in results]
+    categories = [scoring_category(result.category, season_name) for result in results]
     labels = {"SM": "SM", "SW": "SW"}
     for result, category in zip(results, categories, strict=True):
         if category in labels and result.category.strip().casefold() in {
@@ -31,7 +37,10 @@ def _present_race_results(race: Race, results: list[Result]) -> list[Result]:
     combined = {
         category
         for result, category in zip(results, categories, strict=True)
-        if category in {"SM", "SW"}
+        if (
+            category in {"SM", "SW"}
+            or (uses_masters_bands(season_name) and category.startswith(("MV", "WV")))
+        )
         and result.category.strip().casefold()
         not in {"sm", "sw", "senior men", "senior women"}
     }
@@ -40,13 +49,13 @@ def _present_race_results(race: Race, results: list[Result]) -> list[Result]:
     for result, category in sorted(
         zip(results, categories, strict=True), key=lambda item: item[0].position
     ):
-        if category not in {"SM", "SW"}:
+        if category not in combined and category not in {"SM", "SW"}:
             output.append(result)
             continue
-        updates: dict[str, object] = {"category": labels[category]}
+        updates: dict[str, object] = {"category": labels.get(category, category)}
         if category in combined:
             valid_race = team_race_name(race.name) == (
-                "Men" if category == "SM" else "Women"
+                "Men" if category == "SM" or category.startswith("MV") else "Women"
             )
             if valid_race and (result.club or "").strip().casefold() != "guest":
                 positions[category] = positions.get(category, 0) + 1
@@ -172,7 +181,9 @@ class ResultsService:
             active_race=active_race,
             race_results=(
                 _present_race_results(
-                    active_race, repository.list_results_for_race(db, active_race.id)
+                    active_race,
+                    repository.list_results_for_race(db, active_race.id),
+                    selected_season.name if selected_season else "",
                 )
                 if active_race
                 else []
@@ -217,7 +228,9 @@ class ResultsService:
             active_race=active_race,
             race_results=(
                 _present_race_results(
-                    active_race, repository.list_results_for_race(db, active_race.id)
+                    active_race,
+                    repository.list_results_for_race(db, active_race.id),
+                    self._season_name(fixture.season_id),
                 )
                 if active_race
                 else []
@@ -238,8 +251,19 @@ class ResultsService:
         """
         race = found(repository.get_race_by_id(self._db, race_id), "Race not found")
         return race, _present_race_results(
-            race, repository.list_results_for_race(self._db, race_id)
+            race,
+            repository.list_results_for_race(self._db, race_id),
+            self._season_name(
+                found(
+                    repository.get_fixture_by_id(self._db, race.fixture_id),
+                    "Round not found",
+                ).season_id
+            ),
         )
+
+    def _season_name(self, season_id: int) -> str:
+        season = repository.get_season_by_id(self._db, season_id)
+        return season.name if season else ""
 
     def export(self, race_id: int, filters: ResultFilters) -> ResultsExport:
         """Return a race's results filtered for export.
