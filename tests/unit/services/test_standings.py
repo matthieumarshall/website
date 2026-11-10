@@ -622,3 +622,29 @@ def test_imported_masters_are_visible_in_combined_standings(test_db):
         if item.type == "individual"
     }
     assert not categories.intersection({"M35", "M40", "M45"})
+
+
+def test_senior_display_label_retains_combined_standings(test_db):
+    season = repository.create_season(test_db, "2023-24")
+    for category, name in [
+        ("Senior Women", "Senior"),
+        ("SW", "Open"),
+        ("W35", "Master"),
+        ("U23W", "Young"),
+    ]:
+        test_db.execute(
+            "INSERT INTO individual_standings (season_id, category, position, athlete_name, club, total_score, rounds_competed, fixture_scores, is_imported) VALUES (?, ?, 1, ?, 'AC', 1, 1, '{}', true)",
+            [season.id, category, name],
+        )
+    service = StandingsService(test_db)
+    tabs = [c for c in service.overview(season.id).categories if c.type == "individual"]
+    assert next(c for c in tabs if c.category == "Senior Women").count == 4
+    assert not any(c.category in {"SW", "W35", "U23W"} for c in tabs)
+    for category in ("Senior Women", "SW"):
+        rows = service.table(season.id, category, "individual").rows
+        assert {r.athlete_name for r in rows if isinstance(r, IndividualStanding)} == {
+            "Senior",
+            "Open",
+            "Master",
+            "Young",
+        }

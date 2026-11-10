@@ -154,6 +154,7 @@ class StandingsService:
         if standings_type == "team":
             loaded = repository.load_team_standings(self._db, season_id, category)
         else:
+            canonical_category = scoring_category(category, season.name)
             senior_rows = repository.load_individual_standings(
                 self._db, season_id, category
             )
@@ -165,7 +166,8 @@ class StandingsService:
                 if (
                     stored.type != "individual"
                     or stored.category == category
-                    or scoring_category(stored.category, season.name) != category
+                    or scoring_category(stored.category, season.name)
+                    != canonical_category
                 ):
                     continue
                 for row in repository.load_individual_standings(
