@@ -22,6 +22,7 @@ from website.services._common import found
 from website.services.standings_calculator import recalculate_standings
 from website.services.standings_categories import (
     merge_standing_categories,
+    scoring_category,
     standing_category_catalog,
 )
 from website.services.team_divisions import with_divisions
@@ -156,34 +157,33 @@ class StandingsService:
             senior_rows = repository.load_individual_standings(
                 self._db, season_id, category
             )
-            loaded = senior_rows
-            if category in {"SM", "SW"}:
-                under23 = "U23M" if category == "SM" else "U23W"
-                seen = {
-                    (row.athlete_name.casefold(), (row.club or "").casefold())
-                    for row in senior_rows
-                }
-                additional = [
-                    row.model_copy(update={"category": category})
-                    for row in repository.load_individual_standings(
-                        self._db, season_id, under23
-                    )
-                    if (row.athlete_name.casefold(), (row.club or "").casefold())
-                    not in seen
-                ]
-                if additional:
-                    senior_rows.extend(additional)
-                    senior_rows.sort(
-                        key=lambda row: (
-                            row.total_score,
-                            -row.rounds_competed,
-                            row.position,
+            seen = {
+                (row.athlete_name.casefold(), (row.club or "").casefold())
+                for row in senior_rows
+            }
+            for stored in repository.list_standing_categories(self._db, season_id):
+                if (
+                    stored.type != "individual"
+                    or stored.category == category
+                    or scoring_category(stored.category, season.name) != category
+                ):
+                    continue
+                for row in repository.load_individual_standings(
+                    self._db, season_id, stored.category
+                ):
+                    key = (row.athlete_name.casefold(), (row.club or "").casefold())
+                    if key not in seen:
+                        senior_rows.append(
+                            row.model_copy(update={"category": category})
                         )
-                    )
-                    loaded = [
-                        row.model_copy(update={"position": i})
-                        for i, row in enumerate(senior_rows, 1)
-                    ]
+                        seen.add(key)
+            senior_rows.sort(
+                key=lambda row: (row.total_score, -row.rounds_competed, row.position)
+            )
+            loaded = [
+                row.model_copy(update={"position": i})
+                for i, row in enumerate(senior_rows, 1)
+            ]
         rows: list[StandingRow] = [
             row.model_copy(
                 update={

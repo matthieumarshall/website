@@ -115,7 +115,7 @@ def recalculate_standings(db: Connection, season_id: int) -> None:
     round_for_fixture = {f.id: f"r{i + 1}" for i, f in enumerate(fixtures)}
     scorers = _Scorers(_build_season_config(list(round_for_fixture.values())))
     for fixture in fixtures:
-        _load_fixture(db, scorers, fixture, round_for_fixture[fixture.id])
+        _load_fixture(db, scorers, fixture, round_for_fixture[fixture.id], season.name)
     scorers.run()
 
     fixture_for_round = {rn: fid for fid, rn in round_for_fixture.items()}
@@ -136,7 +136,11 @@ def recalculate_standings(db: Connection, season_id: int) -> None:
 
 
 def _load_fixture(
-    db: Connection, scorers: _Scorers, fixture: Fixture, round_number: str
+    db: Connection,
+    scorers: _Scorers,
+    fixture: Fixture,
+    round_number: str,
+    season_name: str,
 ) -> None:
     grouped: dict[str, list[Result]] = {}
     for race in repository.list_races_for_fixture(db, fixture.id):
@@ -144,7 +148,7 @@ def _load_fixture(
         results = [
             result
             for result in repository.list_results_for_race(db, race.id)
-            if _eligible_result(scorers.config, race.name, result)
+            if _eligible_result(scorers.config, race.name, result, season_name)
         ]
         if results:
             grouped.setdefault(race_name, []).extend(results)
@@ -163,18 +167,22 @@ def _load_fixture(
                     position=position,
                     time=_parse_time(result.time),
                     gender=result.gender,
-                    category=scoring_category(result.category),
+                    category=scoring_category(result.category, season_name),
                 )
             )
         scorers.race_results.save_race_result(race_result)
         _save_round_team_results(scorers, fixture.id, race_result, round_number)
 
 
-def _eligible_result(config: CompetitionConfig, race_name: str, result: Result) -> bool:
+def _eligible_result(
+    config: CompetitionConfig, race_name: str, result: Result, season_name: str
+) -> bool:
     """Only score non-guests in the race assigned to their category."""
     if (result.club or "").strip().casefold() == "guest":
         return False
-    category = config.category_config.categories.get(scoring_category(result.category))
+    category = config.category_config.categories.get(
+        scoring_category(result.category, season_name)
+    )
     if category is None or category.race_name != team_race_name(race_name):
         return False
     male = bool(re.search(r"\b(?:boys|men)\b", race_name, re.IGNORECASE))
