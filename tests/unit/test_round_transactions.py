@@ -6,7 +6,7 @@ from unittest.mock import Mock
 import pytest
 
 from website import repository
-from website.errors import ValidationError
+from website.errors import ConflictError, ValidationError
 from website.models import TimetableEntry
 from website.models.forms import FixtureForm
 from website.repository.fixtures import replace_timetable_items
@@ -164,3 +164,46 @@ def test_edit_rejects_race_from_another_round_without_changing_target(
     restored = repository.get_fixture_by_id(test_db, target.id)
     assert restored is not None
     assert restored.title == "Target"
+
+
+def test_copy_selected_round_parts_into_existing_round(test_db, tmp_path):
+    season, source, service = setup_round(test_db, tmp_path)
+    target = repository.create_fixture(
+        test_db,
+        season.id,
+        "Target",
+        "2025-10-01",
+        "Old venue",
+        "Old address",
+        [],
+        "Old travel",
+    )
+    copied = service.copy_parts_into(
+        target.id, source.id, ["location", "timetable", "travel"]
+    )
+    assert copied.location_name == source.location_name
+    assert copied.address == source.address
+    assert copied.travel_instructions == source.travel_instructions
+    assert copied.timetable[0].race_id is None
+    assert (
+        copied.timetable[0].source_race_id
+        == repository.list_races_for_fixture(test_db, source.id)[0].id
+    )
+    assert (
+        service.copy_parts_into(target.id, source.id, []).location_name == "Old venue"
+    )
+
+
+def test_round_with_results_cannot_be_deleted_even_after_confirmation(
+    test_db, tmp_path
+):
+    _, source, service = setup_round(test_db, tmp_path)
+    race = repository.list_races_for_fixture(test_db, source.id)[0]
+    repository.create_result(
+        test_db, race.id, 1, "Runner", "30:00", "U13B", "M", club="AC"
+    )
+    with pytest.raises(ConflictError, match="Confirm"):
+        service.delete_fixture(source.id)
+    with pytest.raises(ConflictError, match="not yet supported"):
+        service.delete_fixture(source.id, confirmed=True)
+    assert repository.get_fixture_by_id(test_db, source.id) is not None
