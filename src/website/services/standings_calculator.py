@@ -108,7 +108,8 @@ def recalculate_standings(db: Connection, season_id: int) -> None:
         raise NotFoundError(f"Season {season_id} not found")
     fixtures = repository.list_fixtures_for_season(db, season_id)
     if not fixtures:
-        _logger.info("Season %s has no fixtures; nothing to calculate.", season_id)
+        repository.replace_calculated_individual_standings(db, season_id, [])
+        repository.replace_calculated_team_standings(db, season_id, [])
         return
 
     # r1 = earliest fixture, r2 = next, …; must stay consistent across calls.
@@ -195,7 +196,10 @@ def _load_fixture(
             grouped.setdefault(race_name, []).extend(results)
     for race_name, results in grouped.items():
         race_result = DomainRaceResult(race_name=race_name, round_number=round_number)
-        for position, result in enumerate(sorted(results, key=lambda r: r.position), 1):
+        eligible = [result for result in results if result.club]
+        for position, result in enumerate(
+            sorted(eligible, key=lambda r: r.position), 1
+        ):
             race_result.add_athlete(
                 Athlete(
                     name=result.athlete_name,

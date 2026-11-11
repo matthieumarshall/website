@@ -159,7 +159,7 @@ def test_failed_database_replacement_rolls_back_old_results(
     def fail_insert(*_args, **_kwargs):
         raise RuntimeError("insert failed")
 
-    monkeypatch.setattr(repository, "create_results_batch", fail_insert)
+    monkeypatch.setattr(repository, "create_imported_results_batch", fail_insert)
     with pytest.raises(RuntimeError, match="insert failed"):
         ResultsImportService(test_db).ingest_csv(
             fixture.id,
@@ -201,3 +201,41 @@ def test_parse_firstname_and_surname_headers():
 
     rows = parse_csv_results("Pos,Firstname,Surname\n1,Ada,Lovelace")
     assert rows[0].athlete_name == "Ada Lovelace"
+
+
+def test_reimport_preserves_staff_correction_and_rejects_duplicate_identities(test_db):
+    from website.services.results import ResultsService
+
+    _, fixture = _create_fixture(test_db)
+    race = repository.create_race(test_db, fixture.id, "Senior Men")
+    importer = ResultsImportService(test_db)
+    csv_text = (
+        _CSV_HEADER + "1,101,First Runner,00:29:00,Senior Men,1,Male,1,Oxford AC\n"
+    )
+    importer.ingest_csv(fixture.id, race.id, csv_text)
+    result = repository.list_results_for_race(test_db, race.id)[0]
+    ResultsService(test_db).update_manual_result(
+        race.id,
+        result.id,
+        1,
+        "Corrected Runner",
+        "00:29:00",
+        "SM",
+        "Male",
+        race_number=101,
+        club="Oxford AC",
+    )
+    importer.ingest_csv(fixture.id, race.id, csv_text)
+    assert [
+        r.athlete_name for r in repository.list_results_for_race(test_db, race.id)
+    ] == ["Corrected Runner"]
+    with pytest.raises(ValidationError, match="duplicate"):
+        importer.ingest_csv(
+            fixture.id,
+            race.id,
+            csv_text + "2,101,Other Runner,00:30:00,SM,2,Male,2,Oxford AC\n",
+        )
+    assert (
+        repository.list_results_for_race(test_db, race.id)[0].athlete_name
+        == "Corrected Runner"
+    )

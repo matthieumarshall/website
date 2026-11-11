@@ -1,6 +1,20 @@
 {% if not race_results %}
 <p class="text-muted py-2">No results available for this race.</p>
+{% set _empty_round_id = active_fixture.id if active_fixture else fixture_id %}
+{% if current_user and current_user.role in (UserRole.admin.value, UserRole.content_creator.value) and active_race and _empty_round_id %}
+<form method="post" action="/fixtures/{{ _empty_round_id }}/race/{{ active_race.id }}/results" class="card card-body row g-2">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <div class="col-sm-2"><label class="form-label" for="empty-result-position">Position</label><input id="empty-result-position" class="form-control" type="number" name="position" min="1" required></div>
+  <div class="col-sm-4"><label class="form-label" for="empty-result-name">Name</label><input id="empty-result-name" class="form-control" name="athlete_name" required></div>
+  <div class="col-sm-2"><label class="form-label" for="empty-result-time">Time</label><input id="empty-result-time" class="form-control" name="time" required></div>
+  <div class="col-sm-2"><label class="form-label" for="empty-result-category">Category</label><input id="empty-result-category" class="form-control" name="category" required></div>
+  <div class="col-sm-2"><label class="form-label" for="empty-result-gender">Gender</label><input id="empty-result-gender" class="form-control" name="gender" required></div>
+  <div class="col-12"><button type="submit" class="btn btn-outline-primary">Add protected result</button></div>
+</form>
+{% endif %}
 {% else %}
+{% set _round_id = active_fixture.id if active_fixture else fixture_id %}
+{% set _is_staff = current_user and current_user.role in (UserRole.admin.value, UserRole.content_creator.value) %}
 <div class="table-responsive" tabindex="0">
   <table class="table table-sm table-hover align-middle mb-0" id="results-table">
     <thead class="table-light">
@@ -14,6 +28,7 @@
         <th scope="col">Gender</th>
         <th scope="col" class="col-gen-pos">Gen Pos</th>
         <th scope="col">Club</th>
+        {% if _is_staff %}<th scope="col">Staff</th>{% endif %}
       </tr>
     </thead>
     <tbody>
@@ -33,10 +48,49 @@
         <td>{{ result.gender }}</td>
         <td class="col-gen-pos">{{ result.gender_position if result.gender_position is not none else '—' }}</td>
         <td>{{ result.club if result.club else '—' }}</td>
+        {% if _is_staff %}
+        <td>
+          <details>
+            <summary class="small">{% if result.is_locked %}Protected edit{% else %}Edit{% endif %}</summary>
+            <form method="post" action="/fixtures/{{ _round_id }}/race/{{ active_race.id }}/results/{{ result.id }}/edit" class="mt-2 d-grid gap-1">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <input type="hidden" name="race_number" value="{{ result.race_number if result.race_number is not none else '' }}">
+              <input type="hidden" name="category_position" value="{{ result.category_position if result.category_position is not none else '' }}">
+              <input type="hidden" name="gender_position" value="{{ result.gender_position if result.gender_position is not none else '' }}">
+              <input class="form-control form-control-sm" name="position" type="number" value="{{ result.position }}" aria-label="Position for {{ result.athlete_name }}" required>
+              <input class="form-control form-control-sm" name="athlete_name" value="{{ result.athlete_name }}" aria-label="Name" required>
+              <input class="form-control form-control-sm" name="time" value="{{ result.time }}" aria-label="Time" required>
+              <input class="form-control form-control-sm" name="category" value="{{ result.category }}" aria-label="Category" required>
+              <input class="form-control form-control-sm" name="gender" value="{{ result.gender }}" aria-label="Gender" required>
+              <input class="form-control form-control-sm" name="club" value="{{ result.club or '' }}" aria-label="Club">
+              <button type="submit" class="btn btn-sm btn-outline-primary">Save and protect</button>
+            </form>
+            <form method="post" action="/fixtures/{{ _round_id }}/race/{{ active_race.id }}/results/{{ result.id }}/delete" class="mt-1">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+            </form>
+          </details>
+        </td>
+        {% endif %}
       </tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
+{% if _is_staff and active_race and _round_id %}
+<details class="card card-body mt-3">
+  <summary class="fw-semibold">Add a manual result</summary>
+  <form method="post" action="/fixtures/{{ _round_id }}/race/{{ active_race.id }}/results" class="row g-2 mt-2">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="col-sm-2"><label class="form-label" for="result-position">Position</label><input id="result-position" class="form-control" type="number" name="position" min="1" required></div>
+    <div class="col-sm-4"><label class="form-label" for="result-name">Name</label><input id="result-name" class="form-control" name="athlete_name" required></div>
+    <div class="col-sm-3"><label class="form-label" for="result-time">Time</label><input id="result-time" class="form-control" name="time" required></div>
+    <div class="col-sm-3"><label class="form-label" for="result-category">Category</label><input id="result-category" class="form-control" name="category" required></div>
+    <div class="col-sm-3"><label class="form-label" for="result-gender">Gender</label><input id="result-gender" class="form-control" name="gender" required></div>
+    <div class="col-sm-5"><label class="form-label" for="result-club">Club</label><input id="result-club" class="form-control" name="club"></div>
+    <div class="col-sm-4 d-flex align-items-end"><button type="submit" class="btn btn-outline-primary">Add protected result</button></div>
+  </form>
+</details>
+{% endif %}
 <p id="results-no-match" class="text-muted mt-2" style="display:none;">No results match the current filters.</p>
 {% endif %}

@@ -74,18 +74,20 @@
       <a
         href="/fixtures/seasons/{{ fixture.season_id }}/fixtures/{{ fixture.id }}/edit"
         class="btn btn-sm btn-outline-secondary"
-      >Edit</a>
+      >Edit round</a>
 
       <a
         href="/fixtures/seasons/{{ fixture.season_id }}/fixtures/{{ fixture.id }}/copy"
         class="btn btn-sm btn-outline-primary"
-      >Copy</a>
+      >Copy round</a>
 
       <form
         action="/fixtures/seasons/{{ fixture.season_id }}/fixtures/{{ fixture.id }}/delete"
         method="post"
+        onsubmit="return confirm('Delete this round and all its results? This cannot be undone.')"
       >
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="confirmed" value="true">
         <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
       </form>
     </div>
