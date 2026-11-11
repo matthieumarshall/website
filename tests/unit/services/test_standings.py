@@ -142,7 +142,7 @@ def test_name_correction_migration_repairs_existing_results_and_standings(test_d
     assert members == ["Victoria Bödeker (1)", "Another B÷deker (2)"]
 
 
-def test_missing_team_round_gets_runner_penalties(test_db):
+def test_missing_a_team_round_gets_penalties_b_team_round_stays_blank(test_db):
     season = repository.create_season(test_db, "2025-26")
     fixtures = []
     for number in (1, 2, 3):
@@ -160,7 +160,9 @@ def test_missing_team_round_gets_runner_penalties(test_db):
         if number == 3:
             continue
         race = repository.create_race(test_db, fixture.id, "Men")
-        clubs = ["Alpha"] * 7 + (["Beta"] * 7 if number == 1 else [])
+        clubs = ["Alpha"] * (14 if number == 1 else 8)
+        if number == 1:
+            clubs += ["Beta"] * 7
         for position, club in enumerate(clubs, 1):
             repository.create_result(
                 test_db,
@@ -174,15 +176,132 @@ def test_missing_team_round_gets_runner_penalties(test_db):
             )
     service = StandingsService(test_db)
     service.recalculate(season.id)
-    rows = {row.club: row for row in service.table(season.id, "Men", "team").rows}
-    assert isinstance(rows["Alpha"], TeamStanding)
-    assert isinstance(rows["Beta"], TeamStanding)
-    assert rows["Beta"].scores_by_fixture[str(fixtures[1].id)] == 56
-    assert str(fixtures[2].id) not in rows["Beta"].scores_by_fixture
-    assert rows["Beta"].rounds_competed == 1
-    assert rows["Beta"].total_score == 77 + 56
-    assert rows["Alpha"].division_position == 1
-    assert rows["Beta"].division_position == 2
+    team_rows = service.table(season.id, "Men", "team").rows
+    rows = {row.team_name: row for row in team_rows if isinstance(row, TeamStanding)}
+    assert len(rows) == len(team_rows)
+    beta = rows["Beta A"]
+    alpha_b = rows["Alpha B"]
+    assert isinstance(beta, TeamStanding)
+    assert isinstance(alpha_b, TeamStanding)
+    assert beta.scores_by_fixture[str(fixtures[1].id)] == 63
+    assert str(fixtures[2].id) not in beta.scores_by_fixture
+    assert beta.rounds_competed == 1
+    assert beta.total_score == sum(range(15, 22)) + 63
+    assert str(fixtures[1].id) not in alpha_b.scores_by_fixture
+    assert alpha_b.rounds_competed == 1
+    assert alpha_b.total_score == sum(range(8, 15))
+    assert alpha_b.division_position == 2
+    round_two = repository.list_team_round_results_for_fixture(
+        test_db, fixtures[1].id, "Men"
+    )
+    penalty_row = next(row for row in round_two if row.team_name == "Beta A")
+    assert penalty_row.score == 63
+    assert penalty_row.scoring_members == ["Penalty (9)"] * 7
+    assert all(row.team_name != "Alpha B" for row in round_two)
+
+
+def test_individual_totals_use_rounds_held_and_rank_incomplete_last(test_db):
+    season = repository.create_season(test_db, "2025-26")
+    service = StandingsService(test_db)
+    fixtures = [
+        repository.create_fixture(
+            test_db,
+            season.id,
+            f"Round {number}",
+            f"2025-10-0{number}",
+            "Park",
+            "",
+            [],
+            "",
+        )
+        for number in range(1, 6)
+    ]
+    for number, fixture in enumerate(fixtures, 1):
+        race = repository.create_race(test_db, fixture.id, "Men")
+        names = ["Incomplete", "Four finishes", "All rounds"]
+        for position, name in enumerate(names, 1):
+            if (name == "Incomplete" and number > 1) or (
+                name == "Four finishes" and number == 5
+            ):
+                continue
+            repository.create_result(
+                test_db, race.id, position, name, "30:00", "SM", "M", club="AC"
+            )
+        if number == 1:
+            service.recalculate(season.id)
+            first_rows = service.table(season.id, "SM", "individual").rows
+            first = [row for row in first_rows if isinstance(row, IndividualStanding)]
+            assert len(first) == len(first_rows)
+            assert [(row.athlete_name, row.total_score) for row in first] == [
+                ("Incomplete", 1),
+                ("Four finishes", 2),
+                ("All rounds", 3),
+            ]
+
+    service.recalculate(season.id)
+    all_rows = service.table(season.id, "SM", "individual").rows
+    rows = [row for row in all_rows if isinstance(row, IndividualStanding)]
+    assert len(rows) == len(all_rows)
+    assert [
+        (row.athlete_name, row.total_score, row.rounds_competed) for row in rows
+    ] == [
+        ("Four finishes", 5, 4),
+        ("All rounds", 7, 5),
+        ("Incomplete", 1, 1),
+    ]
+    from website.export import build_standings_csv
+
+    table = service.table(season.id, "SM", "individual")
+    csv_text, _ = build_standings_csv(
+        table.rows, table.fixtures, season.name, "SM", "individual"
+    )
+    assert csv_text.index("Four finishes") < csv_text.index("Incomplete")
+    assert ",Incomplete,AC,1,,,,,1,1" in csv_text
+
+
+@pytest.mark.parametrize(
+    ("race_name", "category", "gender", "team_size", "extra", "qualifies"),
+    [
+        ("U9 Boys", "U9B", "M", 3, 1, False),
+        ("U9 Boys", "U9B", "M", 3, 2, True),
+        ("Men", "SM", "M", 7, 3, False),
+        ("Men", "SM", "M", 7, 4, True),
+    ],
+)
+def test_non_a_team_needs_more_than_half_its_scorers(
+    test_db, race_name, category, gender, team_size, extra, qualifies
+):
+    season = repository.create_season(test_db, "2025-26")
+    fixture = repository.create_fixture(
+        test_db, season.id, "Round 1", "2025-10-01", "Park", "", [], ""
+    )
+    race = repository.create_race(test_db, fixture.id, race_name)
+    for position in range(1, team_size + extra + 1):
+        repository.create_result(
+            test_db,
+            race.id,
+            position,
+            f"Runner {position}",
+            "30:00",
+            category,
+            gender,
+            club="AC",
+        )
+    StandingsService(test_db).recalculate(season.id)
+    team_category = "Men" if race_name == "Men" else category
+    results = repository.list_team_round_results_for_fixture(
+        test_db, fixture.id, team_category
+    )
+    b_team = next((row for row in results if row.team_name == "AC B"), None)
+    assert (b_team is not None) is qualifies
+    if b_team is not None:
+        penalty = team_size + extra + 1
+        assert (
+            b_team.score
+            == sum(range(team_size + 1, team_size + extra + 1))
+            + (team_size - extra) * penalty
+        )
+        assert b_team.scoring_members.count(f"Penalty ({penalty})") == team_size - extra
 
 
 def _seed_results(db: duckdb.DuckDBPyConnection) -> int:

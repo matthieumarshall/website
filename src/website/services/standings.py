@@ -158,6 +158,7 @@ class StandingsService:
             senior_rows = repository.load_individual_standings(
                 self._db, season_id, category
             )
+            source_categories = {row.category for row in senior_rows}
             seen = {
                 (row.athlete_name.casefold(), (row.club or "").casefold())
                 for row in senior_rows
@@ -175,13 +176,24 @@ class StandingsService:
                 ):
                     key = (row.athlete_name.casefold(), (row.club or "").casefold())
                     if key not in seen:
+                        source_categories.add(row.category)
                         senior_rows.append(
                             row.model_copy(update={"category": category})
                         )
                         seen.add(key)
-            senior_rows.sort(
-                key=lambda row: (row.total_score, -row.rounds_competed, row.position)
-            )
+            if len(source_categories) == 1 and all(
+                not row.is_imported for row in senior_rows
+            ):
+                # Calculated positions already place incomplete athletes last.
+                senior_rows.sort(key=lambda row: row.position)
+            else:
+                senior_rows.sort(
+                    key=lambda row: (
+                        row.total_score,
+                        -row.rounds_competed,
+                        row.position,
+                    )
+                )
             loaded = [
                 row.model_copy(update={"position": i})
                 for i, row in enumerate(senior_rows, 1)
