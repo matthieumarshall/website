@@ -362,12 +362,20 @@ def build_team_results_export(
     rows: Sequence[TeamRoundResult], fixture_title: str, output_format: str
 ) -> tuple[bytes, str]:
     """Build a CSV or PDF of a round's team results."""
-    header = ["Category", "Pos", "Division", "Team", "Score", "Scoring runners"]
+    has_divisions = any(row.division for row in rows)
+    header = [
+        "Category",
+        "Pos",
+        *(["Division"] if has_divisions else []),
+        "Team",
+        "Score",
+        "Scoring runners",
+    ]
     body = [
         [
             row.category,
             str(row.division_position or row.position),
-            str(row.division or ""),
+            *([str(row.division or "")] if has_divisions else []),
             row.team_name,
             str(row.score),
             ", ".join(row.scoring_members),
@@ -387,8 +395,7 @@ def build_team_results_export(
     pdf.add_font("DM Sans", fname=str(_FONT_PATH))
     pdf.set_font("DM Sans", size=8)
     for values in [header, *body]:
-        for value, width in zip(values, (30, 15, 20, 60, 20, 130), strict=True):
-            pdf.cell(width, 6, value[: int(width / 2)], border=1)
-        pdf.ln()
+        pdf.set_x(pdf.l_margin)
+        pdf.multi_cell(0, 6, " | ".join(values), border=1)
     raw = pdf.output()
     return bytes(raw) if raw is not None else b"", filename

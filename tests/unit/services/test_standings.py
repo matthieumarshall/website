@@ -1,6 +1,7 @@
 """Standings: score key resolution, recalculation and the standings tables."""
 
 from datetime import date, datetime
+from pathlib import Path
 
 import duckdb
 import pytest
@@ -101,6 +102,46 @@ def test_imported_u23_standings_appear_in_senior_table(test_db):
     assert len(service.table(season.id, "SM", "individual").rows) == 1
 
 
+def test_name_correction_migration_repairs_existing_results_and_standings(test_db):
+    season = repository.create_season(test_db, "2026-27")
+    fixture = repository.create_fixture(
+        test_db, season.id, "Round 1", "2026-10-04", "Park", "", [], ""
+    )
+    race = repository.create_race(test_db, fixture.id, "Women")
+    repository.create_result(
+        test_db, race.id, 1, "Victoria B÷deker", "00:10:00", "SW", "F", club="AC"
+    )
+    test_db.execute(
+        "INSERT INTO individual_standings "
+        "(season_id, category, position, athlete_name, total_score, is_imported) "
+        "VALUES (?, 'SW', 1, 'Victoria B÷deker', 1, true)",
+        [season.id],
+    )
+    test_db.execute(
+        "INSERT INTO team_round_results "
+        "(fixture_id, category, position, team_name, club, score, scoring_members) "
+        "VALUES (?, 'Women', 1, 'AC A', 'AC', 1, ?)",
+        [fixture.id, '["Victoria B\\u00f7deker (1)", "Another B÷deker (2)"]'],
+    )
+    migration = Path("migrations/0031_correct_victoria_bodeker.sql").read_text(
+        encoding="utf-8"
+    )
+    test_db.execute(migration)
+    test_db.execute(migration)
+    assert (
+        repository.list_results_for_race(test_db, race.id)[0].athlete_name
+        == "Victoria Bödeker"
+    )
+    assert (
+        repository.load_individual_standings(test_db, season.id, "SW")[0].athlete_name
+        == "Victoria Bödeker"
+    )
+    members = repository.list_team_round_results_for_fixture(test_db, fixture.id)[
+        0
+    ].scoring_members
+    assert members == ["Victoria Bödeker (1)", "Another B÷deker (2)"]
+
+
 def test_missing_team_round_gets_runner_penalties(test_db):
     season = repository.create_season(test_db, "2025-26")
     fixtures = []
@@ -165,6 +206,49 @@ def _seed_results(db: duckdb.DuckDBPyConnection) -> int:
     return season.id
 
 
+@pytest.mark.parametrize(
+    "race_name,category,wrong",
+    [
+        ("U10 Boys & Girls", "U10B", "U12B"),
+        ("U10 Boys", "U10B", "U10G"),
+        ("U9 Boys & Girls", "U9B", "U11B"),
+        ("Men", "SM", "U10B"),
+    ],
+)
+def test_ineligible_runners_do_not_affect_scoring(test_db, race_name, category, wrong):
+    season = repository.create_season(test_db, "2026-27")
+    fixture = repository.create_fixture(
+        test_db, season.id, "Round 1", "2026-10-04", "Park", "", [], ""
+    )
+    race = repository.create_race(test_db, fixture.id, race_name)
+    for position, (name, cat, club) in enumerate(
+        [
+            ("Guest Runner", category, "  gUeSt  "),
+            ("Wrong Race", wrong, "Other"),
+            ("Eligible One", category, "Oxford"),
+            ("Eligible Two", category, "Oxford"),
+        ],
+        1,
+    ):
+        repository.create_result(
+            test_db, race.id, position, name, "00:10:00", cat, "M", club=club
+        )
+
+    StandingsService(test_db).recalculate(season.id)
+    rows = repository.load_individual_standings(test_db, season.id, category)
+    assert {row.athlete_name for row in rows} == {"Eligible One", "Eligible Two"}
+    assert [row.total_score for row in rows] == [1, 2]
+    team_category = "Men" if race_name == "Men" else category
+    team = repository.list_team_round_results_for_fixture(
+        test_db, fixture.id, team_category
+    )[0]
+    assert team.scoring_members[:2] == ["Eligible One (1)", "Eligible Two (2)"]
+    assert all(member == "Penalty (3)" for member in team.scoring_members[2:])
+    assert team.score == 3 + 3 * (len(team.scoring_members) - 2)
+    assert len(repository.list_results_for_race(test_db, race.id)) == 4
+    assert not repository.load_individual_standings(test_db, season.id, wrong)
+
+
 class TestRecalculate:
     def test_recalculation_writes_standings_and_tables_resolve_scores(
         self, test_db: duckdb.DuckDBPyConnection
@@ -196,6 +280,10 @@ class TestRecalculate:
             "Ann (1)",
             "Ben (2)",
             "Cat (3)",
+            "Penalty (4)",
+            "Penalty (4)",
+            "Penalty (4)",
+            "Penalty (4)",
         ]
 
         team_table = service.table(season_id, "Men", "team")
@@ -252,6 +340,10 @@ class TestRecalculate:
             "A Runner (1)",
             "B Runner (2)",
             "C Runner (3)",
+            "Penalty (7)",
+            "Penalty (7)",
+            "Penalty (7)",
+            "Penalty (7)",
         ]
 
     def test_historical_odd_junior_bands_keep_individual_and_team_scores(
@@ -530,3 +622,29 @@ def test_imported_masters_are_visible_in_combined_standings(test_db):
         if item.type == "individual"
     }
     assert not categories.intersection({"M35", "M40", "M45"})
+
+
+def test_senior_display_label_retains_combined_standings(test_db):
+    season = repository.create_season(test_db, "2023-24")
+    for category, name in [
+        ("Senior Women", "Senior"),
+        ("SW", "Open"),
+        ("W35", "Master"),
+        ("U23W", "Young"),
+    ]:
+        test_db.execute(
+            "INSERT INTO individual_standings (season_id, category, position, athlete_name, club, total_score, rounds_competed, fixture_scores, is_imported) VALUES (?, ?, 1, ?, 'AC', 1, 1, '{}', true)",
+            [season.id, category, name],
+        )
+    service = StandingsService(test_db)
+    tabs = [c for c in service.overview(season.id).categories if c.type == "individual"]
+    assert next(c for c in tabs if c.category == "Senior Women").count == 4
+    assert not any(c.category in {"SW", "W35", "U23W"} for c in tabs)
+    for category in ("Senior Women", "SW"):
+        rows = service.table(season.id, category, "individual").rows
+        assert {r.athlete_name for r in rows if isinstance(r, IndividualStanding)} == {
+            "Senior",
+            "Open",
+            "Master",
+            "Young",
+        }

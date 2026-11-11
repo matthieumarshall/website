@@ -135,6 +135,8 @@ def _parse_csv_row(row: list[str], col_map: dict[str, int]) -> ParsedResult | No
     last = _get_field(row, col_map, "last_name")
     full_name = _get_field(row, col_map, "name")
     athlete_name = f"{first} {last}" if first and last else full_name or first or last
+    if athlete_name == "Victoria B÷deker":
+        athlete_name = "Victoria Bödeker"
     if not position_text or not athlete_name:
         return None
     try:

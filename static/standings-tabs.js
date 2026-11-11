@@ -35,8 +35,10 @@
 
     if (rows <= 1) return;
 
-    // Distribute evenly: ceil(n / rows) buttons per row.
+    // Keep buttons wide enough for their labels, even in a balanced row.
     var cols = Math.ceil(buttons.length / rows);
+    var widest = Math.max.apply(null, buttons.map(function (b) { return b.offsetWidth; }));
+    cols = Math.max(1, Math.min(cols, Math.floor((containerWidth + gap) / (widest + gap))));
     var btnW = Math.floor((containerWidth - gap * (cols - 1)) / cols);
     buttons.forEach(function (b) {
       b.style.flexBasis = btnW + 'px';

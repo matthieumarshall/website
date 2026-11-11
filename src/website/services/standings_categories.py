@@ -153,6 +153,10 @@ _CATEGORY_ALIASES.update(
     }
 )
 _RACE_ALIASES = {
+    "senior men": "Men",
+    "senior women": "Women",
+    "senior men race": "Men",
+    "senior women race": "Women",
     "u20/senior/masters men": "Men",
     "u20/senior/masters women": "Women",
 }
@@ -280,7 +284,8 @@ def merge_standing_categories(
         if category.category not in {"U23M", "U23W"}
         and category.category not in incompatible_junior_codes
     }
-    for category in stored:
+    stored_categories = list(stored)
+    for category in stored_categories:
         if category.type == "individual":
             canonical = scoring_category(category.category, season_name)
             if canonical != category.category:
@@ -301,6 +306,17 @@ def merge_standing_categories(
             if current is None
             else current.model_copy(update={"count": current.count + category.count})
         )
+    for category in stored_categories:
+        if category.type == "individual" and category.category.strip().casefold() in {
+            "senior men",
+            "senior women",
+        }:
+            canonical = scoring_category(category.category, season_name)
+            existing = merged.pop((canonical, "individual"), None)
+            if existing:
+                merged[(category.category, "individual")] = existing.model_copy(
+                    update={"category": category.category}
+                )
     return sorted(
         merged.values(),
         key=lambda item: (
@@ -322,8 +338,9 @@ def _category_sort_key(category: str) -> tuple[int, int, int, str]:
         gender_order = {"B": 0, "G": 1, "M": 0, "W": 1}.get(junior.group(2), 0)
         return (0, int(junior.group(1)), gender_order, category)
 
-    if category in {"SM", "SW"}:
-        return (1, 0, 0 if category == "SM" else 1, category)
+    senior = scoring_category(category)
+    if senior in {"SM", "SW"}:
+        return (1, 0, 0 if senior == "SM" else 1, category)
 
     masters = re.fullmatch(r"(?:MV|WV|M|W)(\d+)", category)
     if masters:
