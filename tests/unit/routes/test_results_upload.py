@@ -503,3 +503,30 @@ def test_staff_can_add_and_edit_protected_result(
         repository.list_results_for_race(test_db, race.id)[0].athlete_name
         == "Corrected Runner"
     )
+
+
+def test_manual_result_routes_enforce_round_ownership_and_delete(
+    admin_client, test_db, race_upload_fixture
+):
+    _, fixture_id = race_upload_fixture
+    other = repository.create_fixture(
+        test_db, race_upload_fixture[0], "Other", "2026-04-01", "V", "A", [], ""
+    )
+    race = repository.create_race(test_db, fixture_id, "Men")
+    result = repository.create_result(
+        test_db, race.id, 1, "Runner", "30:00", "SM", "M", club="AC"
+    )
+    token = _csrf(admin_client)
+    wrong = admin_client.post(
+        f"/fixtures/{other.id}/race/{race.id}/results/{result.id}/delete",
+        data={"csrf_token": token},
+    )
+    assert wrong.status_code == 404
+    assert repository.get_result_by_id(test_db, result.id) is not None
+    response = admin_client.post(
+        f"/fixtures/{fixture_id}/race/{race.id}/results/{result.id}/delete",
+        data={"csrf_token": token},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert repository.get_result_by_id(test_db, result.id) is None

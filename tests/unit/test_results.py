@@ -287,3 +287,64 @@ def test_results_race_table_empty_state(test_client, test_db):
     resp = test_client.get(f"/results/race-table?race_id={race.id}")
     assert resp.status_code == 200
     assert "No results available" in resp.text
+
+
+def test_manual_results_validate_ownership_and_roll_back_failed_recalculation(
+    test_db, monkeypatch
+):
+    import pytest
+
+    from website.errors import NotFoundError, ValidationError
+    from website.services.results import ResultsService
+
+    season = _make_season(test_db)
+    fixture = _make_fixture(test_db, season.id)
+    other = _make_fixture(test_db, season.id, "Round 2")
+    race = _make_race(test_db, fixture.id)
+    other_race = _make_race(test_db, other.id)
+    result = _make_result(test_db, race.id)
+    service = ResultsService(test_db)
+    with pytest.raises(NotFoundError):
+        service.race_panel(other.id, race.id)
+    with pytest.raises(NotFoundError):
+        service.create_manual_result(99999, 1, "Runner", "30:00", "SM", "M")
+    with pytest.raises(ValidationError):
+        service.create_manual_result(race.id, 1, " ", "30:00", "SM", "M")
+    with pytest.raises(NotFoundError):
+        service.update_manual_result(
+            other_race.id, result.id, 1, "Runner", "30:00", "SM", "M"
+        )
+    with pytest.raises(NotFoundError):
+        service.delete_result(other_race.id, result.id)
+
+    def fail_recalculation(*args):
+        raise RuntimeError("scoring failed")
+
+    monkeypatch.setattr(
+        "website.services.results.recalculate_standings", fail_recalculation
+    )
+    with pytest.raises(RuntimeError, match="scoring failed"):
+        service.update_manual_result(
+            race.id, result.id, 1, "Changed", "30:00", "SM", "M"
+        )
+    assert (
+        repository.list_results_for_race(test_db, race.id)[0].athlete_name
+        == result.athlete_name
+    )
+    with pytest.raises(RuntimeError, match="scoring failed"):
+        service.delete_result(race.id, result.id)
+    assert repository.list_results_for_race(test_db, race.id)[0].id == result.id
+
+
+def test_edit_of_legacy_result_preserves_original_import_identity(test_db):
+    from website.services.results import ResultsService
+
+    season = _make_season(test_db)
+    fixture = _make_fixture(test_db, season.id)
+    race = _make_race(test_db, fixture.id)
+    result = _make_result(test_db, race.id, race_number=None, club="Original AC")
+    edited = ResultsService(test_db).update_manual_result(
+        race.id, result.id, 1, "Corrected Runner", "30:00", "SM", "M", club="Other AC"
+    )
+    assert edited.external_key == "name:alice smith|original ac"
+    assert edited.is_locked
