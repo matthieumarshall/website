@@ -221,6 +221,32 @@ class ResultsImportService:
         if fixture is None:
             raise NotFoundError("Fixture not found")
 
+        def identity(number: int | None, name: str, club: str | None) -> str:
+            if number is not None:
+                return f"number:{number}"
+            return f"name:{name.strip().casefold()}|{(club or '').strip().casefold()}"
+
+        incoming_keys = [
+            identity(r.race_number, r.athlete_name, r.club) for r in parsed_results
+        ]
+        if len(incoming_keys) != len(set(incoming_keys)):
+            raise ValidationError(
+                "The CSV contains ambiguous duplicate result identities."
+            )
+        protected = [
+            r
+            for r in repository.list_results_for_race(self._db, race.id)
+            if r.is_locked or r.source == "manual"
+        ]
+        protected_keys = [
+            r.external_key or identity(r.race_number, r.athlete_name, r.club)
+            for r in protected
+        ]
+        if len(protected_keys) != len(set(protected_keys)):
+            raise ValidationError(
+                "Protected results have ambiguous duplicate identities."
+            )
+        protected_set = set(protected_keys)
         rows = [
             (
                 race.id,
@@ -233,29 +259,24 @@ class ResultsImportService:
                 result.gender,
                 result.gender_position,
                 result.club,
+                identity(result.race_number, result.athlete_name, result.club),
             )
             for result in parsed_results
+            if identity(result.race_number, result.athlete_name, result.club)
+            not in protected_set
         ]
 
         self._db.execute("BEGIN")
         committed = False
         try:
-            repository.delete_results_for_race(self._db, race.id)
-            repository.create_results_batch(self._db, rows)
+            repository.delete_unlocked_imported_results_for_race(self._db, race.id)
+            repository.create_imported_results_batch(self._db, rows)
+            recalculate_standings(self._db, fixture.season_id)
             self._db.execute("COMMIT")
             committed = True
         finally:
             if not committed:
                 self._db.execute("ROLLBACK")
-
-        try:
-            recalculate_standings(self._db, fixture.season_id)
-        except Exception as exc:  # noqa: BLE001 — import is committed; standings are retried separately
-            _logger.warning(
-                "Standings recalculation warning for season %s after CSV import: %s",
-                fixture.season_id,
-                exc,
-            )
 
         return ResultsImportSummary(
             race_id=race.id,

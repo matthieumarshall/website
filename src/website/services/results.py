@@ -1,5 +1,7 @@
 """Race results browsing, export and source PDF lookup."""
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Literal
 
@@ -7,11 +9,13 @@ from pydantic import BaseModel, ConfigDict
 
 from website import repository
 from website.db import Connection
-from website.errors import NotFoundError
+from website.errors import NotFoundError, ValidationError
 from website.export import filter_results
 from website.models import Fixture, Race, Result, Season, TeamRoundResult
 from website.services._common import found
 from website.services.archive import stored_file
+from website.services.standings_calculator import recalculate_standings
+from website.services.standings_categories import scoring_category, uses_masters_bands
 from website.services.team_divisions import with_divisions
 
 ResultsViewMode = Literal["individual", "team"]
@@ -131,8 +135,8 @@ class ResultsService:
             races=races,
             active_race=active_race,
             race_results=(
-                repository.list_results_for_race(db, active_race.id)
-                if active_race
+                self._display_results(active_race, active_fixture.season_id)
+                if active_race and active_fixture
                 else []
             ),
             team_round_results=(
@@ -167,6 +171,8 @@ class ResultsService:
         races = repository.list_races_for_fixture(db, fixture_id)
         if race_id is not None:
             active_race = repository.get_race_by_id(db, race_id)
+            if active_race is None or active_race.fixture_id != fixture_id:
+                raise NotFoundError("Race not found")
         else:
             active_race = races[0] if races else None
         return RacePanel(
@@ -174,7 +180,7 @@ class ResultsService:
             races=races,
             active_race=active_race,
             race_results=(
-                repository.list_results_for_race(db, active_race.id)
+                self._display_results(active_race, fixture.season_id)
                 if active_race
                 else []
             ),
@@ -193,7 +199,135 @@ class ResultsService:
             NotFoundError: If the race does not exist.
         """
         race = found(repository.get_race_by_id(self._db, race_id), "Race not found")
-        return race, repository.list_results_for_race(self._db, race_id)
+        fixture = found(
+            repository.get_fixture_by_id(self._db, race.fixture_id), "Round not found"
+        )
+        return race, self._display_results(race, fixture.season_id)
+
+    def _display_results(self, race: Race, season_id: int) -> list[Result]:
+        results = repository.list_results_for_race(self._db, race.id)
+        season = repository.get_season_by_id(self._db, season_id)
+        if season is None or not uses_masters_bands(season.name):
+            return results
+        labels = {
+            scoring_category(r.category, season.name): r.category
+            for r in results
+            if r.category.strip().casefold()
+            in {"senior men", "senior women", "sm", "sw"}
+        }
+        counts: dict[str, int] = {}
+        displayed = []
+        for result in sorted(results, key=lambda r: r.position):
+            category = scoring_category(result.category, season.name)
+            counts[category] = counts.get(category, 0) + 1
+            displayed.append(
+                result.model_copy(
+                    update={
+                        "category": labels.get(category, category),
+                        "category_position": counts[category],
+                    }
+                )
+            )
+        return displayed
+
+    @contextmanager
+    def _result_change(self, race_id: int) -> Iterator[None]:
+        race = found(repository.get_race_by_id(self._db, race_id), "Race not found")
+        fixture = found(
+            repository.get_fixture_by_id(self._db, race.fixture_id), "Round not found"
+        )
+        self._db.execute("BEGIN")
+        try:
+            yield
+            recalculate_standings(self._db, fixture.season_id)
+            self._db.execute("COMMIT")
+        except Exception:
+            self._db.execute("ROLLBACK")
+            raise
+
+    def create_manual_result(  # noqa: PLR0913
+        self,
+        race_id: int,
+        position: int,
+        athlete_name: str,
+        time: str,
+        category: str,
+        gender: str,
+        race_number: int | None = None,
+        category_position: int | None = None,
+        gender_position: int | None = None,
+        club: str | None = None,
+    ) -> Result:
+        """Add a staff-owned result that synchronisation must retain."""
+        if repository.get_race_by_id(self._db, race_id) is None:
+            raise NotFoundError("Race not found")
+        if not athlete_name.strip() or not time.strip() or not category.strip():
+            raise ValidationError("Name, time and category are required")
+        with self._result_change(race_id):
+            result = repository.create_result(
+                self._db,
+                race_id,
+                position,
+                athlete_name.strip(),
+                time.strip(),
+                category.strip(),
+                gender.strip(),
+                race_number,
+                category_position,
+                gender_position,
+                club.strip() if club else None,
+            )
+            return found(
+                repository.lock_result(self._db, result.id), "Result not found"
+            )
+
+    def update_manual_result(  # noqa: PLR0913
+        self,
+        race_id: int,
+        result_id: int,
+        position: int,
+        athlete_name: str,
+        time: str,
+        category: str,
+        gender: str,
+        race_number: int | None = None,
+        category_position: int | None = None,
+        gender_position: int | None = None,
+        club: str | None = None,
+    ) -> Result:
+        """Save a staff correction, retaining it on later imports."""
+        result = found(
+            repository.get_result_by_id(self._db, result_id), "Result not found"
+        )
+        if result.race_id != race_id:
+            raise NotFoundError("Result not found")
+        with self._result_change(race_id):
+            return found(
+                repository.update_result(
+                    self._db,
+                    result_id,
+                    position,
+                    athlete_name.strip(),
+                    time.strip(),
+                    category.strip(),
+                    gender.strip(),
+                    race_number,
+                    category_position,
+                    gender_position,
+                    club.strip() if club else None,
+                ),
+                "Result not found",
+            )
+
+    def delete_result(self, race_id: int, result_id: int) -> None:
+        """Delete one result after ensuring it belongs to the selected race."""
+        result = found(
+            repository.get_result_by_id(self._db, result_id), "Result not found"
+        )
+        if result.race_id != race_id:
+            raise NotFoundError("Result not found")
+        with self._result_change(race_id):
+            repository.delete_result(self._db, result_id)
 
     def export(self, race_id: int, filters: ResultFilters) -> ResultsExport:
         """Return a race's results filtered for export.

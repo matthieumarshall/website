@@ -106,14 +106,15 @@ def recalculate_standings(db: Connection, season_id: int) -> None:
         raise NotFoundError(f"Season {season_id} not found")
     fixtures = repository.list_fixtures_for_season(db, season_id)
     if not fixtures:
-        _logger.info("Season %s has no fixtures; nothing to calculate.", season_id)
+        repository.replace_calculated_individual_standings(db, season_id, [])
+        repository.replace_calculated_team_standings(db, season_id, [])
         return
 
     # r1 = earliest fixture, r2 = next, …; must stay consistent across calls.
     round_for_fixture = {f.id: f"r{i + 1}" for i, f in enumerate(fixtures)}
     scorers = _Scorers(_build_season_config(list(round_for_fixture.values())))
     for fixture in fixtures:
-        _load_fixture(db, scorers, fixture, round_for_fixture[fixture.id])
+        _load_fixture(db, scorers, fixture, round_for_fixture[fixture.id], season.name)
     scorers.run()
 
     fixture_for_round = {rn: fid for fid, rn in round_for_fixture.items()}
@@ -134,7 +135,11 @@ def recalculate_standings(db: Connection, season_id: int) -> None:
 
 
 def _load_fixture(
-    db: Connection, scorers: _Scorers, fixture: Fixture, round_number: str
+    db: Connection,
+    scorers: _Scorers,
+    fixture: Fixture,
+    round_number: str,
+    season_name: str,
 ) -> None:
     grouped: dict[str, list[Result]] = {}
     for race in repository.list_races_for_fixture(db, fixture.id):
@@ -144,6 +149,8 @@ def _load_fixture(
     for race_name, results in grouped.items():
         race_result = DomainRaceResult(race_name=race_name, round_number=round_number)
         for result in results:
+            if not result.club:
+                continue
             race_result.add_athlete(
                 Athlete(
                     name=result.athlete_name,
@@ -156,7 +163,7 @@ def _load_fixture(
                     position=result.position,
                     time=_parse_time(result.time),
                     gender=result.gender,
-                    category=scoring_category(result.category),
+                    category=scoring_category(result.category, season_name),
                 )
             )
         scorers.race_results.save_race_result(race_result)

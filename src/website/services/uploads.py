@@ -152,7 +152,11 @@ class FileStore:
         target = directory / new_name
         if source.name != filename:
             target = archived_path(target)
-        shutil.copyfile(source, target)
+        try:
+            shutil.copyfile(source, target)
+        except BaseException:
+            target.unlink(missing_ok=True)
+            raise
         return new_name
 
     def delete(self, filename: str, subdirectory: str = "") -> None:

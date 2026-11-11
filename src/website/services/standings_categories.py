@@ -13,6 +13,9 @@ from pyresults import (
 
 from website.models import StandingCategory
 
+_MASTERS_BANDS_START_YEAR = 2023
+_MASTERS_SENIOR_AGE = 35
+_MASTERS_FIRST_AGE = 40
 _JUNIOR_TEAM_SIZE = 3
 _EVEN_JUNIOR_FORMAT_START_YEAR = 2026
 _HISTORICAL_JUNIOR_CATEGORY_CODES = (
@@ -192,10 +195,26 @@ def _uses_even_junior_categories(season_name: str) -> bool:
     return bool(match and int(match.group(1)) >= _EVEN_JUNIOR_FORMAT_START_YEAR)
 
 
-def scoring_category(category: str) -> str:
+def uses_masters_bands(season_name: str) -> bool:
+    """Apply ten-year masters bands from the 2023-24 season."""
+    match = re.search(r"\b(\d{4})\b", season_name)
+    return bool(match and int(match.group(1)) >= _MASTERS_BANDS_START_YEAR)
+
+
+def scoring_category(category: str, season_name: str = "") -> str:
     """Return the canonical category code used for scoring."""
     stripped = category.strip()
-    return _CATEGORY_ALIASES.get(stripped.casefold(), stripped)
+    canonical = _CATEGORY_ALIASES.get(stripped.casefold(), stripped)
+    if uses_masters_bands(season_name):
+        match = re.fullmatch(r"([MW])(?:V)?(\d+)", canonical.upper())
+        if match:
+            gender, age_text = match.groups()
+            age = int(age_text)
+            if age == _MASTERS_SENIOR_AGE:
+                return "SM" if gender == "M" else "SW"
+            if age >= _MASTERS_FIRST_AGE:
+                return f"{gender}V{min(age // 10 * 10, 70)}"
+    return canonical
 
 
 def team_race_name(race_name: str) -> str:
@@ -219,7 +238,10 @@ def standing_category_catalog(season_name: str) -> list[StandingCategory]:
     for category in config.category_config.get_categories_by_type(
         CategoryType.INDIVIDUAL
     ):
-        if category.code in incompatible_junior_codes:
+        if category.code in incompatible_junior_codes or (
+            uses_masters_bands(season_name)
+            and scoring_category(category.code, season_name) != category.code
+        ):
             continue
         catalog[(category.code, "individual")] = StandingCategory(
             category=category.code, type="individual", count=0
@@ -259,14 +281,17 @@ def merge_standing_categories(
         and category.category not in incompatible_junior_codes
     }
     for category in stored:
-        if category.type == "individual" and category.category in {"U23M", "U23W"}:
-            senior = "SM" if category.category == "U23M" else "SW"
-            senior_key = (senior, category.type)
-            senior_category = merged[senior_key]
-            merged[senior_key] = senior_category.model_copy(
-                update={"count": senior_category.count + category.count}
-            )
-            continue
+        if category.type == "individual":
+            canonical = scoring_category(category.category, season_name)
+            if canonical != category.category:
+                canonical_key = (canonical, category.type)
+                current = merged.get(canonical_key)
+                merged[canonical_key] = (
+                    current or category.model_copy(update={"category": canonical})
+                ).model_copy(
+                    update={"count": (current.count if current else 0) + category.count}
+                )
+                continue
         if category.category in incompatible_junior_codes:
             continue
         key = (category.category, category.type)

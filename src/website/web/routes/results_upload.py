@@ -3,9 +3,10 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Form, Request, UploadFile
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
-from website.errors import ConflictError, ValidationError
+from website.errors import ConflictError, NotFoundError, ValidationError
+from website.models.forms import ResultForm
 from website.services.results_import import ResultsImportSummary
 from website.web.csrf import CsrfProtected
 from website.web.deps import (
@@ -182,4 +183,62 @@ async def fixture_upload_race_csv(  # noqa: PLR0913 — route deps and form fiel
         upload_summary=summary,
         upload_error=error,
         upload_error_race_id=race_id,
+    )
+
+
+def _check_race_owner(fixture_id: int, race_id: int, results_svc: Results) -> None:
+    race, _ = results_svc.race_results(race_id)
+    if race.fixture_id != fixture_id:
+        raise NotFoundError("Race not found")
+
+
+@router.post("/{fixture_id}/race/{race_id}/results")
+def add_manual_result(
+    fixture_id: int,
+    race_id: int,
+    form: Annotated[ResultForm, Form()],
+    _: RequireStaff,
+    _csrf: CsrfProtected,
+    results_svc: Results,
+) -> RedirectResponse:
+    """Add a protected result to a race in this round."""
+    _check_race_owner(fixture_id, race_id, results_svc)
+    results_svc.create_manual_result(race_id, **form.model_dump())
+    return RedirectResponse(
+        f"/results?fixture_id={fixture_id}&race_id={race_id}", status_code=303
+    )
+
+
+@router.post("/{fixture_id}/race/{race_id}/results/{result_id}/edit")
+def edit_manual_result(
+    fixture_id: int,
+    race_id: int,
+    result_id: int,
+    form: Annotated[ResultForm, Form()],
+    _: RequireStaff,
+    _csrf: CsrfProtected,
+    results_svc: Results,
+) -> RedirectResponse:
+    """Edit and protect a result in this round."""
+    _check_race_owner(fixture_id, race_id, results_svc)
+    results_svc.update_manual_result(race_id, result_id, **form.model_dump())
+    return RedirectResponse(
+        f"/results?fixture_id={fixture_id}&race_id={race_id}", status_code=303
+    )
+
+
+@router.post("/{fixture_id}/race/{race_id}/results/{result_id}/delete")
+def remove_manual_result(
+    fixture_id: int,
+    race_id: int,
+    result_id: int,
+    _: RequireStaff,
+    _csrf: CsrfProtected,
+    results_svc: Results,
+) -> RedirectResponse:
+    """Remove one result from this round."""
+    _check_race_owner(fixture_id, race_id, results_svc)
+    results_svc.delete_result(race_id, result_id)
+    return RedirectResponse(
+        f"/results?fixture_id={fixture_id}&race_id={race_id}", status_code=303
     )

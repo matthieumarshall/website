@@ -110,7 +110,7 @@ def test_fixture_upload_replaces_only_the_selected_race(
     )
 
     assert response.status_code == 200
-    assert "Imported 1 results. The previous results were replaced." in response.text
+    assert "Imported 1 results. Protected manual results were kept." in response.text
     assert [
         result.athlete_name
         for result in repository.list_results_for_race(test_db, race.id)
@@ -142,7 +142,7 @@ def test_results_page_upload_returns_updated_race_panel(
 
     assert response.status_code == 200
     assert "Uploaded Runner" in response.text
-    assert "Imported 1 results. The previous results were replaced." in response.text
+    assert "Imported 1 results. Protected manual results were kept." in response.text
     assert "Individual Results" in response.text
     assert "Team Results" in response.text
     assert "Team scores for Round 5" not in response.text
@@ -375,3 +375,43 @@ def test_results_panel_direct_requests_render_full_page(
     )
     assert "<html" in season_page.text
     assert 'value="team"' in season_page.text
+
+
+def test_staff_can_add_and_edit_protected_result(
+    admin_client, test_db, race_upload_fixture
+):
+    _, fixture_id = race_upload_fixture
+    race = repository.create_race(test_db, fixture_id, "Senior Men")
+    form = {
+        "csrf_token": _csrf(admin_client),
+        "position": "1",
+        "athlete_name": "Runner One",
+        "time": "00:30:00",
+        "category": "SM",
+        "gender": "Male",
+        "club": "Oxford AC",
+    }
+    response = admin_client.post(
+        f"/fixtures/{fixture_id}/race/{race.id}/results",
+        data=form,
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    result = repository.list_results_for_race(test_db, race.id)[0]
+    assert result.is_locked
+    form.update(
+        athlete_name="Corrected Runner",
+        race_number="",
+        category_position="",
+        gender_position="",
+    )
+    response = admin_client.post(
+        f"/fixtures/{fixture_id}/race/{race.id}/results/{result.id}/edit",
+        data=form,
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert (
+        repository.list_results_for_race(test_db, race.id)[0].athlete_name
+        == "Corrected Runner"
+    )
