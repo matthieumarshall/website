@@ -119,8 +119,9 @@ def recalculate_standings(db: Connection, season_id: int) -> None:
     scorers.run()
 
     fixture_for_round = {rn: fid for fid, rn in round_for_fixture.items()}
+    _complete_missing_a_team_results(scorers, fixture_for_round)
     repository.replace_calculated_individual_standings(
-        db, season_id, _individual_rows(scorers.individual_scores, fixture_for_round)
+        db, season_id, _individual_rows(scorers, fixture_for_round)
     )
     repository.replace_calculated_team_standings(
         db,
@@ -133,6 +134,46 @@ def recalculate_standings(db: Connection, season_id: int) -> None:
     _logger.info(
         "Standings recalculated for season %s (%d fixtures).", season_id, len(fixtures)
     )
+
+
+def _complete_missing_a_team_results(
+    scorers: _Scorers, fixture_for_round: dict[str, int]
+) -> None:
+    """Include absent A teams in each scored round's team results."""
+    results = scorers.team_round_results
+    existing = {(row.fixture_id, row.category, row.team_name) for row in results}
+    for category, scores in scorers.team_scores.all_scores().items():
+        team_size = scorers.config.category_config.get_category(category).team_size
+        if team_size is None:
+            continue
+        for score in scores:
+            club, label = _split_team_name(score.name)
+            if label != "A":
+                continue
+            for round_number, total in scorers.team_penalties.get(category, {}).items():
+                fixture_id = fixture_for_round[round_number]
+                if (fixture_id, category, score.name) in existing:
+                    continue
+                results.append(
+                    CalculatedTeamRoundResult(
+                        fixture_id=fixture_id,
+                        category=category,
+                        position=1,
+                        team_name=score.name,
+                        club=club,
+                        team_label=label,
+                        score=total,
+                        scoring_members=[f"Penalty ({total // team_size})"] * team_size,
+                    )
+                )
+    groups: dict[tuple[int, str], list[CalculatedTeamRoundResult]] = {}
+    for result in results:
+        groups.setdefault((result.fixture_id, result.category), []).append(result)
+    scorers.team_round_results = [
+        row.model_copy(update={"position": position})
+        for group in groups.values()
+        for position, row in enumerate(sorted(group, key=lambda row: row.score), 1)
+    ]
 
 
 def _load_fixture(
@@ -298,23 +339,35 @@ def _capped(total: int) -> int:
 
 
 def _individual_rows(
-    score_repo: InMemoryScoreRepository, fixture_for_round: dict[str, int]
+    scorers: _Scorers, fixture_for_round: dict[str, int]
 ) -> list[CalculatedIndividualStanding]:
     rows: list[CalculatedIndividualStanding] = []
-    for category, scores in score_repo.all_scores().items():
-        for position, score in enumerate(scores, start=1):
+    for category, scores in scorers.individual_scores.all_scores().items():
+        race_name = scorers.config.category_config.get_category(category).race_name
+        rounds_held = sum(
+            scorers.race_results.exists(race_name, round_number)
+            for round_number in scorers.config.round_numbers
+        )
+        rounds_to_count = max(1, rounds_held - 1)
+        # Preserve the library's order for equal totals, including its tie breaks.
+        ranked_scores = sorted(
+            scores,
+            key=lambda score: (
+                len(score.round_scores) < rounds_to_count,
+                sum(sorted(score.round_scores.values())[:rounds_to_count]),
+            ),
+        )
+        for position, score in enumerate(ranked_scores, start=1):
             rounds_competed = len(score.round_scores)
-            # Same counting rule as IndividualScoreService: drop the worst round.
-            rounds_to_count = (
-                max(1, rounds_competed - 1) if rounds_competed > 1 else rounds_competed
-            )
             rows.append(
                 CalculatedIndividualStanding(
                     category=category,
                     position=position,
                     athlete_name=score.name,
                     club=score.club,
-                    total_score=_capped(score.calculate_total_score(rounds_to_count)),
+                    total_score=_capped(
+                        sum(sorted(score.round_scores.values())[:rounds_to_count])
+                    ),
                     rounds_competed=rounds_competed,
                     fixture_scores=_fixture_scores(
                         score.round_scores, fixture_for_round
@@ -340,7 +393,17 @@ def _team_rows(
     rows: list[CalculatedTeamStanding] = []
     for category, scores in score_repo.all_scores().items():
         filled_scores = [
-            (score, {**penalties.get(category, {}), **score.round_scores})
+            (
+                score,
+                {
+                    **(
+                        penalties.get(category, {})
+                        if _split_team_name(score.name)[1] == "A"
+                        else {}
+                    ),
+                    **score.round_scores,
+                },
+            )
             for score in scores
         ]
         filled_scores.sort(

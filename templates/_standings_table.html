@@ -89,8 +89,8 @@
 </div>
 {% if standings_type == "individual" %}
 <p class="text-muted small mt-1">
-  Individual total = sum of best {{ fixtures | length - 1 if fixtures | length > 1 else 1 }} round score(s) (lowest positions wins).
-  Scores shown are finishing positions; lower is better.
+  Individual total = sum of the best scores from all completed rounds except one (or the Round 1 score on its own).
+  Athletes with fewer counting scores are listed below those with enough scores. Lower is better.
 </p>
 {% else %}
 <p class="text-muted small mt-1">
