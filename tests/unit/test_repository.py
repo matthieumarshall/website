@@ -671,3 +671,78 @@ class TestWinnerOverridesRepository:
 
         repository.delete_winner_override(db, override.id)
         assert repository.get_winner_override(db, override.id) is None
+
+
+def test_round_timetable_links_and_empty_schedule(db):
+    from website.models import TimetableEntry
+    from website.repository.fixtures import replace_timetable_items
+
+    season = _make_season(db)
+    fixture = repository.create_fixture(
+        db, season.id, "Round", "2025-09-01", "V", "A", [], ""
+    )
+    other = repository.create_fixture(
+        db, season.id, "Other", "2025-10-01", "V", "A", [], ""
+    )
+    race = repository.create_race(db, fixture.id, "Under 13")
+    foreign = repository.create_race(db, other.id, "Other race")
+    items = replace_timetable_items(
+        db, fixture.id, [TimetableEntry(time="10:00", event="Start", race_id=race.id)]
+    )
+    item_id = items[0].id
+    items = replace_timetable_items(
+        db, fixture.id, [items[0].model_copy(update={"time": "10:05"})]
+    )
+    assert items[0].id == item_id and items[0].race_id == race.id
+    with pytest.raises(ValueError, match="belong"):
+        replace_timetable_items(
+            db,
+            fixture.id,
+            [TimetableEntry(time="11:00", event="Wrong", race_id=foreign.id)],
+        )
+    replace_timetable_items(db, fixture.id, [])
+    empty_fixture = repository.get_fixture_by_id(db, fixture.id)
+    assert empty_fixture is not None
+    assert empty_fixture.timetable == []
+
+
+def test_copy_round_remaps_schedule_race_without_copying_results(db):
+    import json
+    from unittest.mock import Mock
+
+    from website.models import TimetableEntry
+    from website.models.forms import FixtureForm
+    from website.repository.fixtures import replace_timetable_items
+    from website.services.fixtures import FixtureService
+
+    season = _make_season(db)
+    source = repository.create_fixture(
+        db, season.id, "Source", "2025-09-01", "V", "A", [], ""
+    )
+    race = repository.create_race(db, source.id, "Under 13")
+    repository.create_result(db, race.id, 1, "Runner One", "00:30:00", "U13B", "Male")
+    replace_timetable_items(
+        db,
+        source.id,
+        [TimetableEntry(time="10:00", event="Junior start", race_id=race.id)],
+    )
+    service = FixtureService(db, Mock(), Mock())
+    prefill = service.prefill_from(source.id, ["timetable", "races"])
+    form = FixtureForm(
+        title="Copy",
+        date="2025-10-01",
+        location_name="V",
+        address="A",
+        latitude="51",
+        longitude="-1",
+        timetable_json=json.dumps([e.model_dump() for e in prefill.timetable]),
+        copy_from_fixture_id=source.id,
+        copy_races=True,
+    )
+    copied = service.create_fixture(season.id, form)
+    copied = repository.get_fixture_by_id(db, copied.id)
+    assert copied is not None
+    races = repository.list_races_for_fixture(db, copied.id)
+    assert len(races) == 1 and races[0].id != race.id
+    assert copied.timetable[0].race_id == races[0].id
+    assert repository.list_results_for_race(db, races[0].id) == []

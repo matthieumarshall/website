@@ -84,7 +84,8 @@ Planned islands:
 - Season selector with HTMX partial swap — **DONE**
 
 ### 3.2 Fixture CRUD
-- Create / edit / delete fixtures per season — **DONE**
+- Create / edit rounds per season - **DONE**
+- Delete rounds and races with dependent data - **OUTSTANDING**: rounds containing races are currently blocked from deletion. DuckDB foreign-key checks can reject deleting children and their parent in one transaction. Design and test safe atomic deletion of results, timetable links, documents, maps and standings before enabling it.
 - Copy fixture — **DONE**
 - Fixture detail panel (HTMX tab interaction) — **DONE**
 - Timetable editor (JSON array, custom JS) — **DONE**

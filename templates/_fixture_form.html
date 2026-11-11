@@ -1,21 +1,21 @@
 {% extends "base.html" %}
 
 {# src = existing fixture (edit) or source fixture (copy); None for a blank create #}
-{% set src = fixture or prefill %}
+{% set src = form_source or fixture or prefill %}
 
 {% block title %}
-  {% if fixture %}Edit Fixture
+  {% if fixture %}Edit Round
   {% elif copy_mode %}Copy Fixture
-  {% else %}New Fixture
+  {% else %}New Round
   {% endif %} — My Website
 {% endblock %}
 
 {% block content %}
 <div class="mb-4">
   <h1 class="h3">
-    {% if fixture %}Edit Fixture
+    {% if fixture %}Edit Round
     {% elif copy_mode %}Copy Fixture
-    {% else %}New Fixture
+    {% else %}New Round
     {% endif %}
   </h1>
   {% if season and not copy_mode %}<p class="text-muted mb-0">Season: {{ season.name }}</p>{% endif %}
@@ -29,17 +29,17 @@
 </div>
 {% endif %}
 
-{% if not fixture and not copy_mode and copy_groups %}
+{% if copy_groups %}
 <form
   method="get"
-  action="/fixtures/seasons/{{ season.id }}/fixtures/new"
+  action="{% if fixture %}/fixtures/seasons/{{ season.id }}/fixtures/{{ fixture.id }}/edit{% else %}/fixtures/seasons/{{ season.id }}/fixtures/new{% endif %}"
   id="fixture-copy-picker"
   class="card card-body mb-4"
 >
   <fieldset>
-    <legend class="fs-6 fw-semibold">Copy details from an existing fixture</legend>
+    <legend class="fs-6 fw-semibold">Copy parts from another round</legend>
     <div class="mb-2">
-      <label for="copy-from-select" class="form-label">Fixture</label>
+      <label for="copy-from-select" class="form-label">Source round</label>
       <select id="copy-from-select" name="copy_from" class="form-select" required>
         <option value="">Choose a fixture…</option>
         {% for group in copy_groups %}
@@ -52,14 +52,14 @@
       </select>
     </div>
     <div class="mb-2" role="group" aria-label="Details to copy">
-      {% for key, label in [('location', 'Location and address'), ('timetable', 'Timetable'), ('travel', 'Travel instructions'), ('maps', 'Course maps')] %}
+      {% for key, label in [('location', 'Location and address'), ('timetable', 'Timetable'), ('races', 'Races and start times'), ('travel', 'Travel instructions'), ('maps', 'Course maps')] %}
       <div class="form-check form-check-inline">
         <input class="form-check-input" type="checkbox" name="parts" id="copy-part-{{ key }}" value="{{ key }}" {% if key in copy_parts %}checked{% endif %}>
         <label class="form-check-label" for="copy-part-{{ key }}">{{ label }}</label>
       </div>
       {% endfor %}
     </div>
-    <button type="submit" class="btn btn-sm btn-outline-primary">Load details</button>
+    <button type="submit" class="btn btn-sm btn-outline-primary">Load selected parts</button>
   </fieldset>
 </form>
 {% endif %}
@@ -74,6 +74,9 @@
   {# Timetable rows are serialised to JSON by timetable-editor.js on submit #}
   <input type="hidden" name="timetable_json" id="timetable-json-input">
   {% if copy_source_id and not fixture %}
+  <input type="hidden" name="copy_from_fixture_id" value="{{ copy_source_id }}">
+  {% endif %}
+  {% if copy_source_id and fixture %}
   <input type="hidden" name="copy_from_fixture_id" value="{{ copy_source_id }}">
   {% endif %}
 
@@ -99,7 +102,7 @@
   {% endif %}
 
   <div class="mb-3">
-    <label for="fixture-title" class="form-label">Title <span aria-hidden="true" class="text-danger">*</span></label>
+    <label for="fixture-title" class="form-label">Round title <span aria-hidden="true" class="text-danger">*</span></label>
     <input
       type="text"
       class="form-control"
@@ -112,7 +115,7 @@
   </div>
 
   <div class="mb-3">
-    <label for="fixture-date" class="form-label">Date <span aria-hidden="true" class="text-danger">*</span></label>
+    <label for="fixture-date" class="form-label">Round date <span aria-hidden="true" class="text-danger">*</span></label>
     <input
       type="date"
       class="form-control"
@@ -226,6 +229,10 @@
   {# ---- Timetable ---- #}
   <fieldset class="mb-3">
     <legend class="fs-6 fw-semibold">Timetable</legend>
+    <template id="timetable-race-options">
+      <option value="">No linked race</option>
+      {% for race in races|default([]) %}<option value="{{ race.id }}">{{ race.name }}</option>{% endfor %}
+    </template>
     <div id="timetable-rows">
       {% if src and src.timetable %}
         {% for entry in src.timetable %}
@@ -245,6 +252,12 @@
             value="{{ entry.event }}"
             maxlength="255"
           >
+          <input type="hidden" data-timetable="id" value="{{ entry.id or '' }}">
+          <input type="hidden" data-timetable="source_race_id" value="{{ entry.source_race_id or '' }}">
+          <select class="form-select w-auto" data-timetable="race_id" aria-label="Linked race">
+            <option value="">No linked race</option>
+            {% for race in races|default([]) %}<option value="{{ race.id }}" {% if entry.race_id == race.id %}selected{% endif %}>{{ race.name }}</option>{% endfor %}
+          </select>
           <button
             type="button"
             class="btn btn-outline-danger btn-sm flex-shrink-0"
@@ -269,10 +282,14 @@
     >{{ src.travel_instructions if src else '' }}</textarea>
   </div>
 
-  {% if copy_source_id and not fixture %}
+  {% if copy_source_id %}
   <div class="form-check mb-3">
     <input class="form-check-input" type="checkbox" name="copy_maps" id="copy-maps" value="true" {% if 'maps' in copy_parts %}checked{% endif %}>
     <label class="form-check-label" for="copy-maps">Also copy the course map images from the source fixture</label>
+  </div>
+  <div class="form-check mb-3">
+    <input class="form-check-input" type="checkbox" name="copy_races" id="copy-races" value="true" {% if 'races' in copy_parts %}checked{% endif %}>
+    <label class="form-check-label" for="copy-races">Also copy linked races and their results-integration settings</label>
   </div>
   {% endif %}
 
@@ -280,7 +297,7 @@
     <button type="submit" class="btn btn-primary">
       {% if fixture %}Save Changes
       {% elif copy_mode %}Save Copy
-      {% else %}Create Fixture
+      {% else %}Create Round
       {% endif %}
     </button>
     <a

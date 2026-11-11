@@ -1,9 +1,9 @@
 {% if not selected_season %}
 <p class="text-muted">No season selected.</p>
 {% elif not fixtures %}
-<p class="text-muted">No fixtures for {{ selected_season.name }} yet.</p>
+<p class="text-muted">No rounds for {{ selected_season.name }} yet.</p>
 {% else %}
-<nav aria-label="Fixture tabs" class="mb-3">
+<nav aria-label="Round tabs" class="mb-3">
   <div class="btn-group flex-wrap" role="group">
     {% for fixture in fixtures %}
     <button
@@ -13,9 +13,9 @@
       hx-get="/fixtures/fixture-detail?fixture_id={{ fixture.id }}&season_id={{ selected_season.id }}"
       hx-target="#fixture-detail"
       hx-swap="innerHTML"
-      aria-label="Fixture {{ loop.index }}: {{ fixture.title }}"
+      aria-label="Round {{ fixture.round_number or loop.index }}: {{ fixture.title }}"
       aria-pressed="{{ 'true' if active_fixture and active_fixture.id == fixture.id else 'false' }}"
-    >{{ loop.index }}. {{ fixture.title }}</button>
+    >Round {{ fixture.round_number or loop.index }}. {{ fixture.title }}</button>
     {% endfor %}
   </div>
 </nav>

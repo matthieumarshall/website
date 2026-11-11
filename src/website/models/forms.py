@@ -5,7 +5,7 @@ browsers send ``"on"`` when ticked and omit the field otherwise.  Values are
 kept as submitted; services own normalisation and business validation.
 """
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class _Form(BaseModel):
@@ -56,12 +56,35 @@ class FixtureForm(_Form):
     # Set when the fixture was prefilled from another one.
     copy_from_fixture_id: int | None = None
     copy_maps: bool = False
+    copy_races: bool = False
 
 
 class FixtureCopyForm(FixtureForm):
     """A fixture copied into a (possibly different) season."""
 
     season_id: int
+
+
+class ResultForm(_Form):
+    """A staff-created or corrected race result."""
+
+    position: int
+    athlete_name: str
+    time: str
+    category: str
+    gender: str
+    race_number: int | None = None
+    category_position: int | None = None
+    gender_position: int | None = None
+    club: str = ""
+
+    @field_validator(
+        "race_number", "category_position", "gender_position", mode="before"
+    )
+    @classmethod
+    def blank_number_is_none(cls, value: object) -> object:
+        """Accept blank optional numeric inputs from HTML forms."""
+        return None if value == "" else value
 
 
 class ClubForm(_Form):
