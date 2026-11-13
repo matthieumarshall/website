@@ -116,8 +116,9 @@ jobs:
           # Semgrep 1.182.1 pins mcp==1.29.0 and opentelemetry-api~=1.37.0.
           # The MCP advisories affect its HTTP clients, server auth, and tool-result
           # validation; this job runs the Semgrep scan CLI and uses none of those paths.
-          # The OpenTelemetry advisory affects inbound trace-context parsing, which this
-          # CLI does not expose. Remove these exceptions when Semgrep updates its pins.
+          # The OpenTelemetry advisories affect inbound trace-context parsing, including
+          # GHSA-mf5v-w3w3-f6cg (ReDoS). This CI scan does not accept inbound trace
+          # contexts. Remove these exceptions when Semgrep updates its pins.
           uv run pip-audit \
             -r "$audit_requirements" \
             --ignore CVE-2026-4539 \
@@ -129,7 +130,8 @@ jobs:
             --ignore GHSA-5h93-6whr-6q8j \
             --ignore GHSA-w4fh-qvv9-3v23 \
             --ignore GHSA-rwrf-2pqf-9j8j \
-            --ignore GHSA-xcq7-p3pf-p88h || exit 1
+            --ignore GHSA-xcq7-p3pf-p88h \
+            --ignore GHSA-mf5v-w3w3-f6cg || exit 1
 
       - name: gitleaks - Scan for secrets
         uses: gitleaks/gitleaks-action@v2
