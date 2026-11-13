@@ -48,7 +48,9 @@ class TestFixtureDocuments:
         assert picker.locator("optgroup").count() >= 1
 
         picker.select_option(index=1)
-        admin_browser.locator("button:has-text('Load details')").click()
+        assert admin_browser.locator("#copy-part-timetable").is_checked()
+        assert admin_browser.locator("#copy-part-races").is_checked()
+        admin_browser.get_by_role("button", name="Load selected parts").click()
         admin_browser.wait_for_load_state("networkidle")
         assert admin_browser.locator("input[name='copy_from_fixture_id']").count() == 1
         assert admin_browser.input_value("#fixture-title") != ""

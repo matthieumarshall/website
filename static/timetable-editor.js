@@ -39,6 +39,13 @@ function addTimetableRow() {
 
   row.appendChild(timeInput);
   row.appendChild(eventInput);
+  const raceSelect = document.createElement("select");
+  raceSelect.className = "form-select w-auto";
+  raceSelect.dataset.timetable = "race_id";
+  raceSelect.setAttribute("aria-label", "Linked race");
+  const options = document.getElementById("timetable-race-options");
+  if (options) raceSelect.appendChild(options.content.cloneNode(true));
+  row.appendChild(raceSelect);
   row.appendChild(removeBtn);
   container.appendChild(row);
 }
@@ -60,7 +67,10 @@ function serializeTimetable() {
     const time = (row.querySelector("[data-timetable='time']") || {}).value || "";
     const event = (row.querySelector("[data-timetable='event']") || {}).value || "";
     if (time.trim() || event.trim()) {
-      entries.push({ time: time.trim(), event: event.trim() });
+      const id = (row.querySelector("[data-timetable='id']") || {}).value;
+      const raceId = (row.querySelector("[data-timetable='race_id']") || {}).value;
+      const sourceRaceId = (row.querySelector("[data-timetable='source_race_id']") || {}).value;
+      entries.push({ time: time.trim(), event: event.trim(), id: id ? Number(id) : null, race_id: raceId ? Number(raceId) : null, source_race_id: sourceRaceId ? Number(sourceRaceId) : null });
     }
   });
 

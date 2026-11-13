@@ -1,6 +1,9 @@
 """Seasons, fixtures and fixture images."""
 
 import datetime as dt
+import logging
+from collections.abc import Iterator
+from contextlib import contextmanager
 
 from pydantic import BaseModel, ConfigDict
 from pydantic import ValidationError as PydanticValidationError
@@ -21,7 +24,10 @@ from website.models import (
 from website.models.fixtures import parse_timetable_json
 from website.models.forms import FixtureForm
 from website.services._common import found
+from website.services.standings_calculator import recalculate_standings
 from website.services.uploads import FileStore, UploadedFile
+
+_logger = logging.getLogger(__name__)
 
 
 class FixturesView(BaseModel):
@@ -68,7 +74,7 @@ class FixtureImages(BaseModel):
     images: list[FixtureImage]
 
 
-COPY_PARTS = ("location", "timetable", "travel", "maps")
+COPY_PARTS = ("location", "timetable", "races", "travel", "maps")
 
 
 def _prefill(source: Fixture, parts: frozenset[str]) -> Fixture:
@@ -84,9 +90,39 @@ def _prefill(source: Fixture, parts: frozenset[str]) -> Fixture:
         )
     if "timetable" not in parts:
         blank["timetable"] = []
+    else:
+        blank["timetable"] = [
+            e.model_copy(
+                update={"id": None, "source_race_id": e.race_id, "race_id": None}
+            )
+            for e in source.timetable
+        ]
     if "travel" not in parts:
         blank["travel_instructions"] = ""
     return source.model_copy(update=blank)
+
+
+def _copy_parts(target: Fixture, source: Fixture, parts: frozenset[str]) -> Fixture:
+    """Overlay selected reusable round definition parts onto *target*."""
+    updates: dict[str, object] = {}
+    if "location" in parts:
+        updates.update(
+            location_name=source.location_name,
+            address=source.address,
+            latitude=source.latitude,
+            longitude=source.longitude,
+            what3words=source.what3words,
+        )
+    if "timetable" in parts:
+        updates["timetable"] = [
+            e.model_copy(
+                update={"id": None, "source_race_id": e.race_id, "race_id": None}
+            )
+            for e in source.timetable
+        ]
+    if "travel" in parts:
+        updates["travel_instructions"] = source.travel_instructions
+    return target.model_copy(update=updates)
 
 
 def _validated_fixture(form: FixtureForm) -> FixtureCreate:
@@ -275,11 +311,59 @@ class FixtureService:
         chosen = frozenset(COPY_PARTS if parts is None else parts)
         return _prefill(self.get_fixture(source_id), chosen)
 
-    def _copy_images(self, source_id: int, target_id: int) -> None:
+    def copy_parts_into(
+        self, target_id: int, source_id: int, parts: list[str] | None = None
+    ) -> Fixture:
+        """Return a target round prefilled with selected parts from another round."""
+        chosen = frozenset(COPY_PARTS if parts is None else parts)
+        return _copy_parts(
+            self.get_fixture(target_id), self.get_fixture(source_id), chosen
+        )
+
+    @contextmanager
+    def _round_change(self) -> Iterator[list[str]]:
+        """Commit a round change as a unit and clean up copied files on failure."""
+        copied_files: list[str] = []
+        self._db.execute("BEGIN")
+        try:
+            yield copied_files
+            self._db.execute("COMMIT")
+        except BaseException:
+            try:
+                self._db.execute("ROLLBACK")
+            except Exception:
+                _logger.exception("Could not roll back round changes")
+            for filename in copied_files:
+                try:
+                    self._images.delete(filename)
+                except Exception:
+                    _logger.exception(
+                        "Could not remove copied round image %s", filename
+                    )
+            raise
+
+    def _copy_images(
+        self, source_id: int, target_id: int, copied_files: list[str]
+    ) -> None:
         for image in repository.list_fixture_images(self._db, source_id):
-            repository.create_fixture_image(
-                self._db, target_id, self._images.copy(image.filename)
-            )
+            filename = self._images.copy(image.filename)
+            copied_files.append(filename)
+            repository.create_fixture_image(self._db, target_id, filename)
+
+    def _copy_races(self, source_id: int, target_id: int) -> dict[int, int]:
+        """Clone missing races and connect matching copied schedule entries."""
+        mapping: dict[int, int] = {}
+        for source_race in repository.list_races_for_fixture(self._db, source_id):
+            race = repository.get_race_by_name(self._db, target_id, source_race.name)
+            if race is None:
+                race = repository.create_race(
+                    self._db,
+                    target_id,
+                    source_race.name,
+                    display_order=source_race.display_order,
+                )
+            mapping[source_race.id] = race.id
+        return mapping
 
     def create_fixture(self, season_id: int, form: FixtureForm) -> Fixture:
         """Create a fixture, using supplied coordinates or geocoding its address.
@@ -292,25 +376,46 @@ class FixtureService:
         fixture = _validated_fixture(form)
         what3words = _what3words(fixture)
         latitude, longitude = self._coordinates(fixture)
-        try:
-            created = repository.create_fixture(
-                self._db,
-                season_id=season_id,
-                title=fixture.title,
-                date=str(fixture.date),
-                location_name=fixture.location_name,
-                address=fixture.address,
-                timetable=fixture.timetable,
-                travel_instructions=fixture.travel_instructions,
-                latitude=latitude,
-                longitude=longitude,
-                what3words=what3words,
-            )
-        except ValueError as exc:
-            raise ConflictError(str(exc)) from exc
-        if form.copy_maps and form.copy_from_fixture_id is not None:
-            self._copy_images(form.copy_from_fixture_id, created.id)
-        return created
+        if (
+            form.copy_maps or form.copy_races
+        ) and form.copy_from_fixture_id is not None:
+            self.get_fixture(form.copy_from_fixture_id)
+        with self._round_change() as copied_files:
+            try:
+                created = repository.create_fixture(
+                    self._db,
+                    season_id=season_id,
+                    title=fixture.title,
+                    date=str(fixture.date),
+                    location_name=fixture.location_name,
+                    address=fixture.address,
+                    timetable=fixture.timetable,
+                    travel_instructions=fixture.travel_instructions,
+                    latitude=latitude,
+                    longitude=longitude,
+                    what3words=what3words,
+                )
+            except ValueError as exc:
+                raise ConflictError(str(exc)) from exc
+            if form.copy_maps and form.copy_from_fixture_id is not None:
+                self._copy_images(form.copy_from_fixture_id, created.id, copied_files)
+            if form.copy_races and form.copy_from_fixture_id is not None:
+                mapping = self._copy_races(form.copy_from_fixture_id, created.id)
+                repository.replace_timetable_items(
+                    self._db,
+                    created.id,
+                    [
+                        e.model_copy(
+                            update={
+                                "race_id": mapping.get(e.source_race_id)
+                                if e.source_race_id
+                                else e.race_id
+                            }
+                        )
+                        for e in fixture.timetable
+                    ],
+                )
+            return self.get_fixture(created.id)
 
     def update_fixture(self, fixture_id: int, form: FixtureForm) -> Fixture:
         """Update a fixture, using supplied coordinates or geocoding its address.
@@ -323,24 +428,59 @@ class FixtureService:
         fixture = _validated_fixture(form)
         what3words = _what3words(fixture)
         latitude, longitude = self._coordinates(fixture)
-        updated = repository.update_fixture(
-            self._db,
-            fixture_id=fixture_id,
-            title=fixture.title,
-            date=str(fixture.date),
-            location_name=fixture.location_name,
-            address=fixture.address,
-            timetable=fixture.timetable,
-            travel_instructions=fixture.travel_instructions,
-            latitude=latitude,
-            longitude=longitude,
-            what3words=what3words,
-        )
-        return found(updated, "Fixture not found")
+        if (
+            form.copy_maps or form.copy_races
+        ) and form.copy_from_fixture_id is not None:
+            self.get_fixture(form.copy_from_fixture_id)
+        with self._round_change() as copied_files:
+            try:
+                updated = repository.update_fixture(
+                    self._db,
+                    fixture_id=fixture_id,
+                    title=fixture.title,
+                    date=str(fixture.date),
+                    location_name=fixture.location_name,
+                    address=fixture.address,
+                    timetable=fixture.timetable,
+                    travel_instructions=fixture.travel_instructions,
+                    latitude=latitude,
+                    longitude=longitude,
+                    what3words=what3words,
+                )
+            except ValueError as exc:
+                raise ValidationError(str(exc)) from exc
+            updated = found(updated, "Fixture not found")
+            if form.copy_maps and form.copy_from_fixture_id is not None:
+                self._copy_images(form.copy_from_fixture_id, fixture_id, copied_files)
+            if form.copy_races and form.copy_from_fixture_id is not None:
+                mapping = self._copy_races(form.copy_from_fixture_id, fixture_id)
+                repository.replace_timetable_items(
+                    self._db,
+                    fixture_id,
+                    [
+                        e.model_copy(
+                            update={
+                                "race_id": mapping.get(e.source_race_id)
+                                if e.source_race_id
+                                else e.race_id
+                            }
+                        )
+                        for e in fixture.timetable
+                    ],
+                )
+            return self.get_fixture(fixture_id)
 
-    def delete_fixture(self, fixture_id: int) -> None:
-        """Delete a fixture."""
+    def delete_fixture(self, fixture_id: int, confirmed: bool = False) -> None:
+        """Delete a round and recalculate its season atomically."""
+        fixture = self.get_fixture(fixture_id)
+        if repository.fixture_has_results(self._db, fixture_id) and not confirmed:
+            raise ConflictError("Confirm deletion of this round and its results.")
+        if repository.list_races_for_fixture(self._db, fixture_id):
+            raise ConflictError(
+                "Deleting a round with races is not yet supported safely."
+            )
         repository.delete_fixture(self._db, fixture_id)
+        recalculate_standings(self._db, fixture.season_id)
 
     def _gallery(self, fixture: Fixture | None, fixture_id: int) -> FixtureImages:
         return FixtureImages(

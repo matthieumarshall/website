@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Fixtures — Oxfordshire Cross Country League{% endblock %}
+{% block title %}Rounds — Oxfordshire Cross Country League{% endblock %}
 
 {% block extra_head %}
 <link rel="stylesheet" href="/static/leaflet.min.css">
@@ -9,7 +9,7 @@
 
 {% block content %}
 <div>
-  <h1 class="h3 mb-3">Fixtures</h1>
+  <h1 class="h3 mb-3">Rounds</h1>
 
   <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
     {% if seasons %}
@@ -50,8 +50,8 @@
     <a
       href="/fixtures/seasons/{{ selected_season.id }}/fixtures/new"
       class="btn btn-outline-secondary btn-sm"
-      aria-label="Add new fixture"
-    >+ Add Fixture</a>
+      aria-label="Add new round"
+    >+ Add Round</a>
 
     <form
       action="/fixtures/seasons/{{ selected_season.id }}/delete"

@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Form, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 
+from website.errors import NotFoundError
 from website.models.forms import FixtureCopyForm, FixtureForm, SeasonForm
 from website.services.fixtures import COPY_PARTS, FixtureImages
 from website.web.csrf import CsrfProtected
@@ -202,11 +203,30 @@ def fixtures_edit_form(
     _: RequireStaff,
     service: Fixtures,
     ui: RendererDep,
+    results_svc: Results,
+    copy_from: int | None = None,
+    parts: Annotated[list[str] | None, Query()] = None,
 ) -> HTMLResponse:
-    """HTMX: show a fixture's edit form."""
+    """Show a round editor, optionally prefilled from another round."""
     season = service.get_season(season_id)
     fixture = service.get_fixture(fixture_id)
-    return ui.page(request, _FORM, _PAGE, season=season, fixture=fixture)
+    if fixture.season_id != season_id:
+        raise NotFoundError("Round not found")
+    form_source = (
+        service.copy_parts_into(fixture_id, copy_from, parts) if copy_from else None
+    )
+    return ui.page(
+        request,
+        _FORM,
+        _PAGE,
+        season=season,
+        fixture=fixture,
+        form_source=form_source,
+        copy_source_id=copy_from,
+        copy_parts=list(COPY_PARTS) if parts is None else parts,
+        copy_groups=service.copy_sources(),
+        races=results_svc.race_panel(fixture_id).races,
+    )
 
 
 @router.post(f"{_FIXTURE}/edit")
@@ -219,6 +239,8 @@ def fixtures_update_fixture(
     service: Fixtures,
 ) -> RedirectResponse:
     """Staff: save a fixture."""
+    if service.get_fixture(fixture_id).season_id != season_id:
+        raise NotFoundError("Round not found")
     service.update_fixture(fixture_id, form)
     return _season_redirect(season_id)
 
@@ -230,9 +252,12 @@ def fixtures_delete_fixture(
     _: RequireStaff,
     _csrf: CsrfProtected,
     service: Fixtures,
+    confirmed: Annotated[bool, Form()] = False,
 ) -> RedirectResponse:
     """Staff: delete a fixture."""
-    service.delete_fixture(fixture_id)
+    if service.get_fixture(fixture_id).season_id != season_id:
+        raise NotFoundError("Round not found")
+    service.delete_fixture(fixture_id, confirmed)
     return _season_redirect(season_id)
 
 

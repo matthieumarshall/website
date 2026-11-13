@@ -10,12 +10,21 @@ MAX_FIXTURES_PER_SEASON = 5
 
 
 class TimetableEntry(BaseModel):
-    """One row of a fixture's race timetable."""
+    """One scheduled item in a round timetable.
+
+    A schedule item may be an operational event, or it can point at the race
+    that it schedules.  Keeping the link optional preserves items such as
+    course inspection and prize giving.
+    """
 
     model_config = ConfigDict(frozen=True)
 
     event: str
     time: str
+    id: int | None = None
+    race_id: int | None = None
+    source_race_id: int | None = None
+    display_order: int = 0
 
 
 def parse_timetable_json(timetable_json: str) -> list[TimetableEntry]:
@@ -36,7 +45,15 @@ def parse_timetable_json(timetable_json: str) -> list[TimetableEntry]:
             event = str(item.get("event", "")).strip()
             time = str(item.get("time", "")).strip()
             if event or time:
-                entries.append(TimetableEntry(event=event, time=time))
+                entries.append(
+                    TimetableEntry(
+                        event=event,
+                        time=time,
+                        id=item.get("id"),
+                        race_id=item.get("race_id"),
+                        source_race_id=item.get("source_race_id"),
+                    )
+                )
     return entries
 
 
@@ -63,6 +80,7 @@ class Fixture(BaseModel):
 
     id: int
     season_id: int
+    round_number: int | None = None
     title: str
     date: date
     location_name: str
