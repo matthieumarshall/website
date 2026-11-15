@@ -10,6 +10,17 @@ from website.models import TeamRoundResult, TeamStanding
 
 TeamRow = TypeVar("TeamRow", TeamRoundResult, TeamStanding)
 
+# Temporary mappings for names used in imported results. Keep assignment names
+# unchanged; a club identity and alias model should eventually replace these.
+_CLUB_ALIASES = {
+    "abingdon ac": "abingdon athletics club",
+    "banbury harriers ac": "banbury harriers athletic club",
+    "headington rr": "headington road runners",
+    "highworth rc": "highworth running club",
+    "radley athletic club": "radley ac",
+    "team kennet tri": "team kennet triathlon & ac",
+}
+
 
 def _score(row: TeamRoundResult | TeamStanding) -> int:
     return row.score if isinstance(row, TeamRoundResult) else row.total_score
@@ -36,7 +47,10 @@ def with_divisions(
         if gender is None:
             output.append(row)
             continue
-        division = assignments.get((gender, (row.club or "").strip().casefold()), 3)
+        club = (row.club or "").strip().casefold()
+        division = assignments.get((gender, club))
+        if division is None:
+            division = assignments.get((gender, _CLUB_ALIASES.get(club, club)), 3)
         groups[(category, division)].append(row)
     for (_, division), group in groups.items():
         group.sort(key=_score)
