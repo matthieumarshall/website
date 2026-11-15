@@ -45,6 +45,7 @@ from website.models import (
     Fixture,
     Result,
 )
+from website.services.club_identity import ClubRegistry
 from website.services.standings_categories import (
     add_oxl_categories,
     category_gender_matches,
@@ -121,8 +122,11 @@ def recalculate_standings(db: Connection, season_id: int) -> None:
     scorers = _Scorers(
         _build_season_config(list(round_for_fixture.values()), season.name)
     )
+    clubs = ClubRegistry.load(db)
     for fixture in fixtures:
-        _load_fixture(db, scorers, fixture, round_for_fixture[fixture.id], season.name)
+        _load_fixture(
+            db, scorers, fixture, round_for_fixture[fixture.id], season.name, clubs
+        )
     scorers.run()
 
     fixture_for_round = {rn: fid for fid, rn in round_for_fixture.items()}
@@ -196,6 +200,7 @@ def _load_fixture(
     fixture: Fixture,
     round_number: str,
     season_name: str,
+    clubs: ClubRegistry,
 ) -> None:
     grouped: dict[str, list[Result]] = {}
     for race in repository.list_races_for_fixture(db, fixture.id):
@@ -213,10 +218,11 @@ def _load_fixture(
         for position, result in enumerate(
             sorted(eligible, key=lambda r: r.position), 1
         ):
+            club = clubs.resolve(result.club)
             race_result.add_athlete(
                 Athlete(
                     name=result.athlete_name,
-                    club=result.club or "",
+                    club=club.name if club else result.club or "",
                     race_number=(
                         str(result.race_number)
                         if result.race_number is not None

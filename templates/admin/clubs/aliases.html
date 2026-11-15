@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Result club names — Oxfordshire Cross Country League{% endblock %}
+{% block content %}
+<a href="/admin/clubs" class="btn btn-outline-secondary btn-sm mb-3">&larr; Back to clubs</a>
+<h1 class="h3">Result club names</h1>
+<p>Link names used in imported results to member clubs. Recalculate standings after changing a name to combine teams across rounds.</p>
+{% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+<form method="post" action="/admin/clubs/aliases" class="row g-2 align-items-end mb-4">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <div class="col-md-4"><label class="form-label" for="alias-name">Result name</label><input id="alias-name" name="name" class="form-control" required></div>
+  <div class="col-md-4"><label class="form-label" for="alias-club">Club</label><select id="alias-club" name="club_id" class="form-select" required>{% for club in clubs %}<option value="{{ club.id }}">{{ club.name }}</option>{% endfor %}</select></div>
+  <div class="col-auto"><button class="btn btn-primary" type="submit">Add name</button></div>
+</form>
+<h2 class="h5">Names needing review</h2>
+<p>These names do not identify a single member club. Some may be guests or non-member clubs.</p>
+{% if unresolved %}<ul>{% for name in unresolved %}<li>{{ name }}</li>{% endfor %}</ul>{% else %}<p>None.</p>{% endif %}
+<h2 class="h5">Linked names</h2>
+{% if aliases %}<table class="table table-sm"><thead><tr><th scope="col">Result name</th><th scope="col">Club</th><th scope="col">Action</th></tr></thead><tbody>
+{% for alias in aliases %}<tr><td>{{ alias.name }}</td><td>{% for club in clubs if club.id == alias.club_id %}{{ club.name }}{% endfor %}</td><td><form method="post" action="/admin/clubs/aliases/{{ alias.id }}/delete"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn-outline-danger btn-sm" type="submit">Remove</button></form></td></tr>{% endfor %}
+</tbody></table>{% else %}<p>No linked names.</p>{% endif %}
+{% endblock %}

@@ -104,7 +104,7 @@ def test_csv_team_standings_use_team_name() -> None:
     )
     parsed = list(csv.reader(io.StringIO(text)))
     assert parsed[0][1] == "Team"
-    assert parsed[1][:3] == ["1", "Oxford City A", "Oxford City AC"]
+    assert parsed[1][:4] == ["", "Oxford City A", "Oxford City AC", ""]
     assert filename.endswith("_team.csv")
 
 

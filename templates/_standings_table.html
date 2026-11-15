@@ -3,7 +3,7 @@
 {% if not rows %}
 <p class="text-muted py-2">No standings data available for {{ category }}.</p>
 {% else %}
-{% set has_divisions = rows | selectattr("division", "defined") | selectattr("division") | list %}
+{% set has_divisions = standings_type == "team" and category | lower in ("men", "women", "senior men", "senior women") %}
 {% if has_divisions %}
 <label for="team-division-filter" class="form-label">Division</label>
 <select id="team-division-filter" class="form-select form-select-sm w-auto" data-team-filter><option value="">All divisions</option>{% for div in (1, 2, 3) %}<option value="{{ div }}">Division {{ div }}</option>{% endfor %}</select>
@@ -47,8 +47,8 @@
       {% for row in rows %}
       {% set scores = row.scores_by_fixture if row.scores_by_fixture is defined else (row.fixture_scores | fromjson if row.fixture_scores else {}) %}
       <tr data-team-division="{{ row.division if row.division is defined and row.division else '' }}">
-        <td>{{ row.division_position if row.division_position is defined and row.division_position else row.position }}</td>
-        {% if has_divisions %}<td>{{ row.division or '-' }}</td>{% endif %}
+        <td>{{ (row.division_position or '—') if has_divisions else row.position }}</td>
+        {% if has_divisions %}<td>{{ row.division or 'Unassigned' }}</td>{% endif %}
         {% if standings_type == "team" %}
         <td>{{ row.team_name }}</td>
         {% else %}

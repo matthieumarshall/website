@@ -6,6 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from website.models.competition import Team
+
 ScoreValue = int | float | str
 StandingsType = Literal["individual", "team"]
 
@@ -38,6 +40,7 @@ class TeamStanding(_StandingBase):
 
     team_name: str
     team_label: str | None
+    team: Team | None = None
     division: int | None = None
     division_position: int | None = None
 
@@ -80,6 +83,7 @@ class _TeamRoundResultData(BaseModel):
     team_name: str
     club: str | None
     team_label: str | None
+    team: Team | None = None
     score: int
     scoring_members: list[str]
     division: int | None = None

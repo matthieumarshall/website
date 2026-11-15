@@ -144,6 +144,9 @@ def test_name_correction_migration_repairs_existing_results_and_standings(test_d
 
 def test_missing_a_team_round_gets_penalties_b_team_round_stays_blank(test_db):
     season = repository.create_season(test_db, "2025-26")
+    for code, name in (("ALP", "Alpha"), ("BET", "Beta")):
+        club = repository.create_club(test_db, name, code)
+        repository.create_division_assignment(test_db, season.id, club.id, "men", 3)
     fixtures = []
     for number in (1, 2, 3):
         fixture = repository.create_fixture(
@@ -411,8 +414,8 @@ class TestRecalculate:
 
         panel = ResultsService(test_db).race_panel(team_fixture.id)
         assert panel.team_round_results[0].team_name == round_results[0].team_name
-        assert panel.team_round_results[0].division == 3
-        assert panel.team_round_results[0].division_position == 1
+        assert panel.team_round_results[0].division is None
+        assert panel.team_round_results[0].division_position is None
 
     def test_round_results_rank_teams_within_the_fixture(
         self, test_db: duckdb.DuckDBPyConnection

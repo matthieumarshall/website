@@ -246,6 +246,9 @@ def test_team_round_scores_render_on_results_and_standings_pages(
     race_upload_fixture: tuple[int, int],
 ) -> None:
     season_id, fixture_id = race_upload_fixture
+    for name, code in (("Oxford City AC", "OXC"), ("Witney AC", "WIT")):
+        club = repository.create_club(test_db, name, code)
+        repository.create_division_assignment(test_db, season_id, club.id, "men", 3)
     race = repository.create_race(test_db, fixture_id, "Men")
     runners = [
         ("A Runner", "Oxford City AC"),

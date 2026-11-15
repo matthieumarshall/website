@@ -1,5 +1,5 @@
   {% set category_rows = team_round_results | selectattr("category", "equalto", category) | list %}
-  {% set has_divisions = category_rows | selectattr("division") | list %}
+  {% set has_divisions = category | lower in ("men", "women", "senior men", "senior women") %}
   {% if has_divisions %}<label for="team-division-filter" class="form-label">Division</label>
   <select id="team-division-filter" class="form-select form-select-sm w-auto mb-2" data-team-filter><option value="">All divisions</option>{% for div in (1, 2, 3) %}<option value="{{ div }}">Division {{ div }}</option>{% endfor %}</select>
   {% endif %}
@@ -18,8 +18,8 @@
       <tbody>
         {% for result in team_round_results if result.category == category %}
         <tr data-team-division="{{ result.division or '' }}">
-          <td>{{ result.division_position or result.position }}</td>
-          {% if has_divisions %}<td>{{ result.division or '—' }}</td>{% endif %}
+          <td>{{ (result.division_position or '—') if has_divisions else result.position }}</td>
+          {% if has_divisions %}<td>{{ result.division or 'Unassigned' }}</td>{% endif %}
           <td>{{ result.team_name }}</td>
           <td>{{ result.score }}</td>
           <td>

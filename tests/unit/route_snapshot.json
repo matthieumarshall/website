@@ -21,6 +21,10 @@
   ],
   [
     "GET",
+    "/admin/clubs/aliases"
+  ],
+  [
+    "GET",
     "/admin/clubs/new"
   ],
   [
@@ -286,6 +290,14 @@
   [
     "POST",
     "/admin/clubs"
+  ],
+  [
+    "POST",
+    "/admin/clubs/aliases"
+  ],
+  [
+    "POST",
+    "/admin/clubs/aliases/{alias_id}/delete"
   ],
   [
     "POST",
