@@ -128,7 +128,7 @@ def test_individual_results_combine_u23_with_seniors(
     from website.services.results import ResultsService
 
     rows = ResultsService(test_db).race_results(race.id)[1]
-    assert [row.category_position for row in rows] == [1, None, 2]
+    assert [row.category_position for row in rows] == [1, 2, 3]
     assert repository.list_results_for_race(test_db, race.id)[0].category == under23
 
 

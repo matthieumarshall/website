@@ -201,3 +201,42 @@ def test_parse_firstname_and_surname_headers():
 
     rows = parse_csv_results("Pos,Firstname,Surname\n1,Ada,Lovelace")
     assert rows[0].athlete_name == "Ada Lovelace"
+
+
+def test_repeated_full_name_warning_does_not_change_name(test_db):
+    from website import repository
+    from website.services.results_import import ResultsImportService
+
+    season = repository.create_season(test_db, "2026-2027")
+    fixture = repository.create_fixture(
+        test_db, season.id, "Round 1", "2026-11-01", "Park", "", [], ""
+    )
+    race = repository.create_race(test_db, fixture.id, "Women")
+    summary = ResultsImportService(test_db).ingest_csv(
+        fixture.id,
+        race.id,
+        "Pos,Name,Time,Category,Gender,Club\n1,Nicola Dawson Nicola Dawson,30:00,SW,Female,AC\n",
+    )
+    assert summary.repeated_names == ["Nicola Dawson Nicola Dawson"]
+    assert (
+        repository.list_results_for_race(test_db, race.id)[0].athlete_name
+        == summary.repeated_names[0]
+    )
+
+
+def test_import_warns_about_unknown_and_incompatible_categories(test_db):
+    from website import repository
+    from website.services.results_import import ResultsImportService
+
+    season = repository.create_season(test_db, "2026-2027")
+    fixture = repository.create_fixture(
+        test_db, season.id, "Round 1", "2026-11-01", "Park", "", [], ""
+    )
+    race = repository.create_race(test_db, fixture.id, "U12 Boys & Girls")
+    summary = ResultsImportService(test_db).ingest_csv(
+        fixture.id,
+        race.id,
+        "Pos,Name,Time,Category,Gender,Club\n1,Unknown Runner,6:00,Unknown,Male,AC\n2,Wrong Runner,6:10,U12B,Female,AC\n3,Wrong Race,6:20,U14B,Male,AC\n",
+    )
+    assert len(summary.category_warnings) == 3
+    assert len(repository.list_results_for_race(test_db, race.id)) == 3

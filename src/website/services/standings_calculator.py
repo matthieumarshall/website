@@ -47,9 +47,11 @@ from website.models import (
 )
 from website.services.standings_categories import (
     add_oxl_categories,
+    category_gender_matches,
     scoring_category,
     team_race_name,
 )
+from website.services.standings_freshness import input_fingerprint, record_calculation
 
 _logger = logging.getLogger(__name__)
 _MAX_TOTAL = 99999
@@ -57,6 +59,7 @@ _CAPPED_TOTAL = 999999
 _TIME_PARTS_HMS = 3
 _TIME_PARTS_MS = 2
 _OPEN_CATEGORIES = ("Men", "Women")
+_WOMENS_FOUR_SCORER_START = 2025
 
 
 class _Scorers:
@@ -112,25 +115,35 @@ def recalculate_standings(db: Connection, season_id: int) -> None:
         return
 
     # r1 = earliest fixture, r2 = next, …; must stay consistent across calls.
+    fingerprint = input_fingerprint(db, season_id)
     round_for_fixture = {f.id: f"r{i + 1}" for i, f in enumerate(fixtures)}
-    scorers = _Scorers(_build_season_config(list(round_for_fixture.values())))
+    scorers = _Scorers(
+        _build_season_config(list(round_for_fixture.values()), season.name)
+    )
     for fixture in fixtures:
         _load_fixture(db, scorers, fixture, round_for_fixture[fixture.id], season.name)
     scorers.run()
 
     fixture_for_round = {rn: fid for fid, rn in round_for_fixture.items()}
     _complete_missing_a_team_results(scorers, fixture_for_round)
-    repository.replace_calculated_individual_standings(
-        db, season_id, _individual_rows(scorers, fixture_for_round)
-    )
-    repository.replace_calculated_team_standings(
-        db,
-        season_id,
-        _team_rows(scorers.team_scores, fixture_for_round, scorers.team_penalties),
-    )
-    repository.replace_calculated_team_round_results(
-        db, season_id, scorers.team_round_results
-    )
+    db.execute("BEGIN")
+    try:
+        repository.replace_calculated_individual_standings(
+            db, season_id, _individual_rows(scorers, fixture_for_round)
+        )
+        repository.replace_calculated_team_standings(
+            db,
+            season_id,
+            _team_rows(scorers.team_scores, fixture_for_round, scorers.team_penalties),
+        )
+        repository.replace_calculated_team_round_results(
+            db, season_id, scorers.team_round_results
+        )
+        record_calculation(db, season_id, fingerprint)
+        db.execute("COMMIT")
+    except Exception:
+        db.execute("ROLLBACK")
+        raise
     _logger.info(
         "Standings recalculated for season %s (%d fixtures).", season_id, len(fixtures)
     )
@@ -208,7 +221,9 @@ def _load_fixture(
                     position=position,
                     time=_parse_time(result.time),
                     gender=result.gender,
-                    category=scoring_category(result.category, season_name),
+                    category=scoring_category(
+                        result.category, season_name, result.gender
+                    ),
                 )
             )
         scorers.race_results.save_race_result(race_result)
@@ -222,9 +237,13 @@ def _eligible_result(
     if (result.club or "").strip().casefold() == "guest":
         return False
     category = config.category_config.categories.get(
-        scoring_category(result.category, season_name)
+        scoring_category(result.category, season_name, result.gender)
     )
-    if category is None or category.race_name != team_race_name(race_name):
+    if (
+        category is None
+        or category.race_name != team_race_name(race_name)
+        or not category_gender_matches(category, result.gender)
+    ):
         return False
     male = bool(re.search(r"\b(?:boys|men)\b", race_name, re.IGNORECASE))
     female = bool(re.search(r"\b(?:girls|women)\b", race_name, re.IGNORECASE))
@@ -294,7 +313,9 @@ def _save_round_team_results(
             )
 
 
-def _build_season_config(round_numbers: list[str]) -> CompetitionConfig:
+def _build_season_config(
+    round_numbers: list[str], season_name: str = ""
+) -> CompetitionConfig:
     """Return the default OXL config with season-specific round numbers.
 
     ``data_base_path`` is a dummy value since only in-memory repositories are
@@ -302,6 +323,9 @@ def _build_season_config(round_numbers: list[str]) -> CompetitionConfig:
     """
     base = build_default_config()
     add_oxl_categories(base)
+    year = re.search(r"\b(\d{4})\b", season_name)
+    if year and int(year.group(1)) >= _WOMENS_FOUR_SCORER_START:
+        base.category_config.get_category("Women").team_size = 4
     base.round_numbers = round_numbers
     base.data_base_path = Path("/dev/null")  # never accessed; in-memory only
     return base

@@ -25,6 +25,7 @@ from website.services.standings_categories import (
     scoring_category,
     standing_category_catalog,
 )
+from website.services.standings_freshness import calculated_standings_stale
 from website.services.team_divisions import with_divisions
 
 _logger = logging.getLogger(__name__)
@@ -41,6 +42,7 @@ class StandingsOverview(BaseModel):
     seasons: list[Season]
     selected_season: Season | None
     categories: list[StandingCategory]
+    stale: bool = False
 
 
 class StandingsTable(BaseModel):
@@ -54,6 +56,8 @@ class StandingsTable(BaseModel):
     rows: list[StandingRow]
     fixtures: list[Fixture]
     team_round_results: list[TeamRoundResult]
+    stale: bool = False
+    provisional: bool = False
 
 
 def _parse_scores(raw: str) -> dict[str, object]:
@@ -128,14 +132,26 @@ class StandingsService:
             season_id = seasons[0].id
         selected_season, categories = self._categories(season_id)
         return StandingsOverview(
-            seasons=seasons, selected_season=selected_season, categories=categories
+            seasons=seasons,
+            selected_season=selected_season,
+            categories=categories,
+            stale=bool(
+                selected_season
+                and calculated_standings_stale(self._db, selected_season.id)
+            ),
         )
 
     def category_panel(self, season_id: int | None) -> StandingsOverview:
         """Return the categories of *season_id* only (no default season)."""
         selected_season, categories = self._categories(season_id)
         return StandingsOverview(
-            seasons=[], selected_season=selected_season, categories=categories
+            seasons=[],
+            selected_season=selected_season,
+            categories=categories,
+            stale=bool(
+                selected_season
+                and calculated_standings_stale(self._db, selected_season.id)
+            ),
         )
 
     def table(
@@ -151,6 +167,7 @@ class StandingsService:
         )
         fixtures = repository.list_fixtures_for_season(self._db, season_id)
         loaded: Sequence[StandingRow]
+        provisional = False
         if standings_type == "team":
             loaded = repository.load_team_standings(self._db, season_id, category)
         else:
@@ -181,6 +198,9 @@ class StandingsService:
                             row.model_copy(update={"category": category})
                         )
                         seen.add(key)
+            provisional = len(source_categories) > 1 and any(
+                row.is_imported for row in senior_rows
+            )
             if len(source_categories) == 1 and all(
                 not row.is_imported for row in senior_rows
             ):
@@ -236,6 +256,8 @@ class StandingsService:
             rows=rows,
             fixtures=fixtures,
             team_round_results=team_round_results,
+            stale=calculated_standings_stale(self._db, season_id),
+            provisional=provisional,
         )
 
     def recalculate(self, season_id: int) -> None:
