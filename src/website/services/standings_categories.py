@@ -9,6 +9,7 @@ from pyresults import (
     CompetitionConfig,
     Gender,
     build_default_config,
+    get_valid_category_codes,
 )
 
 from website.models import StandingCategory
@@ -113,6 +114,68 @@ _ADDITIONAL_INDIVIDUAL_CATEGORIES = (
     ("W55", "Women V55", Gender.FEMALE, "Women", "V55"),
     ("W65", "Women V65", Gender.FEMALE, "Women", "V65"),
 )
+_CATEGORY_NAME_MAP: dict[str, str] = {
+    "senior men": "SM",
+    "senior women": "SW",
+    "u20 men": "U20M",
+    "u20 women": "U20W",
+    "u9 boys": "U9B",
+    "u9 girls": "U9G",
+    "u11 boys": "U11B",
+    "u11 girls": "U11G",
+    "u13 boys": "U13B",
+    "u13 girls": "U13G",
+    "u15 boys": "U15B",
+    "u15 girls": "U15G",
+    "u17 boys": "U17M",
+    "u17 girls": "U17W",
+    "u17 men": "U17M",
+    "u17 women": "U17W",
+}
+
+_GENDER_CATEGORY_MAP: dict[tuple[str, str], str] = {
+    ("male", "v40"): "MV40",
+    ("female", "v40"): "WV40",
+    ("male", "v50"): "MV50",
+    ("female", "v50"): "WV50",
+    ("male", "v60"): "MV60",
+    ("female", "v60"): "WV60",
+    ("male", "v70"): "MV70",
+    ("female", "v70"): "WV70",
+    ("male", "v70+"): "MV70",
+    ("female", "v70+"): "WV70",
+    ("male", "senior men"): "SM",
+    ("female", "senior women"): "SW",
+}
+
+
+def normalise_category(raw_category: str, gender: str) -> str:
+    """Normalise a CSV category to a pyresults category code when possible."""
+    valid = get_valid_category_codes()
+    stripped = " ".join(raw_category.split())
+    upper = stripped.upper()
+    for code in valid:
+        if str(code).upper() == upper:
+            return str(code)
+
+    category_lower = stripped.lower()
+    compact_category = category_lower.replace(" ", "")
+    gender_lower = gender.strip().lower()
+    if gender_lower in ("m", "male", "men"):
+        gender_key = "male"
+    elif gender_lower in ("f", "female", "women"):
+        gender_key = "female"
+    else:
+        gender_key = gender_lower
+
+    mapped = _GENDER_CATEGORY_MAP.get(
+        (gender_key, category_lower)
+    ) or _GENDER_CATEGORY_MAP.get((gender_key, compact_category))
+    if mapped:
+        return mapped
+    return _CATEGORY_NAME_MAP.get(category_lower, stripped)
+
+
 _CATEGORY_ALIASES: dict[str, str] = {
     alias.casefold(): code
     for code, _, _, _, aliases in _JUNIOR_TEAM_CATEGORIES
@@ -205,10 +268,14 @@ def uses_masters_bands(season_name: str) -> bool:
     return bool(match and int(match.group(1)) >= _MASTERS_BANDS_START_YEAR)
 
 
-def scoring_category(category: str, season_name: str = "") -> str:
+def scoring_category(category: str, season_name: str = "", gender: str = "") -> str:
     """Return the canonical category code used for scoring."""
-    stripped = category.strip()
+    stripped = normalise_category(category, gender)
     canonical = _CATEGORY_ALIASES.get(stripped.casefold(), stripped)
+    if re.fullmatch(
+        r"(?:U\d+[BGMW]|[MW]V?\d+|S[MW])", canonical.upper().replace(" ", "")
+    ):
+        canonical = canonical.upper().replace(" ", "")
     if uses_masters_bands(season_name):
         match = re.fullmatch(r"([MW])(?:V)?(\d+)", canonical.upper())
         if match:
@@ -219,6 +286,16 @@ def scoring_category(category: str, season_name: str = "") -> str:
             if age >= _MASTERS_FIRST_AGE:
                 return f"{gender}V{min(age // 10 * 10, 70)}"
     return canonical
+
+
+def category_gender_matches(category: Category, gender: str) -> bool:
+    """Reject explicit mismatches; leave unspecified gender for staff to check."""
+    value = gender.strip().casefold()
+    if value in {"m", "male", "man", "men"}:
+        return bool(category.gender == Gender.MALE)
+    if value in {"f", "female", "woman", "women"}:
+        return bool(category.gender == Gender.FEMALE)
+    return True
 
 
 def team_race_name(race_name: str) -> str:

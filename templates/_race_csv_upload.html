@@ -20,6 +20,12 @@
       {% if upload_summary.incomplete_names %}
       <div class="alert alert-warning py-2" role="alert">Names may be incomplete: {{ upload_summary.incomplete_names | join(", ") }}. Please check the CSV.</div>
       {% endif %}
+      {% if upload_summary.repeated_names %}
+      <div class="alert alert-warning py-2" role="alert">Names may be repeated: {{ upload_summary.repeated_names | join(", ") }}. Please check the source.</div>
+      {% endif %}
+      {% if upload_summary.category_warnings %}
+      <div class="alert alert-warning py-2" role="alert">Categories may be unknown or unsuitable for this race: {{ upload_summary.category_warnings | join(", ") }}. Please check the source.</div>
+      {% endif %}
       {% elif upload_error and upload_error_race_id == race.id %}
       <div class="alert alert-danger py-2" role="alert">{{ upload_error }}</div>
       {% endif %}

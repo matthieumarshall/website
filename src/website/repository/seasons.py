@@ -38,5 +38,8 @@ def delete_season(db: Connection, season_id: int) -> bool:
             f"Cannot delete season {season_id}: it still has {count} fixture(s). "
             "Delete all fixtures first."
         )
+    db.execute(
+        "DELETE FROM standings_calculation_state WHERE season_id = ?", [season_id]
+    )
     db.execute("DELETE FROM seasons WHERE id = ?", [season_id])
     return True

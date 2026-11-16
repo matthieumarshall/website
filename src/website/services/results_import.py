@@ -8,49 +8,22 @@ import logging
 from collections.abc import Iterator
 
 from pydantic import BaseModel, ConfigDict
-from pyresults import get_valid_category_codes
+from pyresults import build_default_config
 
 from website import repository
 from website.db import Connection
 from website.errors import ConflictError, NotFoundError, ValidationError
 from website.models import ParsedResult, Race
 from website.services.standings_calculator import recalculate_standings
+from website.services.standings_categories import (
+    add_oxl_categories,
+    category_gender_matches,
+    normalise_category,
+    scoring_category,
+    team_race_name,
+)
 
 _logger = logging.getLogger(__name__)
-
-_CATEGORY_NAME_MAP: dict[str, str] = {
-    "senior men": "SM",
-    "senior women": "SW",
-    "u20 men": "U20M",
-    "u20 women": "U20W",
-    "u9 boys": "U9B",
-    "u9 girls": "U9G",
-    "u11 boys": "U11B",
-    "u11 girls": "U11G",
-    "u13 boys": "U13B",
-    "u13 girls": "U13G",
-    "u15 boys": "U15B",
-    "u15 girls": "U15G",
-    "u17 boys": "U17M",
-    "u17 girls": "U17W",
-    "u17 men": "U17M",
-    "u17 women": "U17W",
-}
-
-_GENDER_CATEGORY_MAP: dict[tuple[str, str], str] = {
-    ("male", "v40"): "MV40",
-    ("female", "v40"): "WV40",
-    ("male", "v50"): "MV50",
-    ("female", "v50"): "WV50",
-    ("male", "v60"): "MV60",
-    ("female", "v60"): "WV60",
-    ("male", "v70"): "MV70",
-    ("female", "v70"): "WV70",
-    ("male", "v70+"): "MV70",
-    ("female", "v70+"): "WV70",
-    ("male", "senior men"): "SM",
-    ("female", "senior women"): "SW",
-}
 
 _CSV_COL_MAPPINGS: list[tuple[tuple[str, ...], tuple[str, ...], str]] = [
     (("pos",), ("cat", "gen"), "position"),
@@ -76,33 +49,20 @@ class ResultsImportSummary(BaseModel):
     race_name: str
     finishers_imported: int
     incomplete_names: list[str] = []
+    repeated_names: list[str] = []
+    category_warnings: list[str] = []
 
 
-def normalise_category(raw_category: str, gender: str) -> str:
-    """Normalise a CSV category to a pyresults category code when possible."""
-    valid = get_valid_category_codes()
-    stripped = raw_category.strip()
-    upper = stripped.upper()
-    for code in valid:
-        if str(code).upper() == upper:
-            return str(code)
-
-    category_lower = stripped.lower()
-    compact_category = category_lower.replace(" ", "")
-    gender_lower = gender.strip().lower()
-    if gender_lower in ("m", "male", "men"):
-        gender_key = "male"
-    elif gender_lower in ("f", "female", "women"):
-        gender_key = "female"
-    else:
-        gender_key = gender_lower
-
-    mapped = _GENDER_CATEGORY_MAP.get(
-        (gender_key, category_lower)
-    ) or _GENDER_CATEGORY_MAP.get((gender_key, compact_category))
-    if mapped:
-        return mapped
-    return _CATEGORY_NAME_MAP.get(category_lower, stripped)
+def _repeated_name(name: str) -> bool:
+    """Flag a repeated full name without changing the source value."""
+    words = name.split()
+    half = len(words) // 2
+    minimum_words = 2
+    return (
+        half >= minimum_words
+        and len(words) % 2 == 0
+        and [w.casefold() for w in words[:half]] == [w.casefold() for w in words[half:]]
+    )
 
 
 def _map_csv_col(normalized: str) -> str | None:
@@ -259,10 +219,32 @@ class ResultsImportService:
                 exc,
             )
 
+        season = repository.get_season_by_id(self._db, fixture.season_id)
+        config = build_default_config()
+        add_oxl_categories(config)
+        warnings = []
+        for result in parsed_results:
+            code = scoring_category(
+                result.category, season.name if season else "", result.gender
+            )
+            category = config.category_config.categories.get(code)
+            if (
+                category is None
+                or category.race_name != team_race_name(race.name)
+                or not category_gender_matches(category, result.gender)
+            ):
+                warnings.append(
+                    f"{result.athlete_name} ({result.category or 'missing category'})"
+                )
+
         return ResultsImportSummary(
             race_id=race.id,
             race_name=race.name,
             finishers_imported=len(rows),
+            category_warnings=warnings,
+            repeated_names=[
+                r.athlete_name for r in parsed_results if _repeated_name(r.athlete_name)
+            ],
             incomplete_names=[
                 r.athlete_name
                 for r in parsed_results

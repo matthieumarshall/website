@@ -767,3 +767,177 @@ def test_senior_display_label_retains_combined_standings(test_db):
             "Master",
             "Young",
         }
+
+
+def test_combined_senior_and_masters_are_scored_together(test_db):
+    season = repository.create_season(test_db, "2026-2027")
+    fixture = repository.create_fixture(
+        test_db, season.id, "Round 1", "2026-11-01", "Park", "", [], ""
+    )
+    race = repository.create_race(test_db, fixture.id, "Men")
+    for pos, (name, category) in enumerate(
+        [
+            ("Senior", "SM"),
+            ("Veteran 35", " M35 "),
+            ("Forty", "M40"),
+            ("Forty five", "m45"),
+            ("Fifty five", "M55"),
+            ("Fifty", "M50"),
+        ],
+        1,
+    ):
+        repository.create_result(
+            test_db, race.id, pos, name, "30:00", category, "M", club="AC"
+        )
+    service = StandingsService(test_db)
+    service.recalculate(season.id)
+    for category, expected in [
+        ("SM", [("Senior", 1), ("Veteran 35", 2)]),
+        ("MV40", [("Forty", 1), ("Forty five", 2)]),
+        ("MV50", [("Fifty five", 1), ("Fifty", 2)]),
+    ]:
+        assert [
+            (r.athlete_name, r.total_score)
+            for r in service.table(season.id, category, "individual").rows
+            if isinstance(r, IndividualStanding)
+        ] == expected
+
+
+def test_calculated_standings_freshness_tracks_changes(test_db):
+    season = repository.create_season(test_db, "2026-2027")
+    fixture = repository.create_fixture(
+        test_db, season.id, "Round 1", "2026-11-01", "Park", "", [], ""
+    )
+    race = repository.create_race(test_db, fixture.id, "Men")
+    repository.create_result(
+        test_db, race.id, 1, "Runner", "30:00", "SM", "M", club="AC"
+    )
+    service = StandingsService(test_db)
+    service.recalculate(season.id)
+    assert not service.overview(season.id).stale
+    test_db.execute("UPDATE results SET category='M35' WHERE race_id=?", [race.id])
+    assert service.overview(season.id).stale
+    service.recalculate(season.id)
+    assert not service.overview(season.id).stale
+    test_db.execute(
+        "DELETE FROM standings_calculation_state WHERE season_id=?", [season.id]
+    )
+    assert service.overview(season.id).stale
+
+
+def test_women_four_scorers_and_two_for_b_team(test_db):
+    season = repository.create_season(test_db, "2025-2026")
+    fixture = repository.create_fixture(
+        test_db, season.id, "Round 1", "2025-11-01", "Park", "", [], ""
+    )
+    race = repository.create_race(test_db, fixture.id, "Women")
+    for pos in range(1, 7):
+        repository.create_result(
+            test_db, race.id, pos, f"Runner {pos}", "30:00", "SW", "F", club="AC"
+        )
+    StandingsService(test_db).recalculate(season.id)
+    results = repository.list_team_round_results_for_fixture(
+        test_db, fixture.id, "Women"
+    )
+    assert [(r.team_name, r.score) for r in results] == [("AC A", 10), ("AC B", 25)]
+    assert len(results[0].scoring_members) == 4
+    assert results[1].scoring_members.count("Penalty (7)") == 2
+
+
+def test_junior_category_positions_are_normalized_before_filtering(test_db):
+    from website.services.results import ResultFilters
+
+    season = repository.create_season(test_db, "2026-2027")
+    fixture = repository.create_fixture(
+        test_db, season.id, "Round 1", "2026-11-01", "Park", "", [], ""
+    )
+    race = repository.create_race(test_db, fixture.id, "U12 Boys & Girls")
+    for pos, name, category, club in [
+        (1, "Guest", " u12b ", "Guest"),
+        (2, "Boy", "U12 Boys", "AC"),
+        (3, "Girl", " u12g ", "AC"),
+        (4, "Other", "U12B", "Other"),
+    ]:
+        repository.create_result(
+            test_db,
+            race.id,
+            pos,
+            name,
+            "6:00",
+            category,
+            "Male" if category.strip().lower() != "u12g" else "Female",
+            club=club,
+            category_position=1,
+        )
+    service = ResultsService(test_db)
+    assert [
+        (r.athlete_name, r.category_position) for r in service.race_results(race.id)[1]
+    ] == [("Guest", 1), ("Boy", 2), ("Girl", 1), ("Other", 3)]
+    assert [
+        (r.athlete_name, r.category_position)
+        for r in service.export(race.id, ResultFilters(club="Other")).results
+    ] == [("Other", 3)]
+
+
+def test_stale_warning_and_recalculate_available_to_staff(
+    content_creator_client, test_db
+):
+    import re
+
+    season = repository.create_season(test_db, "2026-2027")
+    fixture = repository.create_fixture(
+        test_db, season.id, "Round 1", "2026-11-01", "Park", "", [], ""
+    )
+    race = repository.create_race(test_db, fixture.id, "Men")
+    repository.create_result(
+        test_db, race.id, 1, "Runner", "30:00", "SM", "M", club="AC"
+    )
+    StandingsService(test_db).recalculate(season.id)
+    test_db.execute(
+        "DELETE FROM standings_calculation_state WHERE season_id=?", [season.id]
+    )
+    page = content_creator_client.get(f"/standings?season_id={season.id}")
+    assert "may be out of date" in page.text
+    assert "Recalculate standings" in page.text
+    match = re.search(r'name="csrf_token" value="([^"]+)"', page.text)
+    assert match is not None
+    token = match.group(1)
+    response = content_creator_client.post(
+        "/standings/recalculate",
+        data={"season_id": season.id, "csrf_token": token},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert not StandingsService(test_db).overview(season.id).stale
+
+
+def test_mismatched_gender_is_not_scored_in_mixed_race(test_db):
+    season = repository.create_season(test_db, "2026-2027")
+    fixture = repository.create_fixture(
+        test_db, season.id, "Round 1", "2026-11-01", "Park", "", [], ""
+    )
+    race = repository.create_race(test_db, fixture.id, "U12 Boys & Girls")
+    repository.create_result(
+        test_db, race.id, 1, "Mismatch", "6:00", "U12B", "Female", club="AC"
+    )
+    repository.create_result(
+        test_db, race.id, 2, "Eligible", "6:10", "U12B", "Male", club="AC"
+    )
+    service = StandingsService(test_db)
+    service.recalculate(season.id)
+    assert [
+        (r.athlete_name, r.total_score)
+        for r in service.table(season.id, "U12B", "individual").rows
+        if isinstance(r, IndividualStanding)
+    ] == [("Eligible", 1)]
+
+
+def test_empty_recalculated_season_can_be_deleted(test_db):
+    season = repository.create_season(test_db, "2026-2027")
+    fixture = repository.create_fixture(
+        test_db, season.id, "Round 1", "2026-11-01", "Park", "", [], ""
+    )
+    StandingsService(test_db).recalculate(season.id)
+    test_db.execute("DELETE FROM fixtures WHERE id=?", [fixture.id])
+    assert repository.delete_season(test_db, season.id)
+    assert repository.get_season_by_id(test_db, season.id) is None

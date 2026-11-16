@@ -52,6 +52,7 @@ def standings_category_panel(
         _PAGE,
         selected_season=view.selected_season,
         categories=view.categories,
+        stale=view.stale,
         is_admin=is_staff(request),
         standings_type=standings_type,
     )

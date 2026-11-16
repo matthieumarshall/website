@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
+from pyresults import build_default_config
 
 from website import repository
 from website.db import Connection
@@ -13,9 +14,8 @@ from website.models import Fixture, Race, Result, Season, TeamRoundResult
 from website.services._common import found
 from website.services.archive import stored_file
 from website.services.standings_categories import (
+    add_oxl_categories,
     scoring_category,
-    team_race_name,
-    uses_masters_bands,
 )
 from website.services.team_divisions import with_divisions
 
@@ -23,10 +23,13 @@ ResultsViewMode = Literal["individual", "team"]
 
 
 def _present_race_results(
-    race: Race, results: list[Result], season_name: str = ""
+    _race: Race, results: list[Result], season_name: str = ""
 ) -> list[Result]:
-    """Combine U23 and senior results without altering stored race data."""
-    categories = [scoring_category(result.category, season_name) for result in results]
+    """Recompute category positions including guests without changing source data."""
+    categories = [
+        scoring_category(result.category, season_name, result.gender)
+        for result in results
+    ]
     labels = {"SM": "SM", "SW": "SW"}
     for result, category in zip(results, categories, strict=True):
         if category in labels and result.category.strip().casefold() in {
@@ -34,35 +37,26 @@ def _present_race_results(
             "senior women",
         }:
             labels[category] = result.category.strip()
-    combined = {
-        category
-        for result, category in zip(results, categories, strict=True)
-        if (
-            category in {"SM", "SW"}
-            or (uses_masters_bands(season_name) and category.startswith(("MV", "WV")))
-        )
-        and result.category.strip().casefold()
-        not in {"sm", "sw", "senior men", "senior women"}
-    }
+    config = build_default_config()
+    add_oxl_categories(config)
     positions: dict[str, int] = {}
     output = []
     for result, category in sorted(
         zip(results, categories, strict=True), key=lambda item: item[0].position
     ):
-        if category not in combined and category not in {"SM", "SW"}:
-            output.append(result)
-            continue
-        updates: dict[str, object] = {"category": labels.get(category, category)}
-        if category in combined:
-            valid_race = team_race_name(race.name) == (
-                "Men" if category == "SM" or category.startswith("MV") else "Women"
+        positions[category] = positions.get(category, 0) + 1
+        output.append(
+            result.model_copy(
+                update={
+                    "category": labels.get(category, category),
+                    "category_position": (
+                        positions[category]
+                        if category in config.category_config.categories
+                        else None
+                    ),
+                }
             )
-            if valid_race and (result.club or "").strip().casefold() != "guest":
-                positions[category] = positions.get(category, 0) + 1
-                updates["category_position"] = positions[category]
-            else:
-                updates["category_position"] = None
-        output.append(result.model_copy(update=updates))
+        )
     return output
 
 
@@ -274,16 +268,15 @@ class ResultsService:
         race, results = self.race_results(race_id)
         fixture = repository.get_fixture_by_id(self._db, race.fixture_id)
         category = filters.category
-        if category and scoring_category(category) in {"SM", "SW"}:
-            canonical = scoring_category(category)
-            category = next(
-                (
-                    r.category
-                    for r in results
-                    if scoring_category(r.category) == canonical
-                ),
-                category,
-            )
+        if category:
+            season_name = self._season_name(fixture.season_id) if fixture else ""
+            results = [
+                result
+                for result in results
+                if scoring_category(result.category, season_name, result.gender)
+                == scoring_category(category, season_name, result.gender)
+            ]
+            category = None
         return ResultsExport(
             race_name=race.name,
             fixture_title=fixture.title if fixture else "Unknown",

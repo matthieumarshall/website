@@ -1,3 +1,5 @@
+{% if provisional %}<div class="alert alert-warning" role="status">These imported categories were scored separately. Combined standings are provisional and may be incorrect.</div>{% endif %}
+{% if stale %}<div class="alert alert-warning" role="status">Calculated standings may be out of date and need recalculation.</div>{% endif %}
 {% if not rows %}
 <p class="text-muted py-2">No standings data available for {{ category }}.</p>
 {% else %}
