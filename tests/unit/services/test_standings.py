@@ -930,3 +930,14 @@ def test_mismatched_gender_is_not_scored_in_mixed_race(test_db):
         for r in service.table(season.id, "U12B", "individual").rows
         if isinstance(r, IndividualStanding)
     ] == [("Eligible", 1)]
+
+
+def test_empty_recalculated_season_can_be_deleted(test_db):
+    season = repository.create_season(test_db, "2026-2027")
+    fixture = repository.create_fixture(
+        test_db, season.id, "Round 1", "2026-11-01", "Park", "", [], ""
+    )
+    StandingsService(test_db).recalculate(season.id)
+    test_db.execute("DELETE FROM fixtures WHERE id=?", [fixture.id])
+    assert repository.delete_season(test_db, season.id)
+    assert repository.get_season_by_id(test_db, season.id) is None
