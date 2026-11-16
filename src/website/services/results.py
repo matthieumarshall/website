@@ -268,16 +268,15 @@ class ResultsService:
         race, results = self.race_results(race_id)
         fixture = repository.get_fixture_by_id(self._db, race.fixture_id)
         category = filters.category
-        if category and scoring_category(category) in {"SM", "SW"}:
-            canonical = scoring_category(category)
-            category = next(
-                (
-                    r.category
-                    for r in results
-                    if scoring_category(r.category) == canonical
-                ),
-                category,
-            )
+        if category:
+            season_name = self._season_name(fixture.season_id) if fixture else ""
+            results = [
+                result
+                for result in results
+                if scoring_category(result.category, season_name, result.gender)
+                == scoring_category(category, season_name, result.gender)
+            ]
+            category = None
         return ResultsExport(
             race_name=race.name,
             fixture_title=fixture.title if fixture else "Unknown",
