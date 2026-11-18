@@ -15,7 +15,7 @@
       <input type="hidden" name="season_id" value="{{ season_id or fixture.season_id }}">
       {% if upload_summary and upload_summary.race_id == race.id %}
       <div class="alert alert-success py-2" role="status">
-        Imported {{ upload_summary.finishers_imported }} results. The previous results were replaced.
+        Imported {{ upload_summary.finishers_imported }} results. Protected manual results were kept.
       </div>
       {% if upload_summary.incomplete_names %}
       <div class="alert alert-warning py-2" role="alert">Names may be incomplete: {{ upload_summary.incomplete_names | join(", ") }}. Please check the CSV.</div>

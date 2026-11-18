@@ -99,6 +99,33 @@ class TestContentCreatorExtendedPermissions:
         clubs = repository.list_clubs(test_db)
         assert any(c.oxl_code == "CRTR" and c.name == "Creator Harriers" for c in clubs)
 
+    def test_club_result_name_management(self, content_creator_client, test_db):
+        club = repository.create_club(test_db, "Headington Road Runners", "HRR")
+        path = "/admin/clubs/aliases"
+        csrf = self._get_csrf(content_creator_client, path)
+        response = content_creator_client.post(
+            path,
+            data={"csrf_token": csrf, "club_id": club.id, "name": "Headington RR"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 303
+        assert "Headington RR" in content_creator_client.get(path).text
+        alias_id = test_db.execute(
+            "SELECT id FROM club_aliases WHERE name = 'Headington RR'"
+        ).fetchone()[0]
+        response = content_creator_client.post(
+            f"{path}/{alias_id}/delete",
+            data={"csrf_token": csrf},
+            follow_redirects=False,
+        )
+        assert response.status_code == 303
+        assert (
+            test_db.execute(
+                "SELECT count(*) FROM club_aliases WHERE id = ?", [alias_id]
+            ).fetchone()[0]
+            == 0
+        )
+
     def test_links_management_by_content_creator(
         self, content_creator_client: TestClient, test_db: duckdb.DuckDBPyConnection
     ) -> None:

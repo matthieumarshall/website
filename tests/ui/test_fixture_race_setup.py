@@ -37,7 +37,7 @@ def test_upload_results_from_fixtures_and_results(
     )
     race_upload.get_by_role("button", name="Upload and Replace Results").click()
     expect(
-        panel.get_by_text("Imported 1 results. The previous results were replaced.")
+        panel.get_by_text("Imported 1 results. Protected manual results were kept.")
     ).to_be_visible()
 
     form = panel.locator('[id^="race-csv-upload-"]').filter(has_text=race_name)

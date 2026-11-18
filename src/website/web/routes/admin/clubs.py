@@ -65,6 +65,59 @@ def admin_clubs_create(
     return RedirectResponse(_LIST_URL, status_code=303)
 
 
+def _aliases_page(
+    request: Request, clubs: Clubs, ui: Renderer, error: str = "", status: int = 200
+) -> HTMLResponse:
+    return ui.page(
+        request,
+        "admin/clubs/aliases.html",
+        _PAGE,
+        status_code=status,
+        clubs=clubs.list_clubs(include_inactive=True),
+        aliases=clubs.identities.aliases(),
+        unresolved=clubs.identities.unresolved_names(),
+        error=error,
+    )
+
+
+@router.get("/aliases", response_class=HTMLResponse)
+def admin_club_aliases(
+    request: Request, _: RequireStaff, clubs: Clubs, ui: RendererDep
+) -> HTMLResponse:
+    """Show imported names needing attention and known aliases."""
+    return _aliases_page(request, clubs, ui)
+
+
+@router.post("/aliases", response_class=HTMLResponse)
+def admin_add_club_alias(
+    request: Request,
+    _: RequireStaff,
+    _csrf: CsrfProtected,
+    clubs: Clubs,
+    ui: RendererDep,
+    club_id: Annotated[int, Form()],
+    name: Annotated[str, Form()],
+) -> Response:
+    """Link an imported name to a club."""
+    try:
+        clubs.identities.add(club_id, name)
+    except ValidationError as exc:
+        return _aliases_page(request, clubs, ui, exc.message, 422)
+    return RedirectResponse("/admin/clubs/aliases", status_code=303)
+
+
+@router.post("/aliases/{alias_id}/delete")
+def admin_delete_club_alias(
+    alias_id: int,
+    _: RequireStaff,
+    _csrf: CsrfProtected,
+    clubs: Clubs,
+) -> Response:
+    """Remove an alias; imported results remain unchanged."""
+    clubs.identities.remove(alias_id)
+    return RedirectResponse("/admin/clubs/aliases", status_code=303)
+
+
 @router.get("/{club_id}", response_class=HTMLResponse)
 def admin_clubs_edit(
     request: Request, club_id: int, _: RequireStaff, clubs: Clubs, ui: RendererDep

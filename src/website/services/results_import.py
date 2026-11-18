@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import csv
 import io
-import logging
 from collections.abc import Iterator
 
 from pydantic import BaseModel, ConfigDict
@@ -13,7 +12,7 @@ from pyresults import build_default_config
 from website import repository
 from website.db import Connection
 from website.errors import ConflictError, NotFoundError, ValidationError
-from website.models import ParsedResult, Race
+from website.models import ParsedResult, Race, Result
 from website.services.standings_calculator import recalculate_standings
 from website.services.standings_categories import (
     add_oxl_categories,
@@ -22,8 +21,6 @@ from website.services.standings_categories import (
     scoring_category,
     team_race_name,
 )
-
-_logger = logging.getLogger(__name__)
 
 _CSV_COL_MAPPINGS: list[tuple[tuple[str, ...], tuple[str, ...], str]] = [
     (("pos",), ("cat", "gen"), "position"),
@@ -151,6 +148,31 @@ def parse_csv_results(csv_text: str) -> list[ParsedResult]:
     return sorted(results, key=lambda result: result.position)
 
 
+def _identity(number: int | None, name: str, club: str | None) -> str:
+    if number is not None:
+        return f"number:{number}"
+    return f"name:{name.strip().casefold()}|{(club or '').strip().casefold()}"
+
+
+def _protected_keys(protected: list[Result], incoming_keys: list[str]) -> set[str]:
+    protected_by_key: dict[str, int] = {}
+    for result in protected:
+        current_key = _identity(result.race_number, result.athlete_name, result.club)
+        for key in {current_key, result.external_key or current_key}:
+            owner = protected_by_key.get(key)
+            if owner is not None and owner != result.id:
+                raise ValidationError(
+                    "Protected results have ambiguous duplicate identities."
+                )
+            protected_by_key[key] = result.id
+    matched_ids = [
+        protected_by_key[key] for key in incoming_keys if key in protected_by_key
+    ]
+    if len(matched_ids) != len(set(matched_ids)):
+        raise ValidationError("The CSV matches a protected result more than once.")
+    return set(protected_by_key)
+
+
 class ResultsImportService:
     """Create races and replace race results from staff-uploaded CSV files."""
 
@@ -183,6 +205,19 @@ class ResultsImportService:
         if fixture is None:
             raise NotFoundError("Fixture not found")
 
+        incoming_keys = [
+            _identity(r.race_number, r.athlete_name, r.club) for r in parsed_results
+        ]
+        if len(incoming_keys) != len(set(incoming_keys)):
+            raise ValidationError(
+                "The CSV contains ambiguous duplicate result identities."
+            )
+        protected = [
+            r
+            for r in repository.list_results_for_race(self._db, race.id)
+            if r.is_locked or r.source == "manual"
+        ]
+        protected_set = _protected_keys(protected, incoming_keys)
         rows = [
             (
                 race.id,
@@ -195,29 +230,24 @@ class ResultsImportService:
                 result.gender,
                 result.gender_position,
                 result.club,
+                _identity(result.race_number, result.athlete_name, result.club),
             )
             for result in parsed_results
+            if _identity(result.race_number, result.athlete_name, result.club)
+            not in protected_set
         ]
 
         self._db.execute("BEGIN")
         committed = False
         try:
-            repository.delete_results_for_race(self._db, race.id)
-            repository.create_results_batch(self._db, rows)
+            repository.delete_unlocked_imported_results_for_race(self._db, race.id)
+            repository.create_imported_results_batch(self._db, rows)
+            recalculate_standings(self._db, fixture.season_id, in_transaction=True)
             self._db.execute("COMMIT")
             committed = True
         finally:
             if not committed:
                 self._db.execute("ROLLBACK")
-
-        try:
-            recalculate_standings(self._db, fixture.season_id)
-        except Exception as exc:  # noqa: BLE001 — import is committed; standings are retried separately
-            _logger.warning(
-                "Standings recalculation warning for season %s after CSV import: %s",
-                fixture.season_id,
-                exc,
-            )
 
         season = repository.get_season_by_id(self._db, fixture.season_id)
         config = build_default_config()

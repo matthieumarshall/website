@@ -21,6 +21,10 @@
   ],
   [
     "GET",
+    "/admin/clubs/aliases"
+  ],
+  [
+    "GET",
     "/admin/clubs/new"
   ],
   [
@@ -289,6 +293,14 @@
   ],
   [
     "POST",
+    "/admin/clubs/aliases"
+  ],
+  [
+    "POST",
+    "/admin/clubs/aliases/{alias_id}/delete"
+  ],
+  [
+    "POST",
     "/admin/clubs/{club_id}"
   ],
   [
@@ -430,6 +442,18 @@
   [
     "POST",
     "/fixtures/seasons/{season_id}/fixtures/{fixture_id}/images/{image_id}/delete"
+  ],
+  [
+    "POST",
+    "/fixtures/{fixture_id}/race/{race_id}/results"
+  ],
+  [
+    "POST",
+    "/fixtures/{fixture_id}/race/{race_id}/results/{result_id}/delete"
+  ],
+  [
+    "POST",
+    "/fixtures/{fixture_id}/race/{race_id}/results/{result_id}/edit"
   ],
   [
     "POST",

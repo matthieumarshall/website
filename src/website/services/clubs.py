@@ -7,8 +7,14 @@ from website.db import Connection
 from website.errors import ConflictError, ValidationError
 from website.models import Club
 from website.models.forms import ClubForm
+from website.repository import club_aliases
 from website.richtext import validate_http_url
 from website.services._common import blank_to_none, found
+from website.services.club_identity import (
+    ClubIdentityService,
+    ClubRegistry,
+    normalise_name,
+)
 
 REQUIRED_FIELDS_MESSAGE = "Name and OXL code are required."
 DUPLICATE_CODE_MESSAGE = "A club with that OXL code already exists."
@@ -61,6 +67,11 @@ class ClubService:
         """Bind the service to a database connection."""
         self._db = db
 
+    @property
+    def identities(self) -> ClubIdentityService:
+        """Manage imported names for these clubs."""
+        return ClubIdentityService(self._db)
+
     def list_clubs(self, include_inactive: bool) -> list[Club]:
         """Return all clubs for staff, or only active clubs for the public."""
         if include_inactive:
@@ -83,6 +94,8 @@ class ClubService:
             ConflictError: If the OXL code is already used.
         """
         details = normalise_club(form)
+        if ClubRegistry.load(self._db).contains_name(details.name):
+            raise ValidationError("That name is already used by a club or result name.")
         try:
             return repository.create_club(
                 self._db,
@@ -103,8 +116,23 @@ class ClubService:
             NotFoundError: If the club does not exist.
             ValidationError: If the submission is invalid or conflicts.
         """
-        self.get(club_id)
+        old_club = self.get(club_id)
         details = normalise_club(form)
+        registry = ClubRegistry.load(self._db)
+        if registry.owners(details.name) - {club_id}:
+            raise ValidationError(
+                "That name is already used by another club or result name."
+            )
+        preserve_name = (
+            normalise_name(old_club.name) != normalise_name(details.name)
+            and registry.owners(old_club.name) == {club_id}
+            and not any(
+                alias.club_id == club_id
+                and normalise_name(alias.name) == normalise_name(old_club.name)
+                for alias in self.identities.aliases()
+            )
+        )
+        self._db.execute("BEGIN")
         try:
             repository.update_club(
                 self._db,
@@ -117,8 +145,15 @@ class ClubService:
                 website_url=details.website_url,
                 is_oxfordshire_member=details.is_oxfordshire_member,
             )
+            if preserve_name:
+                club_aliases.add_alias(self._db, club_id, old_club.name)
+            self._db.execute("COMMIT")
         except repository.IntegrityError as exc:
+            self._db.execute("ROLLBACK")
             raise ValidationError(str(exc)) from exc
+        except Exception:
+            self._db.execute("ROLLBACK")
+            raise
         return self.get(club_id)
 
     def toggle_active(self, club_id: int) -> Club:

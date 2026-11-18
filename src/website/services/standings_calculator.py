@@ -45,6 +45,7 @@ from website.models import (
     Fixture,
     Result,
 )
+from website.services.club_identity import ClubRegistry
 from website.services.standings_categories import (
     add_oxl_categories,
     category_gender_matches,
@@ -99,19 +100,23 @@ class _Scorers:
                 )
 
 
-def recalculate_standings(db: Connection, season_id: int) -> None:
+def recalculate_standings(
+    db: Connection, season_id: int, *, in_transaction: bool = False
+) -> None:
     """Recalculate and persist standings for *season_id*.
 
     Loads the season's results (fixtures ordered by date), scores them with
     pyresults entirely in memory, then replaces the calculated standings rows.
-    Rows with ``is_imported = true`` are left untouched.
+    Rows with ``is_imported = true`` are left untouched. When called inside an
+    existing transaction, the caller owns its commit and rollback.
     """
     season = repository.get_season_by_id(db, season_id)
     if season is None:
         raise NotFoundError(f"Season {season_id} not found")
     fixtures = repository.list_fixtures_for_season(db, season_id)
     if not fixtures:
-        _logger.info("Season %s has no fixtures; nothing to calculate.", season_id)
+        repository.replace_calculated_individual_standings(db, season_id, [])
+        repository.replace_calculated_team_standings(db, season_id, [])
         return
 
     # r1 = earliest fixture, r2 = next, …; must stay consistent across calls.
@@ -120,13 +125,17 @@ def recalculate_standings(db: Connection, season_id: int) -> None:
     scorers = _Scorers(
         _build_season_config(list(round_for_fixture.values()), season.name)
     )
+    clubs = ClubRegistry.load(db)
     for fixture in fixtures:
-        _load_fixture(db, scorers, fixture, round_for_fixture[fixture.id], season.name)
+        _load_fixture(
+            db, scorers, fixture, round_for_fixture[fixture.id], season.name, clubs
+        )
     scorers.run()
 
     fixture_for_round = {rn: fid for fid, rn in round_for_fixture.items()}
     _complete_missing_a_team_results(scorers, fixture_for_round)
-    db.execute("BEGIN")
+    if not in_transaction:
+        db.execute("BEGIN")
     try:
         repository.replace_calculated_individual_standings(
             db, season_id, _individual_rows(scorers, fixture_for_round)
@@ -140,9 +149,11 @@ def recalculate_standings(db: Connection, season_id: int) -> None:
             db, season_id, scorers.team_round_results
         )
         record_calculation(db, season_id, fingerprint)
-        db.execute("COMMIT")
+        if not in_transaction:
+            db.execute("COMMIT")
     except Exception:
-        db.execute("ROLLBACK")
+        if not in_transaction:
+            db.execute("ROLLBACK")
         raise
     _logger.info(
         "Standings recalculated for season %s (%d fixtures).", season_id, len(fixtures)
@@ -195,6 +206,7 @@ def _load_fixture(
     fixture: Fixture,
     round_number: str,
     season_name: str,
+    clubs: ClubRegistry,
 ) -> None:
     grouped: dict[str, list[Result]] = {}
     for race in repository.list_races_for_fixture(db, fixture.id):
@@ -208,11 +220,15 @@ def _load_fixture(
             grouped.setdefault(race_name, []).extend(results)
     for race_name, results in grouped.items():
         race_result = DomainRaceResult(race_name=race_name, round_number=round_number)
-        for position, result in enumerate(sorted(results, key=lambda r: r.position), 1):
+        eligible = [result for result in results if result.club]
+        for position, result in enumerate(
+            sorted(eligible, key=lambda r: r.position), 1
+        ):
+            club = clubs.resolve(result.club)
             race_result.add_athlete(
                 Athlete(
                     name=result.athlete_name,
-                    club=result.club or "",
+                    club=club.name if club else result.club or "",
                     race_number=(
                         str(result.race_number)
                         if result.race_number is not None

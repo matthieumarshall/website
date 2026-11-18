@@ -169,7 +169,10 @@ def _standings_table(
     name_header = "Team" if standings_type == "team" else "Name"
     rounds = [f"R{i}" for i in range(1, len(fixtures) + 1)]
     has_divisions = any(
-        isinstance(row, TeamStanding) and row.division is not None for row in rows
+        isinstance(row, TeamStanding)
+        and row.category.strip().casefold()
+        in ("men", "women", "senior men", "senior women")
+        for row in rows
     )
     header = [
         "Pos",
@@ -186,8 +189,8 @@ def _standings_table(
         scores = [str(row.scores_by_fixture.get(str(f.id), "")) for f in fixtures]
         body.append(
             [
-                str(row.division_position or row.position)
-                if isinstance(row, TeamStanding)
+                str(row.division_position or "")
+                if isinstance(row, TeamStanding) and has_divisions
                 else str(row.position),
                 name,
                 row.club or "",
@@ -362,7 +365,11 @@ def build_team_results_export(
     rows: Sequence[TeamRoundResult], fixture_title: str, output_format: str
 ) -> tuple[bytes, str]:
     """Build a CSV or PDF of a round's team results."""
-    has_divisions = any(row.division for row in rows)
+    has_divisions = any(
+        row.category.strip().casefold()
+        in ("men", "women", "senior men", "senior women")
+        for row in rows
+    )
     header = [
         "Category",
         "Pos",
@@ -374,7 +381,7 @@ def build_team_results_export(
     body = [
         [
             row.category,
-            str(row.division_position or row.position),
+            str(row.division_position or "") if has_divisions else str(row.position),
             *([str(row.division or "")] if has_divisions else []),
             row.team_name,
             str(row.score),

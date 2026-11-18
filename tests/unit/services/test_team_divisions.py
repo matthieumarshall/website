@@ -9,11 +9,20 @@ from website.services.team_divisions import with_divisions
 def test_senior_division_ranking_ties_and_juniors(test_db):
     test_db.execute("INSERT INTO seasons (id, name) VALUES (991, 'Division test')")
     test_db.execute(
-        "INSERT INTO clubs (id, name, oxl_code) VALUES (991, 'Alpha', 'ALP')"
+        "INSERT INTO clubs (id, name, oxl_code, is_oxfordshire_member) VALUES (991, 'Alpha', 'ALP', true)"
     )
     test_db.execute(
         "INSERT INTO division_assignments (season_id, club_id, gender, division) VALUES (991, 991, 'men', 1)"
     )
+    for club_id, name in ((992, "Beta"), (993, "Gamma")):
+        test_db.execute(
+            "INSERT INTO clubs (id, name, oxl_code, is_oxfordshire_member) VALUES (?, ?, ?, true)",
+            [club_id, name, name],
+        )
+        test_db.execute(
+            "INSERT INTO division_assignments (season_id, club_id, gender, division) VALUES (991, ?, 'men', 3)",
+            [club_id],
+        )
 
     def row(id, category, club, score):
         return TeamRoundResult(
@@ -33,12 +42,17 @@ def test_senior_division_ranking_ties_and_juniors(test_db):
         row(2, "Men", "Beta", 10),
         row(3, "Men", "Gamma", 10),
         row(4, "U12B", "Alpha", 5),
+        row(5, "Men", "Unknown", 5),
     ]
     result = {r.id: r for r in with_divisions(test_db, 991, original)}
     assert (result[1].division, result[1].division_position) == (1, 1)
     assert (result[2].division, result[2].division_position) == (3, 1)
     assert (result[3].division, result[3].division_position) == (3, 1)
     assert result[4].division is None
+    assert result[5].division is None and result[5].division_position is None
+    team = result[1].team
+    assert team is not None and team.club.id == 991
+    assert team.division is not None and team.division.number == 1
     assert original[0].division is None
 
 
@@ -58,8 +72,11 @@ def test_result_club_aliases_use_gender_and_season_assignments(
 ):
     test_db.execute("INSERT INTO seasons (id, name) VALUES (991, 'Division test')")
     test_db.execute(
-        "INSERT INTO clubs (id, name, oxl_code) VALUES (991, ?, 'TST')",
+        "INSERT INTO clubs (id, name, oxl_code, is_oxfordshire_member) VALUES (991, ?, 'TST', true)",
         [assigned_name],
+    )
+    test_db.execute(
+        "INSERT INTO club_aliases (club_id, name) VALUES (991, ?)", [result_name]
     )
     test_db.execute(
         "INSERT INTO division_assignments (season_id, club_id, gender, division) "
@@ -100,8 +117,8 @@ def test_result_club_aliases_use_gender_and_season_assignments(
 def test_exact_assignment_takes_precedence_over_alias(test_db):
     test_db.execute("INSERT INTO seasons (id, name) VALUES (991, 'Division test')")
     test_db.execute(
-        "INSERT INTO clubs (id, name, oxl_code) VALUES "
-        "(991, 'Headington RR', 'HRR'), (992, 'Headington Road Runners', 'HEA')"
+        "INSERT INTO clubs (id, name, oxl_code, is_oxfordshire_member) VALUES "
+        "(991, 'Headington RR', 'HRR', true), (992, 'Headington Road Runners', 'HEA', true)"
     )
     test_db.execute(
         "INSERT INTO division_assignments (season_id, club_id, gender, division) "
