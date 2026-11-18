@@ -31,6 +31,17 @@ test-ui:
 test-unit:
     uv run pytest tests/unit --tb=short --cov=src/website --cov-config=.coveragerc --cov-report=term-missing --cov-report=html --cov-report=xml
 
+# Run the explicitly marked smoke tests (the normal unit suite includes these).
+test-smoke:
+    uv run pytest tests/unit -m smoke -q
+
+# Select tests affected by uncommitted changes, or branch changes against a base ref.
+test-impacted:
+    uv run pytest tests/unit --impacted -q
+
+test-impacted-branch base="origin/main":
+    uv run pytest tests/unit --impacted --impacted-git-mode=branch --impacted-base-branch={{base}} -q
+
 test:
     uv run pytest tests/ -v --tb=short
 

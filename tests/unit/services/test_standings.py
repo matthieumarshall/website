@@ -203,6 +203,7 @@ def test_missing_a_team_round_gets_penalties_b_team_round_stays_blank(test_db):
     assert all(row.team_name != "Alpha B" for row in round_two)
 
 
+@pytest.mark.smoke
 def test_individual_totals_use_rounds_held_and_rank_incomplete_last(test_db):
     season = repository.create_season(test_db, "2025-26")
     service = StandingsService(test_db)
