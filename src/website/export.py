@@ -4,9 +4,11 @@ import csv
 import io
 import re
 from collections.abc import Sequence
+from datetime import timedelta
 from pathlib import Path
 
 from fpdf import FPDF, FontFace
+from openpyxl import Workbook
 
 from website.models import (
     Fixture,
@@ -15,6 +17,7 @@ from website.models import (
     TeamRoundResult,
     TeamStanding,
 )
+from website.models.results import RaceWithResults
 
 # Brand colours matching website CSS tokens
 _PRIMARY = (31, 58, 95)  # --brand-primary  #1f3a5f
@@ -23,6 +26,7 @@ _BG = (247, 245, 242)  # --brand-bg       #f7f5f2
 _TEXT = (26, 26, 46)  # --brand-text     #1a1a2e
 _FONT_PATH = Path("static/fonts/dm-sans.ttf")
 _FONT_STYLES = ("", "B", "I", "BI")
+_SECONDS_PER_MINUTE = 60
 
 _COLUMNS = [
     ("Pos", "position"),
@@ -61,6 +65,82 @@ def filter_results(
 def _safe_filename(value: str) -> str:
     """Strip characters unsafe for filenames."""
     return re.sub(r"[^\w\-. ]", "_", value).strip()
+
+
+def _round_filename(value: str) -> str:
+    """Create a round filename safe for HTTP attachment headers."""
+    return (
+        _safe_filename(value)
+        .encode("ascii", "replace")
+        .decode("ascii")
+        .replace("?", "_")
+        or "round"
+    )
+
+
+def _excel_time(value: str) -> str | timedelta:
+    """Convert a finish time to an Excel duration, keeping other values intact."""
+    match = re.fullmatch(r"(?:(\d+):)?(\d{1,2}):(\d{2})(?:\.(\d+))?", value.strip())
+    if not match:
+        return value
+    hours, minutes, seconds, fraction = match.groups()
+    if (int(minutes) >= _SECONDS_PER_MINUTE and hours is not None) or int(
+        seconds
+    ) >= _SECONDS_PER_MINUTE:
+        return value
+    return timedelta(
+        hours=int(hours or 0),
+        minutes=int(minutes),
+        seconds=int(seconds),
+        microseconds=int((fraction or "")[:6].ljust(6, "0")),
+    )
+
+
+def build_power_of_ten_export(
+    races: list[RaceWithResults], fixture_title: str
+) -> tuple[bytes, str]:
+    """Build a workbook with one sheet of stored results per race."""
+    workbook = Workbook()
+    workbook.remove(workbook.active)
+    for race in races:
+        base = re.sub(r"[\\/*?:\[\]]", "_", race.race.name).strip(" '")[:31] or "Race"
+        name = base
+        suffix = 2
+        while name.casefold() in {title.casefold() for title in workbook.sheetnames}:
+            ending = f" ({suffix})"
+            name = base[: 31 - len(ending)] + ending
+            suffix += 1
+        sheet = workbook.create_sheet(name)
+        sheet.append([column for column, _ in _COLUMNS])
+        for result in race.results:
+            values = [getattr(result, field) for _, field in _COLUMNS]
+            values[3] = _excel_time(result.time)
+            sheet.append(values)
+            for cell in sheet[sheet.max_row]:
+                if cell.data_type == "f":
+                    cell.data_type = "s"
+            if isinstance(values[3], timedelta):
+                sheet.cell(sheet.max_row, 4).number_format = (
+                    "[h]:mm:ss.000000" if values[3].microseconds else "[h]:mm:ss"
+                )
+    if not races:
+        workbook.create_sheet("Results").append([column for column, _ in _COLUMNS])
+    output = io.BytesIO()
+    workbook.save(output)
+    return output.getvalue(), f"{_round_filename(fixture_title)}_power_of_ten.xlsx"
+
+
+def build_round_entry_csv(
+    races: list[RaceWithResults], fixture_title: str
+) -> tuple[str, str]:
+    """Build a single CSV of all round result participants."""
+    output = io.StringIO(newline="")
+    writer = csv.writer(output)
+    writer.writerow(["Full name", "Bib number", "Category"])
+    for race in races:
+        for result in race.results:
+            writer.writerow([result.athlete_name, result.race_number, result.category])
+    return output.getvalue(), f"{_round_filename(fixture_title)}_entry_list.csv"
 
 
 def build_csv(

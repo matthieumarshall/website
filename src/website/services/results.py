@@ -13,6 +13,7 @@ from website.db import Connection
 from website.errors import NotFoundError, ValidationError
 from website.export import filter_results
 from website.models import Fixture, Race, Result, Season, TeamRoundResult
+from website.models.results import RaceWithResults
 from website.services._common import found
 from website.services.archive import stored_file
 from website.services.standings_calculator import recalculate_standings
@@ -120,6 +121,19 @@ class ResultsService:
     def __init__(self, db: Connection) -> None:
         """Bind the service to a database connection."""
         self._db = db
+
+    def round_results(self, fixture_id: int) -> tuple[Fixture, list[RaceWithResults]]:
+        """Return the original stored results for every race in a round."""
+        fixture = found(
+            repository.get_fixture_by_id(self._db, fixture_id), "Fixture not found"
+        )
+        races = repository.list_races_for_fixture(self._db, fixture_id)
+        return fixture, [
+            RaceWithResults(
+                race=race, results=repository.list_results_for_race(self._db, race.id)
+            )
+            for race in races
+        ]
 
     def browse(
         self,

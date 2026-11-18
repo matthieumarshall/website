@@ -225,6 +225,14 @@
   ],
   [
     "GET",
+    "/results/round-export/entry-list"
+  ],
+  [
+    "GET",
+    "/results/round-export/power-of-ten"
+  ],
+  [
+    "GET",
     "/results/source-pdf"
   ],
   [

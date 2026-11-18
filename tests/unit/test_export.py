@@ -2,6 +2,9 @@
 
 import csv
 import io
+from datetime import timedelta
+
+from openpyxl import load_workbook
 
 from website.export import (
     build_csv,
@@ -215,6 +218,132 @@ def test_csv_export_route_returns_csv(test_client, test_db):
     assert resp.status_code == 200
     assert "text/csv" in resp.headers["content-type"]
     assert "Ben Cole" in resp.text
+
+
+def test_round_exports_include_all_stored_results(test_client, test_db):
+    season = _make_season(test_db)
+    fixture = _make_fixture(test_db, season.id)
+    senior = _make_race(test_db, fixture.id, name="Senior")
+    junior = _make_race(test_db, fixture.id, name="U9")
+    _make_result(
+        test_db,
+        senior.id,
+        athlete_name="Smith, Alice",
+        category="U23",
+        time="35:12",
+        race_number=None,
+        club=None,
+        category_position=None,
+    )
+    _make_result(test_db, junior.id, athlete_name="Bob Jones", time="DNF")
+
+    response = test_client.get(
+        "/results/round-export/power-of-ten",
+        params={"fixture_id": fixture.id, "category": "ignored"},
+    )
+    assert response.status_code == 200
+    assert "spreadsheetml" in response.headers["content-type"]
+    assert "Round 1_power_of_ten.xlsx" in response.headers["content-disposition"]
+    workbook = load_workbook(io.BytesIO(response.content))
+    assert workbook.sheetnames == ["U9", "Senior"]
+    assert [cell.value for cell in workbook["Senior"][1]] == [
+        "Pos",
+        "Race No",
+        "Name",
+        "Time",
+        "Category",
+        "Cat Pos",
+        "Gender",
+        "Gen Pos",
+        "Club",
+    ]
+    row = [cell.value for cell in workbook["Senior"][2]]
+    assert row == [
+        1,
+        None,
+        "Smith, Alice",
+        timedelta(minutes=35, seconds=12),
+        "U23",
+        None,
+        "Female",
+        1,
+        None,
+    ]
+    assert workbook["U9"]["D2"].value == "DNF"
+
+    response = test_client.get(
+        "/results/round-export/entry-list", params={"fixture_id": fixture.id}
+    )
+    assert response.status_code == 200
+    assert "Round 1_entry_list.csv" in response.headers["content-disposition"]
+    assert list(csv.reader(io.StringIO(response.text))) == [
+        ["Full name", "Bib number", "Category"],
+        ["Bob Jones", "100", "Senior Women"],
+        ["Smith, Alice", "", "U23"],
+    ]
+    for mode in ("individual", "team"):
+        for race in (junior, senior):
+            panel = test_client.get(
+                "/results/race-panel",
+                params={
+                    "fixture_id": fixture.id,
+                    "race_id": race.id,
+                    "view_mode": mode,
+                },
+                headers={"HX-Request": "true"},
+            )
+            assert (
+                f"/results/round-export/power-of-ten?fixture_id={fixture.id}"
+                in panel.text
+            )
+            assert (
+                f"/results/round-export/entry-list?fixture_id={fixture.id}"
+                in panel.text
+            )
+
+
+def test_round_exports_empty_unknown_and_controls(test_client, test_db):
+    season = _make_season(test_db)
+    fixture = _make_fixture(test_db, season.id)
+    for endpoint in ("power-of-ten", "entry-list"):
+        path = f"/results/round-export/{endpoint}"
+        assert test_client.get(path, params={"fixture_id": 999999}).status_code == 404
+        response = test_client.get(path, params={"fixture_id": fixture.id})
+        assert response.status_code == 200
+        if endpoint == "power-of-ten":
+            workbook = load_workbook(io.BytesIO(response.content))
+            assert workbook.sheetnames == ["Results"]
+            assert workbook.active.max_row == 1
+        else:
+            assert list(csv.reader(io.StringIO(response.text))) == [
+                ["Full name", "Bib number", "Category"]
+            ]
+    for mode in ("individual", "team"):
+        response = test_client.get(
+            "/results/race-panel",
+            params={"fixture_id": fixture.id, "view_mode": mode},
+            headers={"HX-Request": "true"},
+        )
+        assert (
+            f"/results/round-export/power-of-ten?fixture_id={fixture.id}"
+            in response.text
+        )
+        assert (
+            f"/results/round-export/entry-list?fixture_id={fixture.id}" in response.text
+        )
+
+
+def test_round_workbook_truncates_and_disambiguates_sheet_names(test_client, test_db):
+    season = _make_season(test_db)
+    fixture = _make_fixture(test_db, season.id)
+    _make_race(test_db, fixture.id, name="A" * 35 + "/one")
+    _make_race(test_db, fixture.id, name="A" * 35 + "/two")
+    response = test_client.get(
+        "/results/round-export/power-of-ten", params={"fixture_id": fixture.id}
+    )
+    names = load_workbook(io.BytesIO(response.content)).sheetnames
+    assert len(names) == 2 and len(set(names)) == 2
+    assert all(len(name) <= 31 for name in names)
 
 
 def test_csv_export_content_disposition(test_client, test_db):
