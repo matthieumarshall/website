@@ -12,7 +12,7 @@ from pyresults import build_default_config
 from website import repository
 from website.db import Connection
 from website.errors import ConflictError, NotFoundError, ValidationError
-from website.models import ParsedResult, Race
+from website.models import ParsedResult, Race, Result
 from website.services.standings_calculator import recalculate_standings
 from website.services.standings_categories import (
     add_oxl_categories,
@@ -148,6 +148,31 @@ def parse_csv_results(csv_text: str) -> list[ParsedResult]:
     return sorted(results, key=lambda result: result.position)
 
 
+def _identity(number: int | None, name: str, club: str | None) -> str:
+    if number is not None:
+        return f"number:{number}"
+    return f"name:{name.strip().casefold()}|{(club or '').strip().casefold()}"
+
+
+def _protected_keys(protected: list[Result], incoming_keys: list[str]) -> set[str]:
+    protected_by_key: dict[str, int] = {}
+    for result in protected:
+        current_key = _identity(result.race_number, result.athlete_name, result.club)
+        for key in {current_key, result.external_key or current_key}:
+            owner = protected_by_key.get(key)
+            if owner is not None and owner != result.id:
+                raise ValidationError(
+                    "Protected results have ambiguous duplicate identities."
+                )
+            protected_by_key[key] = result.id
+    matched_ids = [
+        protected_by_key[key] for key in incoming_keys if key in protected_by_key
+    ]
+    if len(matched_ids) != len(set(matched_ids)):
+        raise ValidationError("The CSV matches a protected result more than once.")
+    return set(protected_by_key)
+
+
 class ResultsImportService:
     """Create races and replace race results from staff-uploaded CSV files."""
 
@@ -180,13 +205,8 @@ class ResultsImportService:
         if fixture is None:
             raise NotFoundError("Fixture not found")
 
-        def identity(number: int | None, name: str, club: str | None) -> str:
-            if number is not None:
-                return f"number:{number}"
-            return f"name:{name.strip().casefold()}|{(club or '').strip().casefold()}"
-
         incoming_keys = [
-            identity(r.race_number, r.athlete_name, r.club) for r in parsed_results
+            _identity(r.race_number, r.athlete_name, r.club) for r in parsed_results
         ]
         if len(incoming_keys) != len(set(incoming_keys)):
             raise ValidationError(
@@ -197,15 +217,7 @@ class ResultsImportService:
             for r in repository.list_results_for_race(self._db, race.id)
             if r.is_locked or r.source == "manual"
         ]
-        protected_keys = [
-            r.external_key or identity(r.race_number, r.athlete_name, r.club)
-            for r in protected
-        ]
-        if len(protected_keys) != len(set(protected_keys)):
-            raise ValidationError(
-                "Protected results have ambiguous duplicate identities."
-            )
-        protected_set = set(protected_keys)
+        protected_set = _protected_keys(protected, incoming_keys)
         rows = [
             (
                 race.id,
@@ -218,10 +230,10 @@ class ResultsImportService:
                 result.gender,
                 result.gender_position,
                 result.club,
-                identity(result.race_number, result.athlete_name, result.club),
+                _identity(result.race_number, result.athlete_name, result.club),
             )
             for result in parsed_results
-            if identity(result.race_number, result.athlete_name, result.club)
+            if _identity(result.race_number, result.athlete_name, result.club)
             not in protected_set
         ]
 

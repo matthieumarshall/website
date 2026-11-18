@@ -276,3 +276,93 @@ def test_reimport_preserves_staff_correction_and_rejects_duplicate_identities(te
         repository.list_results_for_race(test_db, race.id)[0].athlete_name
         == "Corrected Runner"
     )
+
+
+@pytest.mark.parametrize(
+    ("old_number", "new_number", "old_name", "new_name", "old_club", "new_club"),
+    [
+        ("101", "321", "Runner", "Runner", "Oxford AC", "Oxford AC"),
+        ("", "", "Old Name", "New Name", "Oxford AC", "Oxford AC"),
+        ("", "", "Runner", "Runner", "Old Club", "New Club"),
+    ],
+)
+def test_reimport_matches_original_and_corrected_identity(
+    test_db, old_number, new_number, old_name, new_name, old_club, new_club
+):
+    from website.services.results import ResultsService
+
+    _, fixture = _create_fixture(test_db)
+    race = repository.create_race(test_db, fixture.id, "Senior Men")
+    importer = ResultsImportService(test_db)
+    original = (
+        _CSV_HEADER + f"1,{old_number},{old_name},00:29:00,SM,1,Male,1,{old_club}\n"
+    )
+    corrected = (
+        _CSV_HEADER + f"1,{new_number},{new_name},00:30:00,SM,1,Male,1,{new_club}\n"
+    )
+    importer.ingest_csv(fixture.id, race.id, original)
+    result = repository.list_results_for_race(test_db, race.id)[0]
+    ResultsService(test_db).update_manual_result(
+        race.id,
+        result.id,
+        1,
+        new_name,
+        "00:28:00",
+        "SM",
+        "Male",
+        race_number=int(new_number) if new_number else None,
+        club=new_club,
+    )
+
+    for csv_text in (corrected, original):
+        importer.ingest_csv(fixture.id, race.id, csv_text)
+        rows = repository.list_results_for_race(test_db, race.id)
+        assert len(rows) == 1
+        assert (rows[0].id, rows[0].athlete_name, rows[0].time) == (
+            result.id,
+            new_name,
+            "00:28:00",
+        )
+
+    with pytest.raises(ValidationError, match="more than once"):
+        importer.ingest_csv(fixture.id, race.id, original + corrected.split("\n", 1)[1])
+
+
+def test_reimport_rejects_overlapping_protected_identities(test_db):
+    from website.services.results import ResultsService
+
+    _, fixture = _create_fixture(test_db)
+    race = repository.create_race(test_db, fixture.id, "Senior Men")
+    importer = ResultsImportService(test_db)
+    csv_text = _CSV_HEADER + (
+        "1,101,First Runner,00:29:00,SM,1,Male,1,Oxford AC\n"
+        "2,202,Second Runner,00:30:00,SM,2,Male,2,Oxford AC\n"
+    )
+    importer.ingest_csv(fixture.id, race.id, csv_text)
+    first, second = repository.list_results_for_race(test_db, race.id)
+    service = ResultsService(test_db)
+    service.update_manual_result(
+        race.id,
+        first.id,
+        1,
+        first.athlete_name,
+        first.time,
+        "SM",
+        "Male",
+        race_number=202,
+        club="Oxford AC",
+    )
+    service.update_manual_result(
+        race.id,
+        second.id,
+        2,
+        second.athlete_name,
+        second.time,
+        "SM",
+        "Male",
+        race_number=303,
+        club="Oxford AC",
+    )
+    with pytest.raises(ValidationError, match="ambiguous"):
+        importer.ingest_csv(fixture.id, race.id, csv_text)
+    assert len(repository.list_results_for_race(test_db, race.id)) == 2
