@@ -14,7 +14,7 @@ Three environments are defined for this project. Each uses a different combinati
 | `EA_TEST_MODE` | unset / `false` | unset (CI hits staging) | unset / `false` |
 | **Stripe** | Test keys (`sk_test_…`) | Test keys (`sk_test_…`) | Live keys (`sk_live_…`) |
 | `PRODUCTION` | `false` | `false` | `true` |
-| **Python** | 3.14 (minimum 3.11) | 3.11 and 3.14 | 3.14 |
+| **Python** | 3.14 (minimum 3.11) | 3.14 | 3.14 |
 | **Database** | `data/app.duckdb` | `:memory:` (unit) / `test_ui.duckdb` (UI) | `/home/manager/website/data/app.duckdb` |
 | **Secret key** | Any string | Any string | Strong random, required |
 
@@ -142,11 +142,14 @@ The staging cert is stored under `data/` as a `.pfx.txt` file (rename to `.pfx` 
 # All unit tests (no network, no env vars needed)
 just test-unit
 
-# All UI / Playwright tests
+# Python UI and JavaScript accessibility/mobile Playwright tests
 just test-ui
 
-# Everything
+# Unit tests without coverage
 just test
+
+# Unit and browser suites
+just test-all
 
 # Run the live EA staging integration test (requires staging env vars above)
 uv run pytest tests/unit/test_entries_ea_api.py -v

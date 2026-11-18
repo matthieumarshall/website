@@ -12,7 +12,7 @@ jobs:
     name: Code Quality Checks
     runs-on: ubuntu-latest
     env:
-      UV_PYTHON: "3.11"
+      UV_PYTHON: "3.14"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -20,7 +20,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.14"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
@@ -59,7 +59,7 @@ jobs:
     name: Security & Compliance Scans
     runs-on: ubuntu-latest
     env:
-      UV_PYTHON: "3.11"
+      UV_PYTHON: "3.14"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -69,7 +69,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.14"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
@@ -119,8 +119,10 @@ jobs:
           # The OpenTelemetry advisories affect inbound trace-context parsing, including
           # GHSA-mf5v-w3w3-f6cg (ReDoS). This CI scan does not accept inbound trace
           # contexts. Remove these exceptions when Semgrep updates its pins.
+          # The locked export already contains the complete, pinned dependency
+          # graph, so audit it directly without resolving it again via pip.
           uv run pip-audit \
-            -r "$audit_requirements" \
+            -r "$audit_requirements" --no-deps --disable-pip \
             --ignore CVE-2026-4539 \
             --ignore GHSA-58qw-9mgm-455v \
             --ignore GHSA-jp4c-xjxw-mgf9 \
@@ -195,18 +197,13 @@ jobs:
         uses: actions/dependency-review-action@v4
         continue-on-error: true
 
-  # Job 3: Unit Tests (Depends on code-quality)
+  # Job 3: Unit tests run independently of the UI tests.
   unit-tests:
-    name: Unit Tests & Coverage (Python ${{ matrix.python-version }})
-    needs: code-quality
+    name: Unit Tests & Coverage (Python 3.14)
     runs-on: ubuntu-latest
     environment: testing
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.11", "3.14"]
     env:
-      UV_PYTHON: ${{ matrix.python-version }}
+      UV_PYTHON: "3.14"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -216,7 +213,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.14"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
@@ -239,25 +236,19 @@ jobs:
           echo "EA_STAGING=true" >> $GITHUB_ENV
 
       - name: Run pytest with coverage
-        if: matrix.python-version == '3.11'
         # Fails if total coverage drops below fail_under in .coveragerc.
         run: |
           uv run pytest tests/unit/ --tb=short \
             --cov=src/website --cov-config=.coveragerc \
             --cov-report=html --cov-report=json --cov-report=xml --cov-report=term-missing
 
-      - name: Run pytest on Python 3.14
-        if: matrix.python-version == '3.14'
-        run: uv run pytest tests/unit/ --tb=short
-
       - name: Coverage of changed lines (diff-cover)
-        if: github.event_name == 'pull_request' && matrix.python-version == '3.11'
+        if: github.event_name == 'pull_request'
         run: |
           uv run diff-cover coverage.xml \
             --compare-branch="origin/${{ github.base_ref }}" --fail-under=90
 
       - name: Display coverage summary
-        if: matrix.python-version == '3.11'
         run: |
           python -c "
           import json
@@ -269,7 +260,7 @@ jobs:
 
       - name: Upload coverage reports
         uses: actions/upload-artifact@v4
-        if: always() && matrix.python-version == '3.11'
+        if: always()
         with:
           name: coverage-reports
           path: |
@@ -279,10 +270,9 @@ jobs:
             .coverage
           retention-days: 30
 
-  # Job 4: UI Tests (Depends on unit-tests)
+  # Job 4: Browser end-to-end tests run in parallel with unit tests.
   ui-tests:
     name: UI Tests (Playwright)
-    needs: unit-tests
     runs-on: ubuntu-24.04
     env:
       UV_PYTHON: "3.14"
