@@ -142,11 +142,14 @@ The staging cert is stored under `data/` as a `.pfx.txt` file (rename to `.pfx` 
 # All unit tests (no network, no env vars needed)
 just test-unit
 
-# All UI / Playwright tests
+# Python UI and JavaScript accessibility/mobile Playwright tests
 just test-ui
 
-# Everything
+# Unit tests without coverage
 just test
+
+# Unit and browser suites
+just test-all
 
 # Run the live EA staging integration test (requires staging env vars above)
 uv run pytest tests/unit/test_entries_ea_api.py -v

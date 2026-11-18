@@ -96,6 +96,6 @@ repos:
         pass_filenames: false
         stages: [pre-push]
         files: >-
-          (?x)^(src/|tests/|migrations/|templates/|static/|scripts/|
+          (?x)^(src/|tests/unit/|tests/[^/]+$|migrations/|templates/|static/|scripts/|
           pyproject\.toml$|uv\.lock$|pytest\.ini$|Justfile$|
           \.coveragerc$|\.pre-commit-config\.yaml$|\.python-version$|\.env\.example$)

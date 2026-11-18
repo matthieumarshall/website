@@ -119,9 +119,10 @@ The app will be available at http://localhost:8000.
 ## 8. Run Tests
 
 ```powershell
-just test          # all tests
+just test          # unit tests
 just test-unit     # unit tests only
-just test-ui       # Playwright UI tests only
+just test-ui       # Python UI and JS accessibility/mobile Playwright tests
+just test-all      # unit and browser suites
 ```
 
 ---
@@ -225,6 +226,6 @@ free -h
 | Install deps | `just sync` |
 | Start dev server | `just serve` |
 | Lint | `just lint` |
-| Run all tests | `just test` |
+| Run all tests | `just test-all` |
 | Audit deps for CVEs | `just audit` |
 | Connect to VPS | `ssh vps` |

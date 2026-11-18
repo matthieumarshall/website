@@ -24,8 +24,10 @@ audit:
 serve:
     uv run uvicorn website.main:app --reload --reload-dir src --reload-dir templates --reload-dir static --env-file .env
 
+# Browser end-to-end tests, including accessibility and mobile viewports.
 test-ui:
     uv run pytest tests/ui -v
+    npx playwright test
 
 # Unit tests with coverage (fails below the .coveragerc threshold).
 test-unit:
@@ -39,7 +41,10 @@ test-impacted-branch base="origin/main":
     uv run pytest tests/unit --impacted --impacted-git-mode=branch --impacted-base-branch={{base}} -q
 
 test:
-    uv run pytest tests/ -v --tb=short
+    uv run pytest tests/unit -v --tb=short
+
+# Explicitly run both unit and browser suites.
+test-all: test test-ui
 
 # Static checks that guard the architecture: types, layers and module size.
 check:

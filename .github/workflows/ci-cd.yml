@@ -195,10 +195,9 @@ jobs:
         uses: actions/dependency-review-action@v4
         continue-on-error: true
 
-  # Job 3: Unit Tests (Depends on code-quality)
+  # Job 3: Unit tests run independently of the UI tests.
   unit-tests:
     name: Unit Tests & Coverage (Python 3.14)
-    needs: code-quality
     runs-on: ubuntu-latest
     environment: testing
     env:
@@ -269,10 +268,9 @@ jobs:
             .coverage
           retention-days: 30
 
-  # Job 4: UI Tests (Depends on unit-tests)
+  # Job 4: Browser end-to-end tests run in parallel with unit tests.
   ui-tests:
     name: UI Tests (Playwright)
-    needs: unit-tests
     runs-on: ubuntu-24.04
     env:
       UV_PYTHON: "3.14"
