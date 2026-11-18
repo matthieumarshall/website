@@ -72,8 +72,11 @@ def test_result_club_aliases_use_gender_and_season_assignments(
 ):
     test_db.execute("INSERT INTO seasons (id, name) VALUES (991, 'Division test')")
     test_db.execute(
-        "INSERT INTO clubs (id, name, oxl_code) VALUES (991, ?, 'TST')",
+        "INSERT INTO clubs (id, name, oxl_code, is_oxfordshire_member) VALUES (991, ?, 'TST', true)",
         [assigned_name],
+    )
+    test_db.execute(
+        "INSERT INTO club_aliases (club_id, name) VALUES (991, ?)", [result_name]
     )
     test_db.execute(
         "INSERT INTO division_assignments (season_id, club_id, gender, division) "
@@ -114,8 +117,8 @@ def test_result_club_aliases_use_gender_and_season_assignments(
 def test_exact_assignment_takes_precedence_over_alias(test_db):
     test_db.execute("INSERT INTO seasons (id, name) VALUES (991, 'Division test')")
     test_db.execute(
-        "INSERT INTO clubs (id, name, oxl_code) VALUES "
-        "(991, 'Headington RR', 'HRR'), (992, 'Headington Road Runners', 'HEA')"
+        "INSERT INTO clubs (id, name, oxl_code, is_oxfordshire_member) VALUES "
+        "(991, 'Headington RR', 'HRR', true), (992, 'Headington Road Runners', 'HEA', true)"
     )
     test_db.execute(
         "INSERT INTO division_assignments (season_id, club_id, gender, division) "

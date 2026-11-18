@@ -12,7 +12,7 @@ def test_upgrade_preserves_legacy_timetable_and_round_numbers(tmp_path):
     migrations = tmp_path / "migrations"
     migrations.mkdir()
     for source in sorted(Path("migrations").glob("*.sql")):
-        if source.name.startswith("0032_"):
+        if source.name == "0032_round_schedule_and_manual_results.sql":
             continue
         (migrations / source.name).write_text(
             source.read_text(encoding="utf-8"), encoding="utf-8"
@@ -45,7 +45,7 @@ def test_previous_local_migration_does_not_duplicate_timetable(tmp_path):
     migrations = tmp_path / "migrations"
     migrations.mkdir()
     for source in sorted(Path("migrations").glob("*.sql")):
-        if source.name.startswith("0032_"):
+        if source.name == "0032_round_schedule_and_manual_results.sql":
             continue
         (migrations / source.name).write_text(
             source.read_text(encoding="utf-8"), encoding="utf-8"

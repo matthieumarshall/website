@@ -242,7 +242,7 @@ class ResultsImportService:
         try:
             repository.delete_unlocked_imported_results_for_race(self._db, race.id)
             repository.create_imported_results_batch(self._db, rows)
-            recalculate_standings(self._db, fixture.season_id)
+            recalculate_standings(self._db, fixture.season_id, in_transaction=True)
             self._db.execute("COMMIT")
             committed = True
         finally:

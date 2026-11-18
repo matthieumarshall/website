@@ -317,7 +317,7 @@ def test_manual_results_validate_ownership_and_roll_back_failed_recalculation(
     with pytest.raises(NotFoundError):
         service.delete_result(other_race.id, result.id)
 
-    def fail_recalculation(*args):
+    def fail_recalculation(*args, **kwargs):
         raise RuntimeError("scoring failed")
 
     monkeypatch.setattr(

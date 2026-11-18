@@ -5,7 +5,7 @@ import hashlib
 from website.db import Connection
 
 # Increment whenever a scoring or eligibility rule changes.
-SCORING_VERSION = 1
+SCORING_VERSION = 2
 
 
 def input_fingerprint(db: Connection, season_id: int) -> str:
@@ -19,7 +19,11 @@ def input_fingerprint(db: Connection, season_id: int) -> str:
         "ORDER BY f.id, r.id, x.id",
         [season_id],
     ).fetchall()
-    return hashlib.sha256(repr(rows).encode("utf-8")).hexdigest()
+    clubs = db.execute("SELECT id, name FROM clubs ORDER BY id").fetchall()
+    aliases = db.execute(
+        "SELECT club_id, name FROM club_aliases ORDER BY club_id, name"
+    ).fetchall()
+    return hashlib.sha256(repr((rows, clubs, aliases)).encode("utf-8")).hexdigest()
 
 
 def calculated_standings_stale(db: Connection, season_id: int) -> bool:

@@ -818,6 +818,15 @@ def test_calculated_standings_freshness_tracks_changes(test_db):
     service = StandingsService(test_db)
     service.recalculate(season.id)
     assert not service.overview(season.id).stale
+    club = repository.create_club(test_db, name="Example AC", oxl_code="EX")
+    assert service.overview(season.id).stale
+    service.recalculate(season.id)
+    test_db.execute(
+        "INSERT INTO club_aliases (club_id, name) VALUES (?, ?)", [club.id, "AC"]
+    )
+    assert service.overview(season.id).stale
+    service.recalculate(season.id)
+    assert not service.overview(season.id).stale
     test_db.execute("UPDATE results SET category='M35' WHERE race_id=?", [race.id])
     assert service.overview(season.id).stale
     service.recalculate(season.id)

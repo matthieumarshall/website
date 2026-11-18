@@ -100,12 +100,15 @@ class _Scorers:
                 )
 
 
-def recalculate_standings(db: Connection, season_id: int) -> None:
+def recalculate_standings(
+    db: Connection, season_id: int, *, in_transaction: bool = False
+) -> None:
     """Recalculate and persist standings for *season_id*.
 
     Loads the season's results (fixtures ordered by date), scores them with
     pyresults entirely in memory, then replaces the calculated standings rows.
-    Rows with ``is_imported = true`` are left untouched.
+    Rows with ``is_imported = true`` are left untouched. When called inside an
+    existing transaction, the caller owns its commit and rollback.
     """
     season = repository.get_season_by_id(db, season_id)
     if season is None:
@@ -131,7 +134,8 @@ def recalculate_standings(db: Connection, season_id: int) -> None:
 
     fixture_for_round = {rn: fid for fid, rn in round_for_fixture.items()}
     _complete_missing_a_team_results(scorers, fixture_for_round)
-    db.execute("BEGIN")
+    if not in_transaction:
+        db.execute("BEGIN")
     try:
         repository.replace_calculated_individual_standings(
             db, season_id, _individual_rows(scorers, fixture_for_round)
@@ -145,9 +149,11 @@ def recalculate_standings(db: Connection, season_id: int) -> None:
             db, season_id, scorers.team_round_results
         )
         record_calculation(db, season_id, fingerprint)
-        db.execute("COMMIT")
+        if not in_transaction:
+            db.execute("COMMIT")
     except Exception:
-        db.execute("ROLLBACK")
+        if not in_transaction:
+            db.execute("ROLLBACK")
         raise
     _logger.info(
         "Standings recalculated for season %s (%d fixtures).", season_id, len(fixtures)

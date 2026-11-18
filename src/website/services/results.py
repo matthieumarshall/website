@@ -273,7 +273,7 @@ class ResultsService:
         self._db.execute("BEGIN")
         try:
             yield
-            recalculate_standings(self._db, fixture.season_id)
+            recalculate_standings(self._db, fixture.season_id, in_transaction=True)
             self._db.execute("COMMIT")
         except Exception:
             self._db.execute("ROLLBACK")
