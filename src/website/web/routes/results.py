@@ -5,7 +5,13 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, Response
 
-from website.export import build_csv, build_pdf, build_team_results_export
+from website.export import (
+    build_csv,
+    build_pdf,
+    build_power_of_ten_export,
+    build_round_entry_csv,
+    build_team_results_export,
+)
 from website.services.results import ResultFilters, ResultsViewMode
 from website.web.deps import RendererDep, Results, SettingsDep
 from website.web.stored_files import stored_file_response
@@ -126,6 +132,30 @@ def results_export_csv(race_id: int, service: Results, filters: Filters) -> Resp
     )
     return Response(
         content=csv_text.encode("utf-8"),
+        media_type="text/csv",
+        headers=_attachment(filename),
+    )
+
+
+@router.get("/round-export/power-of-ten")
+def round_power_of_ten_export(fixture_id: int, service: Results) -> Response:
+    """Download every race in the round as a workbook."""
+    fixture, races = service.round_results(fixture_id)
+    content, filename = build_power_of_ten_export(races, fixture.title)
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers=_attachment(filename),
+    )
+
+
+@router.get("/round-export/entry-list")
+def round_entry_list_export(fixture_id: int, service: Results) -> Response:
+    """Download the round's result participants as one CSV."""
+    fixture, races = service.round_results(fixture_id)
+    content, filename = build_round_entry_csv(races, fixture.title)
+    return Response(
+        content=content.encode("utf-8"),
         media_type="text/csv",
         headers=_attachment(filename),
     )
