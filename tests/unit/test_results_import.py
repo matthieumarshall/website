@@ -240,6 +240,8 @@ def test_import_warns_about_unknown_and_incompatible_categories(test_db):
     )
     assert len(summary.category_warnings) == 3
     assert len(repository.list_results_for_race(test_db, race.id)) == 3
+
+
 def test_reimport_preserves_staff_correction_and_rejects_duplicate_identities(test_db):
     from website.services.results import ResultsService
 

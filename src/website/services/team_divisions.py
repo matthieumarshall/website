@@ -19,7 +19,6 @@ _GENDERS: dict[str, Gender] = {
 }
 
 
-
 def _score(row: TeamRoundResult | TeamStanding) -> int:
     return row.score if isinstance(row, TeamRoundResult) else row.total_score
 
