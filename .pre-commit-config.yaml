@@ -90,9 +90,9 @@ repos:
         files: ^templates/.*\.html$
 
       - id: unit-tests
-        name: unit tests (pre-push)
+        name: impacted unit tests (pre-push)
         language: system
-        entry: uv run pytest tests/unit -x -q
+        entry: uv run pytest tests/unit -x -q --impacted --impacted-git-mode=branch --impacted-base-branch=origin/main
         pass_filenames: false
         stages: [pre-push]
         files: >-

@@ -121,7 +121,7 @@ Every commit runs pre-commit (`just lint` runs it on all files). The hooks are:
 | Types | `uv run mypy`, `uv run ty check` | `mypy --strict` with the pydantic plugin on `src/website` |
 | Architecture | `uv run lint-imports` | Layering: web → services → repository → models |
 | Module size | `uv run python scripts/check_file_length.py src` | No module over 1000 lines (warns over 500) |
-| Tests (pre-push) | `uv run pytest tests/unit -x -q` | Full unit suite for changes to code, tests, migrations, templates, static assets, scripts or test/dependency configuration; documentation-only pushes skip it |
+| Tests (pre-push) | `uv run pytest tests/unit -x -q --impacted --impacted-git-mode=branch --impacted-base-branch=origin/main` | Impacted unit tests for relevant changes; documentation-only pushes skip it |
 
 `just check` runs the type, architecture and size checks together. CI also
 requires 90% coverage of the lines changed in a pull request (`diff-cover`).
@@ -137,7 +137,6 @@ Before submitting a change, run the checks relevant to it:
 
 ```powershell
 just test-unit     # unit tests with the coverage gate
-just test-smoke    # small explicitly marked unit-test subset
 just test-impacted # tests affected by uncommitted changes
 just test-impacted-branch # tests affected by committed changes since origin/main
 just test-ui       # browser tests (requires Playwright browsers)
@@ -148,13 +147,13 @@ just lint          # all pre-commit hooks
 Use `just test` to run the full test suite. See [src/website/README.md](src/website/README.md)
 for the layer boundaries and feature implementation workflow.
 
-The full unit suite is the default; smoke tests are also included in it. Add
-`@pytest.mark.smoke` to a small number of fast tests covering essential behavior.
-For a different branch baseline, use `just test-impacted-branch origin/your-branch`.
+Normal pytest runs and CI run the full suite. The pre-push hook compares committed
+branch changes with `origin/main`; fetch it to keep the baseline current. For a
+different baseline, use `just test-impacted-branch origin/your-branch`.
 The impacted selector uses static import analysis, includes fixture dependencies,
 and reruns all tests for dependency/configuration changes and configured non-Python
 assets. It is a feedback aid: dynamic dependencies can be missed, and the full
-pre-push and CI suites remain the safety net. Branch mode considers committed
+CI suite remains the safety net. Branch mode considers committed
 changes only; the default impacted command considers uncommitted changes.
 
 ## Repository Hygiene

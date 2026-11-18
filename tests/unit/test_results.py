@@ -1,7 +1,6 @@
 """Unit tests for results display routes and repository functions."""
 
 import duckdb
-import pytest
 
 from website import repository
 from website.models import Race, Result
@@ -74,7 +73,6 @@ def _make_result(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.smoke
 def test_create_race_returns_inserted_row_in_same_transaction(
     test_db: duckdb.DuckDBPyConnection,
 ) -> None:
@@ -194,7 +192,6 @@ def test_results_page_no_seasons(test_client):
     assert "Results" in resp.text
 
 
-@pytest.mark.smoke
 def test_results_page_with_data(test_client, test_db):
     season = _make_season(test_db)
     fixture = _make_fixture(test_db, season.id)

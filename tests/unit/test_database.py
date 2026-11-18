@@ -51,7 +51,6 @@ class TestGetDb:
 
 
 class TestRunMigrations:
-    @pytest.mark.smoke
     def test_creates_migrations_table(self, test_db: duckdb.DuckDBPyConnection) -> None:
         # run_migrations already called in fixture; table should exist
         result = test_db.execute(
