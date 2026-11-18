@@ -119,8 +119,10 @@ jobs:
           # The OpenTelemetry advisories affect inbound trace-context parsing, including
           # GHSA-mf5v-w3w3-f6cg (ReDoS). This CI scan does not accept inbound trace
           # contexts. Remove these exceptions when Semgrep updates its pins.
+          # The locked export already contains the complete, pinned dependency
+          # graph, so audit it directly without resolving it again via pip.
           uv run pip-audit \
-            -r "$audit_requirements" \
+            -r "$audit_requirements" --no-deps --disable-pip \
             --ignore CVE-2026-4539 \
             --ignore GHSA-58qw-9mgm-455v \
             --ignore GHSA-jp4c-xjxw-mgf9 \
