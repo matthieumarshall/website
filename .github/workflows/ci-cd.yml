@@ -58,6 +58,7 @@ jobs:
   security:
     name: Security & Compliance Scans
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     env:
       UV_PYTHON: "3.14"
     steps:
@@ -119,6 +120,12 @@ jobs:
           # The OpenTelemetry advisories affect inbound trace-context parsing, including
           # GHSA-mf5v-w3w3-f6cg (ReDoS). This CI scan does not accept inbound trace
           # contexts. Remove these exceptions when Semgrep updates its pins.
+          # GHSA-qx49-fqc8-xw99 affects MCP OAuth clients; this job runs only the
+          # Semgrep CLI and does not connect to MCP servers with OAuth credentials.
+          # GHSA-53pm-wgxf-c6qf can slow wildcard matching on crafted filenames.
+          # Semgrep pins wcmatch below the fixed version; bound CI exposure with the
+          # job timeout. Both pins remain in Semgrep 1.186.0, the latest available
+          # when reviewed; remove these exceptions once compatible fixes ship.
           # The locked export already contains the complete, pinned dependency
           # graph, so audit it directly without resolving it again via pip.
           uv run pip-audit \
@@ -133,6 +140,8 @@ jobs:
             --ignore GHSA-w4fh-qvv9-3v23 \
             --ignore GHSA-rwrf-2pqf-9j8j \
             --ignore GHSA-xcq7-p3pf-p88h \
+            --ignore GHSA-qx49-fqc8-xw99 \
+            --ignore GHSA-53pm-wgxf-c6qf \
             --ignore GHSA-mf5v-w3w3-f6cg || exit 1
 
       - name: gitleaks - Scan for secrets
