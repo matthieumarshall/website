@@ -154,7 +154,7 @@
                 {% endif %}
               </td>
               <td>
-                <button class="btn btn-sm btn-outline-secondary"
+                <button type="button" class="btn btn-sm btn-outline-secondary"
                         hx-get="/admin/entries/{{ season.id }}/club/{{ alloc.club_id }}/allocation-form"
                         hx-target="#alloc-form-{{ alloc.club_id }}"
                         hx-swap="innerHTML">Edit</button>
@@ -203,7 +203,7 @@
                 {% endif %}
               </td>
               <td>
-                <button class="btn btn-sm btn-outline-secondary"
+                <button type="button" class="btn btn-sm btn-outline-secondary"
                         hx-get="/admin/entries/{{ season.id }}/athlete/{{ athlete.athlete_id }}/race-number-form"
                         hx-target="#race-form-{{ athlete.athlete_id }}"
                         hx-swap="innerHTML">Edit</button>

@@ -1,13 +1,17 @@
 """Static information pages, the account page and the cookie notice."""
 
-from fastapi import APIRouter, Request
+from typing import Annotated
+
+from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
+from website.models.forms import RichTextForm
 from website.richtext import safe_referer_path
 from website.web.csrf import CsrfProtected
-from website.web.deps import RendererDep, SettingsDep
+from website.web.deps import CurrentUserDep, Pages, RendererDep, SettingsDep
+from website.web.identity import is_staff
 from website.web.rendering import COOKIE_NOTICE_COOKIE
-from website.web.security import RequireSignedIn
+from website.web.security import RequireSignedIn, RequireStaff
 
 router = APIRouter()
 _ONE_YEAR_SECONDS = 60 * 60 * 24 * 365
@@ -50,15 +54,68 @@ def privacy_policy(request: Request, ui: RendererDep) -> HTMLResponse:
 
 
 @router.get("/contact", response_class=HTMLResponse)
-def contact(request: Request, ui: RendererDep) -> HTMLResponse:
+def contact(request: Request, ui: RendererDep, pages: Pages) -> HTMLResponse:
     """Show contact details."""
-    return ui.page(request, "contact.html", "contact")
+    return _information_page(request, ui, pages, "contact", "Contact Us")
 
 
 @router.get("/about", response_class=HTMLResponse)
-def about(request: Request, ui: RendererDep) -> HTMLResponse:
+def about(request: Request, ui: RendererDep, pages: Pages) -> HTMLResponse:
     """Show the about page."""
-    return ui.page(request, "about.html", "about")
+    return _information_page(request, ui, pages, "about", "About Us")
+
+
+def _information_content(ui: RendererDep, pages: Pages, slug: str) -> str:
+    default = ui.templates.env.get_template(f"_default_{slug}.html").render()
+    return pages.content_or_default(slug, default)
+
+
+def _information_page(
+    request: Request, ui: RendererDep, pages: Pages, slug: str, title: str
+) -> HTMLResponse:
+    return ui.page(
+        request,
+        "information.html",
+        slug,
+        title=title,
+        slug=slug,
+        content=_information_content(ui, pages, slug),
+        is_admin=is_staff(request),
+    )
+
+
+@router.get("/about/edit", response_class=HTMLResponse)
+@router.get("/contact/edit", response_class=HTMLResponse)
+def information_edit(
+    request: Request, _: RequireStaff, pages: Pages, ui: RendererDep
+) -> HTMLResponse:
+    """Show the staff editor for an information page."""
+    slug = request.url.path.split("/")[1]
+    title = "About Us" if slug == "about" else "Contact Us"
+    return ui.page(
+        request,
+        "information_form.html",
+        slug,
+        slug=slug,
+        title=title,
+        content=_information_content(ui, pages, slug),
+    )
+
+
+@router.post("/about/edit")
+@router.post("/contact/edit")
+def information_save(
+    request: Request,
+    form: Annotated[RichTextForm, Form()],
+    _: RequireStaff,
+    _csrf: CsrfProtected,
+    user: CurrentUserDep,
+    pages: Pages,
+) -> RedirectResponse:
+    """Sanitise and save an information page."""
+    slug = request.url.path.split("/")[1]
+    pages.save(slug, form.content, user.id if user else None)
+    return RedirectResponse(url=f"/{slug}", status_code=303)
 
 
 @router.get("/account", response_class=HTMLResponse)

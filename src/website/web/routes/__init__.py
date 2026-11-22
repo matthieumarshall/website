@@ -15,6 +15,7 @@ from website.web.routes import (
     entries,
     fixture_documents,
     fixtures,
+    health,
     links,
     news,
     pages,
@@ -33,6 +34,7 @@ from website.web.routes.admin import public_content as admin_public_content
 
 ROUTERS: tuple[APIRouter, ...] = (
     public.router,
+    health.router,
     auth.router,
     results.router,
     entries.router,

@@ -21,6 +21,11 @@ class PageService:
         page = repository.get_static_page(self._db, slug)
         return page.content if page else ""
 
+    def content_or_default(self, slug: str, default: str) -> str:
+        """Return saved content, preserving an intentionally empty page."""
+        page = repository.get_static_page(self._db, slug)
+        return page.content if page is not None else default
+
     def save(self, slug: str, raw_html: str, author_id: int | None) -> None:
         """Sanitise and store a page's HTML."""
         repository.upsert_static_page(

@@ -9,6 +9,10 @@
   ],
   [
     "GET",
+    "/about/edit"
+  ],
+  [
+    "GET",
     "/account"
   ],
   [
@@ -97,6 +101,10 @@
   ],
   [
     "GET",
+    "/contact/edit"
+  ],
+  [
+    "GET",
     "/divisions"
   ],
   [
@@ -162,6 +170,10 @@
   [
     "GET",
     "/fixtures/seasons/{season_id}/fixtures/{fixture_id}/edit"
+  ],
+  [
+    "GET",
+    "/health"
   ],
   [
     "GET",
@@ -277,6 +289,14 @@
   ],
   [
     "GET",
+    "/status"
+  ],
+  [
+    "GET",
+    "/status/summary"
+  ],
+  [
+    "GET",
     "/winners"
   ],
   [
@@ -286,6 +306,10 @@
   [
     "GET",
     "/winners/tables-panel"
+  ],
+  [
+    "POST",
+    "/about/edit"
   ],
   [
     "POST",
@@ -386,6 +410,10 @@
   [
     "POST",
     "/clubs/{club_id}/inline-toggle"
+  ],
+  [
+    "POST",
+    "/contact/edit"
   ],
   [
     "POST",

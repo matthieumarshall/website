@@ -1,0 +1,27 @@
+<section id="status-summary" hx-get="/status/summary" hx-trigger="every 30s" hx-swap="outerHTML" aria-label="Current website status">
+  <div class="card mb-3">
+    <div class="card-body">
+      <h2 class="h5">Overall status: {{ health.status | capitalize }}</h2>
+      <p class="mb-0">Database: {{ health.database | capitalize }}</p>
+    </div>
+  </div>
+  <div class="row g-3 mb-3">
+    {% for label, level in [('Storage usage', health.storage), ('Memory pressure', health.memory), ('Server load', health.server_load)] %}
+    <div class="col-md-4">
+      <div class="card h-100"><div class="card-body">
+        <h2 class="h6">{{ label }}</h2>
+        <span class="badge {% if level in ['high', 'very high'] %}text-bg-warning{% elif level == 'unknown' %}text-bg-secondary{% else %}text-bg-success{% endif %}">{{ level | capitalize }}</span>
+      </div></div>
+    </div>
+    {% endfor %}
+  </div>
+  <p class="small text-muted">Last checked: {% if health.checked_at %}<time datetime="{{ health.checked_at.isoformat() }}">{{ health.checked_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}</time>{% else %}Not yet available{% endif %}</p>
+  {% if private %}
+  <div class="card mb-3"><div class="card-body">
+    <h2 class="h5">Administrator details</h2>
+    <p>CPU usage: {% if private.cpu is not none %}{{ '%.1f' | format(private.cpu) }}%{% else %}Unknown{% endif %}; memory usage: {% if private.memory is not none %}{{ '%.1f' | format(private.memory) }}%{% else %}Unknown{% endif %}</p>
+    <p>Database size: {% if private.in_memory %}Not applicable{% elif private.database_size is not none %}{{ private.database_size }} bytes{% else %}Unknown{% endif %}; write-ahead log: {% if private.in_memory %}Not applicable{% elif private.wal_size is not none %}{{ private.wal_size }} bytes{% else %}Unknown{% endif %}</p>
+    <ul class="mb-0">{% for disk in private.disks %}<li>Storage {{ loop.index }}: {{ '%.1f' | format(disk.percent) }}% used; {{ disk.used }} bytes used, {{ disk.free }} bytes free</li>{% endfor %}</ul>
+  </div></div>
+  {% endif %}
+</section>

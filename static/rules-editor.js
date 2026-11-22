@@ -83,6 +83,12 @@ function initializeRulesEditor() {
     return;
   }
 
+  // Quill renders the heading picker as an icon-only ARIA button.
+  var headingPicker = document.querySelector(".ql-header .ql-picker-label");
+  if (headingPicker) {
+    headingPicker.setAttribute("aria-label", "Text style");
+  }
+
   function imageHandler() {
     var input = document.createElement("input");
     input.setAttribute("type", "file");

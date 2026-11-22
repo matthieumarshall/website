@@ -1,10 +1,12 @@
 """Exception handlers: domain errors to HTTP, 403 to login, rate limits."""
 
+import math
+import time
 from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exception_handlers import http_exception_handler
-from fastapi.responses import RedirectResponse, Response
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from slowapi.errors import RateLimitExceeded
 
 from website import errors
@@ -54,16 +56,33 @@ async def _domain_error_handler(request: Request, exc: Exception) -> Response:
 
 
 async def _rate_limit_exceeded_handler(request: Request, exc: Exception) -> Response:
-    """Return the login form with a rate-limit error message instead of JSON."""
+    """Return a login or API response with the time before retrying."""
     assert isinstance(exc, RateLimitExceeded)  # noqa: S101  # nosec B101
+    current_limit = getattr(request.state, "view_rate_limit", None)
+    retry_after = 60
+    if current_limit is not None:
+        limit, keys = current_limit
+        reset, _remaining = request.app.state.limiter.limiter.get_window_stats(
+            limit, *keys
+        )
+        retry_after = max(1, math.ceil(reset - time.time()))
+    headers = {"Retry-After": str(retry_after), "Cache-Control": "no-store"}
+    if request.url.path != "/login":
+        return JSONResponse(
+            {"detail": "Too many requests. Please try again later."},
+            status_code=429,
+            headers=headers,
+        )
     renderer: Renderer = request.app.state.renderer
-    return renderer.page(
+    response = renderer.page(
         request,
         "login.html",
         "login",
         status_code=429,
         error="Too many login attempts. Please wait 15 minutes before trying again.",
     )
+    response.headers.update(headers)
+    return response
 
 
 def register_exception_handlers(app: FastAPI) -> None:

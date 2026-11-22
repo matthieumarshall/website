@@ -190,8 +190,16 @@ jobs:
                deadline=$((SECONDS + 60))
                rollback_healthy=false
                while (( SECONDS < deadline )); do
-                 if curl --silent --fail --max-time 5 \
-                   http://localhost:8000/ --output /dev/null; then
+                 rollback_code=$(curl --silent --output /dev/null \
+                   --write-out "%{http_code}" --max-time 5 \
+                   http://localhost:8000/health || true)
+                 if [ "$rollback_code" = 404 ]; then
+                   rollback_code=$(curl --silent --output /dev/null \
+                     --write-out "%{http_code}" --max-time 5 \
+                     http://localhost:8000/ || true)
+                   [[ "$rollback_code" =~ ^[23][0-9][0-9]$ ]] && rollback_code=200
+                 fi
+                 if [ "$rollback_code" = 200 ]; then
                    rollback_healthy=true
                    break
                  fi
@@ -239,8 +247,8 @@ jobs:
              while (( SECONDS < deadline )); do
                response_code=$(curl --silent --output /dev/null \
                  --write-out "%{http_code}" --max-time 5 \
-                 https://oxfordshirexcleague.uk/ || true)
-               if [[ "$response_code" =~ ^[23][0-9][0-9]$ ]]; then
+                 https://oxfordshirexcleague.uk/health || true)
+               if [ "$response_code" = 200 ]; then
                  healthy=true
                  break
                fi

@@ -33,6 +33,7 @@ const publicPages = [
   '/privacy-policy',
   '/about',
   '/contact',
+  '/status',
   '/clubs',
   '/links',
   '/divisions',
@@ -73,6 +74,8 @@ test.describe('staff (admin) pages', () => {
 
   const staffPages = [
     '/account',
+    '/about/edit',
+    '/contact/edit',
     '/news/create',
     '/administration/manage',
     '/admin/clubs',
