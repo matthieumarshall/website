@@ -13,6 +13,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from website.config import Settings
 from website.db import connect, run_migrations
+from website.services.health import HealthSampler
 from website.web.handlers import register_exception_handlers
 from website.web.middleware import SecurityHeadersMiddleware
 from website.web.rate_limit import limiter
@@ -34,9 +35,13 @@ def _lifespan(
         con = connect(settings.database_path)
         run_migrations(con, settings.migrations_dir)
         app.state.db = con
+        sampler = HealthSampler(con, settings)
+        app.state.health_sampler = sampler
+        sampler.start()
         try:
             yield
         finally:
+            sampler.stop()
             con.close()
 
     return lifespan

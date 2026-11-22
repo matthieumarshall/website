@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Website status — Oxfordshire Cross Country League{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+  <h1 class="mb-0">Website status</h1>
+  <a href="/status" class="btn btn-outline-secondary">Refresh</a>
+</div>
+<p>Current website availability and server resource pressure.</p>
+{% include "_status_summary.html" %}
+{% endblock %}
+{% block extra_scripts %}
+<script src="/static/status-refresh.js"></script>
+{% endblock %}

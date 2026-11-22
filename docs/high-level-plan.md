@@ -73,7 +73,7 @@ Planned islands:
 - Member clubs — **DONE** (public directory at `/clubs` with staff-managed metadata and website links at `/admin/clubs` for admin and content creator)
 - Administration documents store — **DONE** (public categorized downloads at `/administration` in a 2-column grid; staff management at `/administration/manage` supporting section CRUD, reordering, and uploads up to 20 MB with nginx 25 MB proxy support for admin and content creator)
 - Legacy content migration scripts — **DONE** (`scripts/upload_legacy_admin_content.py` and `scripts/migrate_admin_documents.py` for legacy administration documents and course/venue maps from the old PHP site)
-- Make every page editable via CMS/admin interface (extend static page editing to all public pages: about, contact, etc.) — *planned (to be done soon)*
+- Staff-editable About and Contact pages — **DONE** (reuses the sanitised rich-text editor; remaining static pages are not yet editable)
 
 ---
 
@@ -189,7 +189,8 @@ Planned islands:
 - Production WSGI/ASGI server (Gunicorn or similar) — **DONE** (Uvicorn managed by systemd under service `oxcross` behind Nginx reverse proxy)
 - Nginx reverse proxy upload configuration — **DONE** (25 MB client max body size configured to support 20 MB administrative uploads)
 - Environment parity (dev / staging / production) — **DONE** (documented in `docs/environments.md`)
-- Rollback procedure documented — *not started*
+- Automatic deployment code rollback and health checks — **DONE** (database migrations are retained; recovery from incompatible migrations requires manual intervention)
+- Document and test a manual rollback procedure, including incompatible migrations — *not started*
 
 ### 8.3 Hosting
 - fasthosts VPS hosting — **DONE**
@@ -223,7 +224,7 @@ Email hosting and mailboxes are handled directly as a managed email service prov
 
 ### 10.2 Error Tracking & Uptime
 - Sentry (or equivalent) for unhandled exception tracking — *not started*
-- Uptime monitoring (UptimeRobot / Better Uptime) — *not started*
+- Public `/health` endpoint and `/status` page with coarse resource indicators and admin-only details — **DONE**; external uptime monitoring and alerts remain to be configured (see `docs/monitoring.md`)
 
 ### 10.3 Bot & Abuse Protection
 - Bot restriction / Cloudflare challenge — *not started*
