@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main, develop]
 
+# Only supersede earlier runs of the same pull request; keep push CI for deployment.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   # Job 1: Code Quality & Validation
   code-quality:
@@ -280,8 +285,8 @@ jobs:
           retention-days: 30
 
   # Job 4: Browser end-to-end tests run in parallel with unit tests.
-  ui-tests:
-    name: UI Tests (Playwright)
+  ui-python:
+    name: Python UI Tests
     runs-on: ubuntu-24.04
     env:
       UV_PYTHON: "3.14"
@@ -299,29 +304,14 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "18"
-
       - name: Install Python dependencies
         run: uv sync --locked --all-extras
 
-      - name: Install Node dependencies
-        run: npm ci
+      - name: Install Python Playwright Chromium
+        run: uv run playwright install --with-deps chromium
 
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps
-
-      - name: Run Playwright tests
-        run: |
-          echo "Running UI tests..."
-          uv run pytest tests/ui/ -v --tb=short
-
-      - name: Run accessibility & mobile Playwright tests
-        run: |
-          echo "Running accessibility & mobile-viewport tests..."
-          npx playwright test
+      - name: Run Python UI tests
+        run: uv run pytest tests/ui/ -v --tb=short
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4
@@ -331,13 +321,56 @@ jobs:
           path: test-results/
           retention-days: 30
 
-      - name: Upload accessibility & mobile Playwright report
+  a11y-tests:
+    name: Accessibility and Mobile Tests
+    runs-on: ubuntu-24.04
+    env:
+      UV_PYTHON: "3.14"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+      - name: Install Python dependencies
+        run: uv sync --locked --all-extras
+      - name: Install Node dependencies
+        run: npm ci
+      - name: Install Node Playwright browsers
+        run: npx playwright install --with-deps chromium webkit
+      - name: Run accessibility and mobile tests
+        run: npx playwright test
+      - name: Upload accessibility and mobile report
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: a11y-mobile-playwright-report
-          path: playwright-report/
+          path: |
+            playwright-report/
+            test-results/
           retention-days: 30
+
+  # Preserve the existing required check while covering both browser suites.
+  ui-tests:
+    name: UI Tests (Playwright)
+    needs: [ui-python, a11y-tests]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require both browser suites to pass
+        env:
+          PYTHON_RESULT: ${{ needs.ui-python.result }}
+          A11Y_RESULT: ${{ needs.a11y-tests.result }}
+        run: test "$PYTHON_RESULT" = success && test "$A11Y_RESULT" = success
 
   # Job 5: Publish Summary (Depends on all test jobs)
   publish-summary:
@@ -374,7 +407,8 @@ jobs:
           - **License Report**: `security-reports/licenses.json`
 
           ### UI Testing
-          - **Playwright Report**: `playwright-reports/index.html`
+          - **Python UI results**: `playwright-reports/`
+          - **Accessibility and mobile report**: `a11y-mobile-playwright-report/playwright-report/index.html`
 
           ## Artifact Retention
           All artifacts are retained for **30 days** and available for download from the workflow run page.

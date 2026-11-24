@@ -140,6 +140,8 @@ just test-unit     # unit tests with the coverage gate
 just test-impacted # tests affected by uncommitted changes
 just test-impacted-branch # tests affected by committed changes since origin/main
 just test-ui       # Python UI and JS accessibility/mobile tests (requires Playwright browsers)
+just test-ui-python # Python UI tests only
+just test-ui-a11y   # JS accessibility and mobile tests only
 just test-all      # unit and browser suites
 just check         # type, architecture, and module-size checks
 just lint          # all pre-commit hooks
