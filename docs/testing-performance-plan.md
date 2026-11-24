@@ -206,5 +206,24 @@ team-results view. These remaining waits are follow-up work.
 An initial local run passed 714 unit tests (4 deselected) in 206.01 seconds,
 and the Python UI run passed 110 tests (2 skipped) in 130.56 seconds. Other
 processes ran concurrently, so neither is an isolated benchmark and neither
-establishes a performance improvement. Hosted CI timings and repeated
-comparable before/after medians remain to be measured.
+establishes a performance improvement. Repeated comparable browser and hosted CI timings remain to be measured.
+
+### Repeated local unit comparison
+
+On 2026-11-24, three alternating warm runs of `python -m pytest tests/unit -q`
+used the same Python 3.14 environment, without coverage. The main checkout was
+commit `7248071`; the branch included one additional fixture-isolation test.
+Each run was a fresh pytest process. Wall times include process startup and
+fixture setup, but not dependency installation or coverage artifacts. A brief
+format/lint command ran during the second main run.
+
+| Run | Main | Branch |
+| --- | ---: | ---: |
+| 1 | 235.67 s | 154.20 s |
+| 2 | 229.20 s | 147.17 s |
+| 3 | 228.28 s | 152.45 s |
+| Median | 229.20 s | 152.45 s |
+
+All six runs passed. The branch median is 33.5% lower in this local
+comparison. This does not establish a CI or browser-suite improvement; repeated
+comparable browser and hosted measurements remain outstanding.

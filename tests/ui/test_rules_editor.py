@@ -9,7 +9,7 @@ class TestRulesEditor:
     def test_edit_page_loads(self, admin_browser: Page):
         """Edit page is accessible to admin users."""
         admin_browser.goto("http://localhost:8000/rules-and-constitution/edit")
-        admin_browser.wait_for_load_state("networkidle")
+        admin_browser.locator(".ql-editor").wait_for(state="visible")
         assert admin_browser.url.endswith("/rules-and-constitution/edit"), (
             f"Expected edit URL, got: {admin_browser.url}"
         )
@@ -30,7 +30,7 @@ class TestRulesEditor:
         admin_browser.on("pageerror", capture_page_error)
 
         admin_browser.goto("http://localhost:8000/rules-and-constitution/edit")
-        admin_browser.wait_for_load_state("networkidle")
+        admin_browser.locator(".ql-editor").wait_for(state="visible")
 
         # Check for uncaught JS exceptions first
         assert not page_errors, (
@@ -64,12 +64,12 @@ class TestRulesEditor:
 
         # Navigate to the view page first, then click edit (like the user does)
         admin_browser.goto("http://localhost:8000/rules-and-constitution")
-        admin_browser.wait_for_load_state("networkidle")
+        admin_browser.locator("a:has-text('Edit')").wait_for(state="visible")
 
         edit_link = admin_browser.locator("a:has-text('Edit')")
         assert edit_link.count() > 0, "Edit button not found on rules page"
         edit_link.click()
-        admin_browser.wait_for_load_state("networkidle")
+        admin_browser.locator(".ql-editor").wait_for(state="visible")
 
         assert admin_browser.url.endswith("/rules-and-constitution/edit"), (
             f"Expected edit URL, got: {admin_browser.url}"
@@ -91,7 +91,7 @@ class TestRulesEditor:
 
         admin_browser.on("response", on_response)
         admin_browser.goto("http://localhost:8000/rules-and-constitution/edit")
-        admin_browser.wait_for_load_state("networkidle")
+        admin_browser.locator(".ql-editor").wait_for(state="visible")
 
         assert not failed_requests, f"JS scripts failed to load: {failed_requests}"
 
@@ -108,7 +108,7 @@ class TestRulesEditor:
     def test_editor_can_type_and_save(self, admin_browser: Page):
         """Admin can type in the editor and submit the form successfully."""
         admin_browser.goto("http://localhost:8000/rules-and-constitution/edit")
-        admin_browser.wait_for_load_state("networkidle")
+        admin_browser.locator(".ql-editor").wait_for(state="visible")
 
         editor_area = admin_browser.locator(".ql-editor")
         editor_area.wait_for(state="visible", timeout=5000)
@@ -120,7 +120,7 @@ class TestRulesEditor:
 
         # Submit the form (scope to the rules form to avoid matching the navbar logout button)
         admin_browser.locator("#rules-form button[type='submit']").click()
-        admin_browser.wait_for_load_state("networkidle")
+        admin_browser.wait_for_url("**/rules-and-constitution")
 
         # Should redirect back to the view page
         assert admin_browser.url.endswith("/rules-and-constitution"), (
@@ -136,7 +136,7 @@ class TestRulesEditor:
     def test_mobile_contents_toggle_shows_generated_toc(self, admin_browser: Page):
         """Mobile users can expand the contents list on the rules page."""
         admin_browser.goto("http://localhost:8000/rules-and-constitution/edit")
-        admin_browser.wait_for_load_state("networkidle")
+        admin_browser.locator(".ql-editor").wait_for(state="visible")
 
         admin_browser.evaluate(
             """
@@ -149,10 +149,12 @@ class TestRulesEditor:
         )
 
         admin_browser.locator("#rules-form button[type='submit']").click()
-        admin_browser.wait_for_load_state("networkidle")
+        admin_browser.wait_for_url("**/rules-and-constitution")
         admin_browser.set_viewport_size({"width": 375, "height": 667})
         admin_browser.reload()
-        admin_browser.wait_for_load_state("networkidle")
+        admin_browser.locator("button[data-bs-target='#toc-collapse-mobile']").wait_for(
+            state="visible"
+        )
 
         toggle_button = admin_browser.locator(
             "button[data-bs-target='#toc-collapse-mobile']"
