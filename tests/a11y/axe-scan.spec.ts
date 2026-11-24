@@ -1,4 +1,4 @@
-import { test, expect, type Browser, type Page } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { readFileSync } from 'fs';
 import { join } from 'path';
@@ -11,19 +11,6 @@ const seedIds = JSON.parse(
   entriesSeasonId: number;
   entryBatchId: number;
 };
-
-async function login(browser: Browser, username: string, password: string) {
-  const context = await browser.newContext();
-  const page = await context.newPage();
-  await page.goto('/login');
-  await page.fill('input[name="username"]', username);
-  await page.fill('input[name="password"]', password);
-  await page.click('button[type="submit"]');
-  await page.waitForURL('/news');
-  const state = await context.storageState();
-  await context.close();
-  return state;
-}
 
 async function expectNoViolations(page: Page) {
   const results = await new AxeBuilder({ page }).analyze();
@@ -76,11 +63,9 @@ test('public team results view has no axe violations', async ({ page }) => {
 });
 
 test.describe('staff (admin) pages', () => {
-  let state: Awaited<ReturnType<typeof login>>;
-  test.beforeAll(async ({ browser }) => {
-    state = await login(browser, 'admin_user', 'AdminPassword123!@#');
-  });
-  test.use({ storageState: async ({}, use) => { await use(state); } });
+  test.use({ storageState: async ({}, use) => {
+    await use(JSON.parse(process.env.UI_ADMIN_AUTH_STATE!));
+  } });
 
   const staffPages = [
     '/account',
@@ -109,11 +94,9 @@ test.describe('staff (admin) pages', () => {
 });
 
 test.describe('club manager (entries) pages', () => {
-  let state: Awaited<ReturnType<typeof login>>;
-  test.beforeAll(async ({ browser }) => {
-    state = await login(browser, 'entries_manager', 'ManagerPassword123!@#');
-  });
-  test.use({ storageState: async ({}, use) => { await use(state); } });
+  test.use({ storageState: async ({}, use) => {
+    await use(JSON.parse(process.env.UI_MANAGER_AUTH_STATE!));
+  } });
 
   test('entries season overview has no axe violations', async ({ page }) => {
     await page.goto(`/entries/${seedIds.entriesSeasonId}`);
