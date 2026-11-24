@@ -31,12 +31,13 @@ def test_information_editor_saves_and_cancel_preserves(admin_browser, slug):
 
 def test_status_mobile_and_refresh(browser):
     browser.set_viewport_size({"width": 375, "height": 812})
+    browser.clock.install()
     browser.goto("http://localhost:8000/status")
     expect(browser.get_by_role("heading", name="Website status")).to_be_visible()
     expect(browser.get_by_text("Storage usage")).to_be_visible()
     assert browser.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
-    with browser.expect_response("**/status/summary", timeout=35000):
-        browser.wait_for_timeout(30500)
+    with browser.expect_response("**/status/summary", timeout=5000):
+        browser.clock.run_for(30500)
     blocked = browser.evaluate("""() => {
         const detail = {requestConfig: {path: '/status/summary'},
           xhr: {status: 429, getResponseHeader: () => '60'}};

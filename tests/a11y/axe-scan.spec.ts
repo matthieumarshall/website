@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Browser, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { readFileSync } from 'fs';
 import { join } from 'path';
@@ -12,12 +12,17 @@ const seedIds = JSON.parse(
   entryBatchId: number;
 };
 
-async function login(page: Page, username: string, password: string) {
+async function login(browser: Browser, username: string, password: string) {
+  const context = await browser.newContext();
+  const page = await context.newPage();
   await page.goto('/login');
   await page.fill('input[name="username"]', username);
   await page.fill('input[name="password"]', password);
   await page.click('button[type="submit"]');
-  await page.waitForLoadState('networkidle');
+  await page.waitForURL('/news');
+  const state = await context.storageState();
+  await context.close();
+  return state;
 }
 
 async function expectNoViolations(page: Page) {
@@ -52,7 +57,10 @@ const publicPages = [
 for (const path of publicPages) {
   test(`public page ${path} has no axe violations`, async ({ page }) => {
     await page.goto(path);
-    await page.waitForLoadState('networkidle');
+    await expect(page.locator('main')).toBeVisible();
+    if (path === '/standings') {
+      await expect(page.locator('#standings-table-panel [hx-trigger="load"]')).toHaveCount(0);
+    }
     await expectNoViolations(page);
   });
 }
@@ -68,9 +76,11 @@ test('public team results view has no axe violations', async ({ page }) => {
 });
 
 test.describe('staff (admin) pages', () => {
-  test.beforeEach(async ({ page }) => {
-    await login(page, 'admin_user', 'AdminPassword123!@#');
+  let state: Awaited<ReturnType<typeof login>>;
+  test.beforeAll(async ({ browser }) => {
+    state = await login(browser, 'admin_user', 'AdminPassword123!@#');
   });
+  test.use({ storageState: async ({}, use) => { await use(state); } });
 
   const staffPages = [
     '/account',
@@ -89,20 +99,25 @@ test.describe('staff (admin) pages', () => {
   for (const path of staffPages) {
     test(`staff page ${path} has no axe violations`, async ({ page }) => {
       await page.goto(path);
-      await page.waitForLoadState('networkidle');
+      await expect(page.locator('main')).toBeVisible();
+      if (['/about/edit', '/contact/edit', '/news/create'].includes(path)) {
+        await expect(page.locator('.ql-editor')).toBeVisible();
+      }
       await expectNoViolations(page);
     });
   }
 });
 
 test.describe('club manager (entries) pages', () => {
-  test.beforeEach(async ({ page }) => {
-    await login(page, 'entries_manager', 'ManagerPassword123!@#');
+  let state: Awaited<ReturnType<typeof login>>;
+  test.beforeAll(async ({ browser }) => {
+    state = await login(browser, 'entries_manager', 'ManagerPassword123!@#');
   });
+  test.use({ storageState: async ({}, use) => { await use(state); } });
 
   test('entries season overview has no axe violations', async ({ page }) => {
     await page.goto(`/entries/${seedIds.entriesSeasonId}`);
-    await page.waitForLoadState('networkidle');
+    await expect(page.locator('main')).toBeVisible();
     await expectNoViolations(page);
   });
 
@@ -110,7 +125,7 @@ test.describe('club manager (entries) pages', () => {
     await page.goto(
       `/entries/${seedIds.entriesSeasonId}/batch/${seedIds.entryBatchId}/success`,
     );
-    await page.waitForLoadState('networkidle');
+    await expect(page.locator('main')).toBeVisible();
     await expectNoViolations(page);
   });
 
@@ -118,7 +133,7 @@ test.describe('club manager (entries) pages', () => {
     await page.goto(
       `/entries/${seedIds.entriesSeasonId}/batch/${seedIds.entryBatchId}/receipt`,
     );
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: 'Entered athletes' })).toBeVisible();
     await expectNoViolations(page);
   });
 });
