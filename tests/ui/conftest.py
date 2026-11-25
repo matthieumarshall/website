@@ -6,6 +6,8 @@ import string
 import subprocess
 import sys
 import time
+from urllib.error import URLError
+from urllib.request import urlopen
 
 import duckdb
 import pytest
@@ -61,12 +63,28 @@ def server_process():
         stderr=subprocess.DEVNULL,
     )
 
-    # Wait for server to be ready
-    time.sleep(5)
+    try:
+        deadline = time.monotonic() + 30
+        while True:
+            if process.poll() is not None:
+                raise RuntimeError(
+                    f"UI server exited early with code {process.returncode}"
+                )
+            try:
+                with urlopen("http://127.0.0.1:8000/", timeout=1) as response:
+                    if response.status == 200:
+                        break
+            except (URLError, TimeoutError):
+                pass
+            if time.monotonic() >= deadline:
+                raise RuntimeError("UI server did not become ready within 30 seconds")
+            time.sleep(0.1)
+        yield process
+    finally:
+        _stop_server(process, db_path)
 
-    yield process
 
-    # Cleanup
+def _stop_server(process, db_path):
     process.terminate()
     try:
         process.wait(timeout=10)
@@ -81,117 +99,61 @@ def server_process():
         os.remove(db_path)
 
 
+@pytest.fixture(scope="session")
+def browser_process(server_process):
+    """Share Chromium while keeping every test in a fresh context."""
+    with sync_playwright() as playwright:
+        instance = playwright.chromium.launch(headless=True)
+        yield instance
+        instance.close()
+
+
 @pytest.fixture
-def browser(server_process):
-    """Provide Playwright browser context"""
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        context = browser.new_context()
-        page = context.new_page()
-
-        yield page
-
-        page.close()
+def browser(browser_process):
+    context = browser_process.new_context()
+    try:
+        yield context.new_page()
+    finally:
         context.close()
-        browser.close()
+
+
+def _auth_state(browser_process, username, password):
+    context = browser_process.new_context()
+    try:
+        page = context.new_page()
+        page.goto("http://localhost:8000/login")
+        page.fill("input[name='username']", username)
+        page.fill("input[name='password']", password)
+        page.click("button[type='submit']")
+        page.wait_for_url("http://localhost:8000/news")
+        return context.storage_state()
+    finally:
+        context.close()
 
 
 @pytest.fixture(scope="session")
-def admin_auth_state(server_process):
-    """Log in as admin once per session and return the saved cookie/storage state.
-
-    Using session scope means we perform exactly one login for the entire test
-    suite, so we never hit the login rate-limit regardless of how many tests
-    use the admin_browser fixture.
-    """
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        context = browser.new_context()
-        page = context.new_page()
-
-        page.goto("http://localhost:8000/login")
-        page.fill("input[name='username']", "admin_user")
-        page.fill("input[name='password']", "AdminPassword123!@#")
-        page.click("button[type='submit']")
-        page.wait_for_load_state("networkidle")
-
-        if page.url == "http://localhost:8000/login":
-            error_msgs = page.locator(".alert-danger").all_text_contents()
-            raise RuntimeError(
-                f"Admin login failed. Page still on login. "
-                f"Errors: {error_msgs if error_msgs else 'No errors shown'}"
-            )
-
-        # Capture authenticated cookies so every test can reuse them
-        state = context.storage_state()
-
-        page.close()
-        context.close()
-        browser.close()
-
-    return state
-
-
-@pytest.fixture
-def admin_browser(server_process, admin_auth_state):
-    """Provide a Playwright browser context pre-logged-in as admin.
-
-    Reuses the session-level auth cookies captured by admin_auth_state, so no
-    additional login requests are made — avoiding the login rate-limit.
-    """
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        # Inject saved cookies — no login request needed
-        context = browser.new_context(storage_state=admin_auth_state)
-        page = context.new_page()
-
-        yield page
-
-        page.close()
-        context.close()
-        browser.close()
+def admin_auth_state(browser_process):
+    return _auth_state(browser_process, "admin_user", "AdminPassword123!@#")
 
 
 @pytest.fixture(scope="session")
-def manager_auth_state(server_process):
-    """Log in as the seeded club manager once per session."""
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        context = browser.new_context()
-        page = context.new_page()
-
-        page.goto("http://localhost:8000/login")
-        page.fill("input[name='username']", "entries_manager")
-        page.fill("input[name='password']", "ManagerPassword123!@#")
-        page.click("button[type='submit']")
-        page.wait_for_load_state("networkidle")
-
-        if page.url == "http://localhost:8000/login":
-            error_msgs = page.locator(".alert-danger").all_text_contents()
-            raise RuntimeError(
-                f"Manager login failed. Page still on login. "
-                f"Errors: {error_msgs if error_msgs else 'No errors shown'}"
-            )
-
-        state = context.storage_state()
-
-        page.close()
-        context.close()
-        browser.close()
-
-    return state
+def manager_auth_state(browser_process):
+    return _auth_state(browser_process, "entries_manager", "ManagerPassword123!@#")
 
 
 @pytest.fixture
-def manager_browser(server_process, manager_auth_state):
-    """Provide a Playwright browser context pre-logged-in as club manager."""
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        context = browser.new_context(storage_state=manager_auth_state)
-        page = context.new_page()
-
-        yield page
-
-        page.close()
+def admin_browser(browser_process, admin_auth_state):
+    context = browser_process.new_context(storage_state=admin_auth_state)
+    try:
+        yield context.new_page()
+    finally:
         context.close()
-        browser.close()
+
+
+@pytest.fixture
+def manager_browser(browser_process, manager_auth_state):
+    context = browser_process.new_context(storage_state=manager_auth_state)
+    try:
+        yield context.new_page()
+    finally:
+        context.close()

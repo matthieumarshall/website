@@ -25,8 +25,12 @@ serve:
     uv run uvicorn website.main:app --reload --reload-dir src --reload-dir templates --reload-dir static --env-file .env
 
 # Browser end-to-end tests, including accessibility and mobile viewports.
-test-ui:
+test-ui: test-ui-python test-ui-a11y
+
+test-ui-python:
     uv run pytest tests/ui -v
+
+test-ui-a11y:
     npx playwright test
 
 # Unit tests with coverage (fails below the .coveragerc threshold).

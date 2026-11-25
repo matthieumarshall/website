@@ -1,8 +1,10 @@
 import os
 import re
 import secrets
+import shutil
 import string
 import uuid
+from pathlib import Path
 
 # Set testing mode before importing the app
 os.environ["TESTING"] = "true"
@@ -20,13 +22,28 @@ from website.passwords import hash_password
 from website.web.deps import get_db
 
 
+@pytest.fixture(scope="session")
+def migrated_db_template(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Build a closed template with the migrations from this test invocation."""
+    path = tmp_path_factory.mktemp("db-template") / "template.duckdb"
+    con = duckdb.connect(str(path))
+    try:
+        run_migrations(con)
+    finally:
+        con.close()
+    return path
+
+
 @pytest.fixture
-def test_db() -> duckdb.DuckDBPyConnection:  # type: ignore[misc]  # ty:ignore[invalid-return-type]
-    """Isolated in-memory DuckDB connection with migrations applied."""
-    con = duckdb.connect(":memory:")
-    run_migrations(con)
-    yield con
-    con.close()
+def test_db(migrated_db_template: Path, tmp_path: Path) -> duckdb.DuckDBPyConnection:  # type: ignore[misc]  # ty:ignore[invalid-return-type]
+    """Give each test its own copy, including independent sequences and data."""
+    path = tmp_path / "test.duckdb"
+    shutil.copyfile(migrated_db_template, path)
+    con = duckdb.connect(str(path))
+    try:
+        yield con
+    finally:
+        con.close()
 
 
 @pytest.fixture
@@ -41,11 +58,17 @@ def test_client(test_db: duckdb.DuckDBPyConnection) -> TestClient:  # type: igno
     app.dependency_overrides.clear()
 
 
+@pytest.fixture(scope="session")
+def fixture_password() -> tuple[str, str]:
+    password = generate_random_password()
+    return password, hash_password(password)
+
+
 @pytest.fixture
-def test_user_creds() -> dict[str, str]:
+def test_user_creds(fixture_password: tuple[str, str]) -> dict[str, str]:
     return {
         "username": generate_random_username(),
-        "password": generate_random_password(),
+        "password": fixture_password[0],
     }
 
 
@@ -62,10 +85,11 @@ def generate_random_username(length: int = 8) -> str:
 def _create_user_and_client(
     test_db: duckdb.DuckDBPyConnection,
     role: UserRole,
+    fixture_password: tuple[str, str],
 ) -> tuple[dict[str, str], TestClient]:
     username = generate_random_username()
-    password = generate_random_password()
-    repository.create_user(test_db, username, hash_password(password), role)
+    password, password_hash = fixture_password
+    repository.create_user(test_db, username, password_hash, role)
 
     def override_get_db():
         yield test_db
@@ -86,12 +110,16 @@ def _create_user_and_client(
 
 
 @pytest.fixture
-def test_user(test_db: duckdb.DuckDBPyConnection, test_user_creds: dict[str, str]):
+def test_user(
+    test_db: duckdb.DuckDBPyConnection,
+    test_user_creds: dict[str, str],
+    fixture_password: tuple[str, str],
+):
     """Create a content_creator user in the test database."""
     return repository.create_user(
         test_db,
         test_user_creds["username"],
-        hash_password(test_user_creds["password"]),
+        fixture_password[1],
         UserRole.content_creator,
     )
 
@@ -114,25 +142,35 @@ def authenticated_client(
 
 
 @pytest.fixture
-def admin_client(test_db: duckdb.DuckDBPyConnection) -> TestClient:  # type: ignore[misc]  # ty:ignore[invalid-return-type]
+def admin_client(
+    test_db: duckdb.DuckDBPyConnection, fixture_password: tuple[str, str]
+) -> TestClient:  # type: ignore[misc]  # ty:ignore[invalid-return-type]
     """TestClient authenticated as an admin user."""
-    _, client = _create_user_and_client(test_db, UserRole.admin)
+    _, client = _create_user_and_client(test_db, UserRole.admin, fixture_password)
     yield client
     app.dependency_overrides.clear()
 
 
 @pytest.fixture
-def content_creator_client(test_db: duckdb.DuckDBPyConnection) -> TestClient:  # type: ignore[misc]  # ty:ignore[invalid-return-type]
+def content_creator_client(
+    test_db: duckdb.DuckDBPyConnection, fixture_password: tuple[str, str]
+) -> TestClient:  # type: ignore[misc]  # ty:ignore[invalid-return-type]
     """TestClient authenticated as a content_creator user."""
-    _, client = _create_user_and_client(test_db, UserRole.content_creator)
+    _, client = _create_user_and_client(
+        test_db, UserRole.content_creator, fixture_password
+    )
     yield client
     app.dependency_overrides.clear()
 
 
 @pytest.fixture
-def club_manager_client(test_db: duckdb.DuckDBPyConnection) -> TestClient:  # type: ignore[misc]  # ty:ignore[invalid-return-type]
+def club_manager_client(
+    test_db: duckdb.DuckDBPyConnection, fixture_password: tuple[str, str]
+) -> TestClient:  # type: ignore[misc]  # ty:ignore[invalid-return-type]
     """TestClient authenticated as a club_manager user."""
-    _, client = _create_user_and_client(test_db, UserRole.club_manager)
+    _, client = _create_user_and_client(
+        test_db, UserRole.club_manager, fixture_password
+    )
     yield client
     app.dependency_overrides.clear()
 
