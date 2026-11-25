@@ -1,3 +1,6 @@
+{% if request.headers.get('HX-Request') %}
+{% set recalculate_oob = true %}{% include "_standings_recalculate.html" %}
+{% endif %}
 {% if not selected_season %}
 <p class="text-muted">No season selected.</p>
 {% elif not categories %}
@@ -6,13 +9,13 @@
 </p>
 {% else %}
 {% if stale %}
-<div class="alert alert-warning" role="status">Calculated standings may be out of date and need recalculation. Results and standings may differ until then.{% if is_admin %} Use the button below to recalculate.{% endif %}</div>
+<div class="alert alert-warning" role="status">Calculated standings may be out of date and need recalculation. Results and standings may differ until then.{% if is_admin %} Use the button above to recalculate.{% endif %}</div>
 {% endif %}
 {% set _has_standings = categories | selectattr("count", "gt", 0) | list %}
 {% if not _has_standings %}
 <p class="text-muted" role="status">
   No standings available for {{ selected_season.name }} yet.
-  {% if is_admin %}Use the button below to calculate them from the uploaded results.{% endif %}
+  {% if is_admin %}Use the button above to calculate them from the uploaded results.{% endif %}
 </p>
 {% endif %}
 
@@ -39,14 +42,4 @@
   {% if first_cat %}<p class="text-muted small" hx-get="/standings/table?season_id={{ selected_season.id }}&category={{ first_cat.category | urlencode }}&standings_type={{ standings_type }}" hx-trigger="load" hx-target="#standings-table-panel" hx-swap="innerHTML">Loading...</p>{% endif %}
 </div>
 
-{% if is_admin %}
-<form method="post" action="/standings/recalculate" class="mt-4">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-  <input type="hidden" name="season_id" value="{{ selected_season.id }}">
-  <p class="small text-muted">Recalculation uses race results. Imported historical standings are retained.</p>
-  <button type="submit" class="btn btn-outline-secondary btn-sm">
-    {{ "Recalculate standings" if _has_standings else "Calculate standings" }}
-  </button>
-</form>
-{% endif %}
 {% endif %}

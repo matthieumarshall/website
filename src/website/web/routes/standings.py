@@ -7,6 +7,8 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from website.export import build_standings_csv, build_standings_pdf
 from website.models.forms import SeasonScopeForm
+from website.models.standings import IndividualStanding
+from website.services.standings import StandingRow
 from website.web.csrf import CsrfProtected
 from website.web.deps import RendererDep, Standings
 from website.web.identity import is_staff
@@ -76,6 +78,23 @@ def _attachment(filename: str) -> dict[str, str]:
     return {"Content-Disposition": f'attachment; filename="{filename}"'}
 
 
+def _filter_export_rows(
+    rows: list[StandingRow], division: int | None, club: str | None, name: str | None
+) -> list[StandingRow]:
+    """Apply the same filters as the displayed standings table."""
+    return [
+        row
+        for row in rows
+        if (division is None or getattr(row, "division", None) == division)
+        and (not isinstance(row, IndividualStanding) or not club or row.club == club)
+        and (
+            not isinstance(row, IndividualStanding)
+            or not name
+            or name.lower() in row.athlete_name.lower()
+        )
+    ]
+
+
 @router.get("/export/csv")
 def standings_export_csv(
     season_id: int,
@@ -83,15 +102,13 @@ def standings_export_csv(
     service: Standings,
     standings_type: str = "individual",
     division: int | None = None,
+    club: str | None = None,
+    name: str | None = None,
 ) -> Response:
     """Download one category's standings as CSV."""
     table = service.table(season_id, category, standings_type)
     csv_text, filename = build_standings_csv(
-        [
-            row
-            for row in table.rows
-            if division is None or getattr(row, "division", None) == division
-        ],
+        _filter_export_rows(table.rows, division, club, name),
         table.fixtures,
         table.season.name,
         category,
@@ -111,15 +128,13 @@ def standings_export_pdf(
     service: Standings,
     standings_type: str = "individual",
     division: int | None = None,
+    club: str | None = None,
+    name: str | None = None,
 ) -> Response:
     """Download one category's standings as PDF."""
     table = service.table(season_id, category, standings_type)
     pdf_bytes, filename = build_standings_pdf(
-        [
-            row
-            for row in table.rows
-            if division is None or getattr(row, "division", None) == division
-        ],
+        _filter_export_rows(table.rows, division, club, name),
         table.fixtures,
         table.season.name,
         category,

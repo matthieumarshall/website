@@ -8,17 +8,25 @@
 <label for="team-division-filter" class="form-label">Division</label>
 <select id="team-division-filter" class="form-select form-select-sm w-auto" data-team-filter><option value="">All divisions</option>{% for div in (1, 2, 3) %}<option value="{{ div }}">Division {{ div }}</option>{% endfor %}</select>
 {% endif %}
+{% if standings_type == "individual" %}
+<div id="standings-filter" class="d-flex flex-wrap align-items-end gap-3 mb-2">
+  <div><label for="standings-filter-club" class="form-label mb-1 small fw-semibold">Club</label>
+    <select id="standings-filter-club" class="form-select form-select-sm" aria-label="Filter by club"><option value="">All clubs</option></select></div>
+  <div><label for="standings-filter-name" class="form-label mb-1 small fw-semibold">Name</label>
+    <input id="standings-filter-name" type="search" class="form-control form-control-sm" placeholder="Search name…" aria-label="Search by name" style="min-width: 160px;"></div>
+</div>
+{% endif %}
 {% set export_query = "season_id=" ~ season.id ~ "&category=" ~ (category | urlencode) ~ "&standings_type=" ~ (standings_type | urlencode) %}
 <div class="d-flex justify-content-end gap-2 mt-2">
   <a
     href="/standings/export/csv?{{ export_query }}"
-    class="btn btn-sm btn-outline-secondary" data-team-export
+    class="btn btn-sm btn-outline-secondary" data-team-export data-standings-export
     download
     aria-label="Export {{ category }} standings as CSV"
   >↓ CSV</a>
   <a
     href="/standings/export/pdf?{{ export_query }}"
-    class="btn btn-sm btn-outline-secondary" data-team-export
+    class="btn btn-sm btn-outline-secondary" data-team-export data-standings-export
     download
     aria-label="Export {{ category }} standings as PDF"
   >↓ PDF</a>
@@ -46,7 +54,7 @@
     <tbody>
       {% for row in rows %}
       {% set scores = row.scores_by_fixture if row.scores_by_fixture is defined else (row.fixture_scores | fromjson if row.fixture_scores else {}) %}
-      <tr data-team-division="{{ row.division if row.division is defined and row.division else '' }}">
+      <tr data-team-division="{{ row.division if row.division is defined and row.division else '' }}"{% if standings_type == "individual" %} data-standing-row data-club="{{ row.club or '' }}" data-name="{{ row.athlete_name | lower }}"{% endif %}>
         <td>{{ (row.division_position or '—') if has_divisions else row.position }}</td>
         {% if has_divisions %}<td>{{ row.division or 'Unassigned' }}</td>{% endif %}
         {% if standings_type == "team" %}
@@ -90,6 +98,7 @@
   </table>
 </div>
 {% if standings_type == "individual" %}
+<p id="standings-no-match" class="text-muted mt-2" hidden>No standings match the current filters.</p>
 <p class="text-muted small mt-1">
   Individual total = sum of the best scores from all completed rounds except one (or the Round 1 score on its own).
   Athletes with fewer counting scores are listed below those with enough scores. Lower is better.

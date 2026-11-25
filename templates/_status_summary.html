@@ -20,8 +20,8 @@
   <div class="card mb-3"><div class="card-body">
     <h2 class="h5">Administrator details</h2>
     <p>CPU usage: {% if private.cpu is not none %}{{ '%.1f' | format(private.cpu) }}%{% else %}Unknown{% endif %}; memory usage: {% if private.memory is not none %}{{ '%.1f' | format(private.memory) }}%{% else %}Unknown{% endif %}</p>
-    <p>Database size: {% if private.in_memory %}Not applicable{% elif private.database_size is not none %}{{ private.database_size }} bytes{% else %}Unknown{% endif %}; write-ahead log: {% if private.in_memory %}Not applicable{% elif private.wal_size is not none %}{{ private.wal_size }} bytes{% else %}Unknown{% endif %}</p>
-    <ul class="mb-0">{% for disk in private.disks %}<li>Storage {{ loop.index }}: {{ '%.1f' | format(disk.percent) }}% used; {{ disk.used }} bytes used, {{ disk.free }} bytes free</li>{% endfor %}</ul>
+    <p>Database size: {% if private.in_memory %}Not applicable{% elif private.database_size is not none %}{{ private.database_size | filesizeformat(true) }}{% else %}Unknown{% endif %}; write-ahead log: {% if private.in_memory %}Not applicable{% elif private.wal_size is not none %}{{ private.wal_size | filesizeformat(true) }}{% else %}Unknown{% endif %}</p>
+    <ul class="mb-0">{% for disk in private.disks %}<li>Storage {{ loop.index }}: {{ '%.1f' | format(disk.percent) }}% used; {{ disk.used | filesizeformat(true) }} used, {{ disk.free | filesizeformat(true) }} free</li>{% endfor %}</ul>
   </div></div>
   {% endif %}
 </section>

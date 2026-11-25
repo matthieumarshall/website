@@ -129,9 +129,35 @@ def test_health_public_and_admin_visibility(
             assert "Cookie" in result.headers["vary"]
             assert "Administrator details" not in result.text
             assert "123456789" not in result.text
-    assert "123456789" in admin_client.get("/status").text
+    for path in ("/status", "/status/summary"):
+        text = admin_client.get(path).text
+        assert "117.7 MiB" in text
+        assert "83.6 MiB" in text
+        assert "33.8 KiB" in text
     assert "123456789" not in admin_client.get("/health").text
-    assert health_sample.snapshot.call_count == 9
+    assert health_sample.snapshot.call_count == 10
+
+
+def test_admin_size_format_boundaries_and_missing_values(admin_client, health_sample):
+    original = health_sample.snapshot.return_value
+    health_sample.snapshot.return_value = original.model_copy(
+        update={"database_size": 0, "wal_size": 1024}
+    )
+    page = admin_client.get("/status/summary").text
+    assert "Database size: 0 Bytes" in page
+    assert "write-ahead log: 1.0 KiB" in page
+    health_sample.snapshot.return_value = original.model_copy(
+        update={"database_size": None, "wal_size": None}
+    )
+    page = admin_client.get("/status/summary").text
+    assert "Database size: Unknown" in page
+    assert "write-ahead log: Unknown" in page
+    health_sample.snapshot.return_value = original.model_copy(
+        update={"in_memory": True}
+    )
+    page = admin_client.get("/status/summary").text
+    assert "Database size: Not applicable" in page
+    assert "write-ahead log: Not applicable" in page
 
 
 def test_health_unavailable_and_pressure(test_client, health_sample):

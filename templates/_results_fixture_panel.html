@@ -1,3 +1,6 @@
+{% if request.headers.get('HX-Request') and request.url.path == '/results/fixture-panel' %}
+{% set exports_oob = true %}{% include "_results_round_exports.html" %}
+{% endif %}
 {% if selected_season %}
 <p class="mb-3" role="status" aria-live="polite">
   <strong>Round 1 results:</strong>

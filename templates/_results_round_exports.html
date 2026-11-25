@@ -1,0 +1,6 @@
+<div id="results-round-exports" class="d-flex flex-wrap justify-content-end gap-2" aria-label="Round exports"{% if exports_oob %} hx-swap-oob="true"{% endif %}>
+  {% if active_fixture %}
+  <a href="/results/round-export/power-of-ten?fixture_id={{ active_fixture.id }}" class="btn btn-sm btn-outline-secondary">Power of Ten export</a>
+  <a href="/results/round-export/entry-list?fixture_id={{ active_fixture.id }}" class="btn btn-sm btn-outline-secondary">Entry list export</a>
+  {% endif %}
+</div>
