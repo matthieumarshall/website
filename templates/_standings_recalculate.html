@@ -1,0 +1,10 @@
+<div id="standings-recalculate" class="text-sm-end"{% if recalculate_oob %} hx-swap-oob="true"{% endif %}>
+  {% if is_admin and selected_season and categories %}
+  <form method="post" action="/standings/recalculate">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="season_id" value="{{ selected_season.id }}">
+    <button type="submit" class="btn btn-outline-secondary btn-sm">{{ "Recalculate standings" if categories | selectattr("count", "gt", 0) | list else "Calculate standings" }}</button>
+    <p class="small text-muted mb-0">Recalculation uses race results. Imported historical standings are retained.</p>
+  </form>
+  {% endif %}
+</div>

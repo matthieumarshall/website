@@ -1,12 +1,110 @@
 """UI tests for the Standings page."""
 
-from playwright.sync_api import Page
+from playwright.sync_api import Page, expect
 
 BASE = "http://localhost:8000"
 
 
 class TestStandingsPage:
     """Tests for the public-facing /standings page."""
+
+    def test_individual_filters_and_exports(self, browser: Page) -> None:
+        browser.goto(f"{BASE}/standings?season_id=1")
+        browser.get_by_role(
+            "button", name="Individual standings for Senior Women"
+        ).click()
+        alice = browser.locator("[data-standing-row]").filter(has_text="Alice Smith")
+        bob = browser.locator("[data-standing-row]").filter(has_text="Bob Jones")
+        expect(alice).to_be_visible()
+        club = browser.get_by_label("Filter by club")
+        club.select_option(label="Oxford City AC")
+        expect(alice).to_be_visible()
+        expect(bob).to_be_hidden()
+        name = browser.get_by_label("Search by name")
+        name.fill("SMI")
+        expect(alice).to_be_visible()
+        link = browser.get_by_role("link", name="Export Senior Women standings as CSV")
+        assert "club=Oxford+City+AC" in (link.get_attribute("href") or "")
+        assert "name=SMI" in (link.get_attribute("href") or "")
+        name.fill("missing")
+        expect(
+            browser.get_by_text("No standings match the current filters.")
+        ).to_be_visible()
+        browser.get_by_role(
+            "button", name="Individual standings for SM", exact=True
+        ).click()
+        expect(browser.get_by_label("Search by name")).to_have_value("")
+
+    def test_staff_action_tracks_season(self, admin_browser: Page) -> None:
+        admin_browser.set_viewport_size({"width": 375, "height": 812})
+        admin_browser.goto(f"{BASE}/standings?season_id=1")
+        form = admin_browser.locator("#standings-recalculate form")
+        expect(form.locator('[name="season_id"]')).to_have_value("1")
+        box = form.bounding_box()
+        assert box and box["x"] + box["width"] <= 375
+        select = admin_browser.locator("#season-select")
+        other = select.locator('option:not([value="1"])').first.get_attribute("value")
+        assert other
+        select.select_option(other)
+        expect(form.locator('[name="season_id"]')).to_have_value(other)
+
+    def test_team_division_filter_still_updates_rows_and_exports(
+        self, browser: Page
+    ) -> None:
+        # Delay the automatic team-table request so a category click overtakes it.
+        browser.add_init_script("""(() => {
+            const open = XMLHttpRequest.prototype.open;
+            const send = XMLHttpRequest.prototype.send;
+            const abort = XMLHttpRequest.prototype.abort;
+            let delayed = false;
+            window.initialTeamRequestFinished = false;
+            window.initialTeamRequestAborted = false;
+            XMLHttpRequest.prototype.open = function (method, url, ...args) {
+                this.isInitialTeamTable = !delayed && url.includes('/standings/table?') && url.includes('standings_type=team');
+                if (this.isInitialTeamTable) delayed = true;
+                return open.call(this, method, url, ...args);
+            };
+            XMLHttpRequest.prototype.abort = function () {
+                this.wasAborted = true;
+                const result = abort.call(this);
+                // An unsent delayed XHR does not emit the events that an
+                // in-flight request normally emits on abort.
+                if (this.isInitialTeamTable) {
+                    window.initialTeamRequestAborted = true;
+                    this.dispatchEvent(new ProgressEvent('abort'));
+                    this.dispatchEvent(new ProgressEvent('loadend'));
+                }
+                return result;
+            };
+            XMLHttpRequest.prototype.send = function (...args) {
+                if (!this.isInitialTeamTable) return send.apply(this, args);
+                setTimeout(() => {
+                    if (!this.wasAborted) send.apply(this, args);
+                    window.initialTeamRequestFinished = true;
+                }, 1500);
+            };
+        })();""")
+        browser.goto(f"{BASE}/standings?season_id=1")
+        browser.get_by_role("button", name="Team Standings").click()
+        browser.get_by_role("button", name="Team standings for Senior Women").click()
+        division = browser.get_by_label("Division")
+        expect(division).to_be_visible()
+        row = browser.locator("#standings-table-panel [data-team-division]").first
+        expect(row).to_be_visible()
+        division.select_option("1")
+        link = browser.get_by_role("link", name="Export Senior Women standings as CSV")
+        assert "division=1" in (link.get_attribute("href") or "")
+        if row.get_attribute("data-team-division") != "1":
+            expect(row).to_be_hidden()
+        browser.wait_for_function("() => window.initialTeamRequestFinished === true")
+        assert browser.evaluate("() => window.initialTeamRequestAborted")
+        expect(division).to_have_value("1")
+        assert "division=1" in (link.get_attribute("href") or "")
+        if row.get_attribute("data-team-division") != "1":
+            expect(row).to_be_hidden()
+        division.select_option("")
+        expect(row).to_be_visible()
+        assert "division=" not in (link.get_attribute("href") or "")
 
     def test_standings_page_loads(self, browser: Page):
         """Standings page renders without error."""

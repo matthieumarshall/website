@@ -1,8 +1,5 @@
-{% if active_fixture %}
-<div class="d-flex flex-wrap gap-2 mb-3" aria-label="Round exports">
-  <a href="/results/round-export/power-of-ten?fixture_id={{ active_fixture.id }}" class="btn btn-sm btn-outline-secondary">Power of Ten export</a>
-  <a href="/results/round-export/entry-list?fixture_id={{ active_fixture.id }}" class="btn btn-sm btn-outline-secondary">Entry list export</a>
-</div>
+{% if request.headers.get('HX-Request') and request.url.path == '/results/race-panel' %}
+{% set exports_oob = true %}{% include "_results_round_exports.html" %}
 {% endif %}
 {% if not races %}
 <p class="text-muted">No results available for this fixture.</p>

@@ -89,6 +89,39 @@ class TestHistoricalStandingsUI:
 class TestHistoricalResultsBrowsing:
     """T063-T072: /results page and sub-panels render historical data correctly."""
 
+    def test_round_export_actions_follow_fixture_and_season(
+        self, browser: Page
+    ) -> None:
+        browser.set_viewport_size({"width": 375, "height": 812})
+        browser.goto(f"{BASE}/results?season_id=1")
+        exports = browser.locator("#results-round-exports")
+        link = exports.get_by_role("link", name="Power of Ten export")
+        expect(link).to_have_attribute("href", re.compile(r"fixture_id=1$"))
+        box = exports.bounding_box()
+        assert box and box["x"] + box["width"] <= 375
+        fixture_tabs = browser.locator("[data-fixture-tab]")
+        assert fixture_tabs.count() >= 2
+        second_match = re.search(
+            r"fixture_id=(\d+)", fixture_tabs.nth(1).get_attribute("hx-get") or ""
+        )
+        assert second_match
+        second_id = second_match.group(1)
+        fixture_tabs.nth(1).click()
+        expect(link).to_have_attribute("href", re.compile(rf"fixture_id={second_id}$"))
+        season = browser.locator("#season-select")
+        other = season.locator('option:not([value="1"])').first.get_attribute("value")
+        season.select_option(other)
+        expect(
+            browser.get_by_role("button", name="Fixture 1: UI Race 1")
+        ).to_be_visible()
+        new_tab = browser.locator("[data-fixture-tab]").first
+        new_match = re.search(
+            r"fixture_id=(\d+)", new_tab.get_attribute("hx-get") or ""
+        )
+        assert new_match
+        new_id = new_match.group(1)
+        expect(link).to_have_attribute("href", re.compile(rf"fixture_id={new_id}$"))
+
     def test_results_page_loads_with_season_dropdown(self, browser: Page) -> None:
         """T063: /results page loads without error and shows a season dropdown."""
         page_errors: list[str] = []

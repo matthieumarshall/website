@@ -186,6 +186,38 @@ def test_pdf_route(test_client: TestClient, test_db: duckdb.DuckDBPyConnection) 
     assert resp.content.startswith(b"%PDF")
 
 
+def test_individual_export_filters_apply_to_csv_and_pdf(
+    test_client: TestClient, test_db: duckdb.DuckDBPyConnection, monkeypatch
+) -> None:
+    season_id = _seed(test_db)
+    test_db.execute(
+        "INSERT INTO individual_standings "
+        "(season_id, category, position, athlete_name, club, total_score, "
+        "rounds_competed, fixture_scores, is_imported) VALUES (?, ?, ?, ?, ?, ?, ?, ?, false)",
+        [season_id, "Senior Women", 2, "Bea Jones", "Other Club", 30, 1, "{}"],
+    )
+    params = {**_params(season_id), "club": "Oxford City AC", "name": "SMI"}
+    response = test_client.get("/standings/export/csv", params=params)
+    assert "Alice Smith" in response.text
+    assert "Bea Jones" not in response.text
+    assert (
+        "Alice Smith"
+        not in test_client.get(
+            "/standings/export/csv", params={**params, "name": "missing"}
+        ).text
+    )
+
+    captured = []
+
+    def capture_pdf(rows, *args):
+        captured.extend(rows)
+        return b"%PDF", "standings.pdf"
+
+    monkeypatch.setattr("website.web.routes.standings.build_standings_pdf", capture_pdf)
+    assert test_client.get("/standings/export/pdf", params=params).status_code == 200
+    assert [row.athlete_name for row in captured] == ["Alice Smith"]
+
+
 def test_export_unknown_season_is_404(test_client: TestClient) -> None:
     for fmt in ("csv", "pdf"):
         resp = test_client.get(f"/standings/export/{fmt}", params=_params(99999))
