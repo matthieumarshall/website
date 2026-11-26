@@ -34,12 +34,12 @@
   {% for cat in shown_cats %}
   <button type="button" class="btn btn-outline-secondary{% if cat.category == first_cat.category %} active{% endif %}"
     hx-get="/standings/table?season_id={{ selected_season.id }}&category={{ cat.category | urlencode }}&standings_type={{ standings_type }}"
-    hx-target="#standings-table-panel" hx-swap="innerHTML" aria-label="{{ standings_type | title }} standings for {{ cat.category }}" aria-pressed="{{ 'true' if cat.category == first_cat.category else 'false' }}">{{ cat.category }}</button>
+    hx-target="#standings-table-panel" hx-swap="innerHTML" hx-sync="#standings-table-panel:replace" aria-label="{{ standings_type | title }} standings for {{ cat.category }}" aria-pressed="{{ 'true' if cat.category == first_cat.category else 'false' }}">{{ cat.category }}</button>
   {% endfor %}
 </div></nav>
 {% endif %}
 <div id="standings-table-panel">
-  {% if first_cat %}<p class="text-muted small" hx-get="/standings/table?season_id={{ selected_season.id }}&category={{ first_cat.category | urlencode }}&standings_type={{ standings_type }}" hx-trigger="load" hx-target="#standings-table-panel" hx-swap="innerHTML">Loading...</p>{% endif %}
+  {% if first_cat %}<p class="text-muted small" hx-get="/standings/table?season_id={{ selected_season.id }}&category={{ first_cat.category | urlencode }}&standings_type={{ standings_type }}" hx-trigger="load" hx-target="#standings-table-panel" hx-swap="innerHTML" hx-sync="#standings-table-panel:replace">Loading...</p>{% endif %}
 </div>
 
 {% endif %}
