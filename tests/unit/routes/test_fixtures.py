@@ -304,6 +304,26 @@ class TestFixturesCopy:
 
 
 class TestFixturesSeasonPanelWithData:
+    def test_season_panel_uses_refreshable_url_and_supports_direct_visits(
+        self, test_client: TestClient, test_db: duckdb.DuckDBPyConnection
+    ) -> None:
+        season = repository.create_season(test_db, "Refresh Season")
+        repository.create_fixture(
+            test_db, season.id, "Refresh Round", "2025-09-01", "Venue", "Addr", [], ""
+        )
+        url = f"/fixtures/season-panel?season_id={season.id}"
+
+        fragment = test_client.get(url, headers={"HX-Request": "true"})
+        assert fragment.headers["HX-Push-Url"] == f"/fixtures?season_id={season.id}"
+        assert 'id="season-select"' not in fragment.text
+        assert "Refresh Round" in fragment.text
+
+        page = test_client.get(url)
+        assert page.status_code == 200
+        assert 'id="season-select"' in page.text
+        assert "Refresh Round" in page.text
+        assert '<link rel="stylesheet"' in page.text
+
     def test_season_panel_with_seasons_auto_selects_first(
         self, test_client: TestClient, test_db: duckdb.DuckDBPyConnection
     ) -> None:

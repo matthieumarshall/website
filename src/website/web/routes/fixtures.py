@@ -78,13 +78,15 @@ def fixtures_season_panel(
     season_id: int | None = None,
 ) -> HTMLResponse:
     """HTMX: swap in another season's fixtures."""
+    if not ui.is_htmx(request):
+        return fixtures(request, service, results_svc, ui, season_id)
     view = service.season_view(season_id)
     races = (
         results_svc.race_panel(view.active_fixture.id).races
         if view.active_fixture
         else []
     )
-    return ui.page(
+    response = ui.page(
         request,
         "_fixtures_season_panel.html",
         _PAGE,
@@ -92,6 +94,12 @@ def fixtures_season_panel(
         view=view,
         races=races,
     )
+    response.headers["HX-Push-Url"] = (
+        f"/fixtures?season_id={view.selected_season.id}"
+        if view.selected_season
+        else "/fixtures"
+    )
+    return response
 
 
 @router.get("/fixture-detail", response_class=HTMLResponse)
