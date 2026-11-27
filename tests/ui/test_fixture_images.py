@@ -2,7 +2,7 @@
 
 import base64
 
-from playwright.sync_api import Page
+from playwright.sync_api import Page, expect
 
 # Minimal valid 1×1 white pixel PNG — used as upload payload so no real file is needed.
 _MINIMAL_PNG_B64 = (
@@ -16,6 +16,21 @@ _BASE = "http://localhost:8000"
 
 class TestFixtureImageModal:
     """Tests for the course map image thumbnail gallery and modal behaviour."""
+
+    def test_season_change_survives_refresh(self, admin_browser: Page) -> None:
+        admin_browser.goto(f"{_BASE}/fixtures")
+        selector = admin_browser.locator("#season-select")
+        option = selector.locator("option:not(:checked)").first
+        season_id = option.get_attribute("value")
+        assert season_id
+        selector.select_option(season_id)
+        expect(admin_browser).to_have_url(f"{_BASE}/fixtures?season_id={season_id}")
+        admin_browser.reload()
+        expect(admin_browser.locator("#season-select")).to_have_value(season_id)
+        expect(admin_browser.locator("h1")).to_have_text("Rounds")
+        expect(
+            admin_browser.locator('link[href="/static/leaflet.min.css"]')
+        ).to_have_count(1)
 
     def test_fixture_tab_active_state_updates_on_click(
         self, admin_browser: Page

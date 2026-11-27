@@ -6,6 +6,9 @@
 <nav aria-label="Round tabs" class="mb-3">
   <div class="btn-group flex-wrap" role="group">
     {% for fixture in fixtures %}
+    {% set round_number = fixture.round_number or loop.index %}
+    {% set default_title = 'round ' ~ round_number %}
+    {% set has_distinct_title = fixture.title and fixture.title | trim | lower != default_title %}
     <button
       type="button"
       class="btn btn-outline-secondary{% if active_fixture and active_fixture.id == fixture.id %} active{% endif %}"
@@ -13,9 +16,9 @@
       hx-get="/fixtures/fixture-detail?fixture_id={{ fixture.id }}&season_id={{ selected_season.id }}"
       hx-target="#fixture-detail"
       hx-swap="innerHTML"
-      aria-label="Round {{ fixture.round_number or loop.index }}: {{ fixture.title }}"
+      aria-label="Round {{ round_number }}{% if has_distinct_title %}: {{ fixture.title }}{% endif %}"
       aria-pressed="{{ 'true' if active_fixture and active_fixture.id == fixture.id else 'false' }}"
-    >Round {{ fixture.round_number or loop.index }}. {{ fixture.title }}</button>
+    >R{{ round_number }}{% if has_distinct_title %}. {{ fixture.title }}{% endif %}</button>
     {% endfor %}
   </div>
 </nav>
